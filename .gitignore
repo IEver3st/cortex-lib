@@ -1,0 +1,45 @@
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.agents/
+.copilot/
+.cursor/
+.claude/
+.memories/
+
+# Logs
+*.log
+logs/
+
+# Node / web build artifacts
+node_modules/
+web/node_modules/
+dist/
+web/dist/
+build/
+.out/
+.vite/
+
+# Local / runtime artifacts
+.cortex/
+.cortex-write.lock
+*.tmp
+*.temp
+*.bak
+*.local
+.env
+.env.local
+.env.*.local
+
+# FiveM / Lua runtime
+*.luac
+luac.out
+fxserver.exe

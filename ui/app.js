@@ -1046,7 +1046,7 @@ icons.inform = icons.info;
 // NOTIFICATION COMPONENT
 // ============================================================================
 
-function Notification({ id, type, title, description, duration, showDuration, persistent, onRemove }) {
+function Notification({ id, type, title, description, duration, showDuration, persistent, plain, hideIcon, onRemove }) {
     const [exiting, setExiting] = useState(false);
     const timeoutRef = useRef(null);
 
@@ -1069,11 +1069,12 @@ function Notification({ id, type, title, description, duration, showDuration, pe
     const notifyType = type || 'info';
     const icon = icons[notifyType] || icons.info;
     const showBar = showDuration !== false && duration > 0;
+    const showIcon = hideIcon !== true;
 
-    const className = `notify ${notifyType}${persistent ? ' persistent' : ''}${exiting ? ' exiting' : ''}`;
+    const className = `notify ${notifyType}${persistent ? ' persistent' : ''}${plain ? ' notify-plain' : ''}${exiting ? ' exiting' : ''}`;
 
     return React.createElement('div', { className, 'data-id': id },
-        React.createElement('div', { className: 'notify-icon' }, icon),
+        showIcon && React.createElement('div', { className: 'notify-icon' }, icon),
         React.createElement('div', { className: 'notify-content' },
             title && React.createElement('div', { className: 'notify-title' }, title),
             description && React.createElement('div', { className: 'notify-description' }, description)
@@ -1274,16 +1275,36 @@ const textUiIcons = {
     )
 };
 
-function TextUI({ open, text, position, icon, style }) {
+function isTextUiPlateStyleKey(key) {
+    const k = String(key).toLowerCase();
+    if (k === 'background' || k === 'backgroundcolor' || k === 'backgroundimage') return true;
+    if (k === 'boxshadow' || k === 'outline' || k === 'backdropfilter' || k === 'webkitbackdropfilter') return true;
+    if (k.startsWith('border')) return true;
+    return false;
+}
+
+function partitionTextUiStyle(style, backdrop) {
+    if (!style || typeof style !== 'object') return { outer: undefined };
+    if (backdrop) return { outer: style };
+    const outer = {};
+    for (const key of Object.keys(style)) {
+        if (isTextUiPlateStyleKey(key)) continue;
+        outer[key] = style[key];
+    }
+    return { outer: Object.keys(outer).length ? outer : undefined };
+}
+
+function TextUI({ open, text, position, icon, style, backdrop }) {
     if (!open) return null;
 
     const iconEl = icon ? (textUiIcons[icon] || null) : null;
-    const className = `textui ${position || 'bottom-center'}${iconEl ? ' has-icon' : ''}`;
+    const className = `textui ${position || 'bottom-center'}${iconEl ? ' has-icon' : ''}${backdrop ? ' textui-backdrop' : ''}`;
+    const { outer: outerStyle } = partitionTextUiStyle(style, Boolean(backdrop));
 
     return React.createElement('div', {
         id: 'textui',
         className,
-        style: style || undefined
+        style: outerStyle
     },
         iconEl && React.createElement('div', { className: 'textui-icon' }, iconEl),
         React.createElement('div', { className: 'textui-text' }, text)
@@ -2152,254 +2173,250 @@ function RadialMenu({ open, id, items, canGoBack, visible }) {
 }
 
 // ============================================================================
-// CENTRAL SETTINGS PANEL
+// SETTINGS PANEL
 // ============================================================================
 
-function SettingsDropdown({ value, options, onChange }) {
-    const [open, setOpen] = useState(false);
-    const ref = useRef(null);
+function SettingsField({ field, value, tabId, onChange, onAction }) {
+    if (!field || typeof field !== 'object') return null;
+    if (!field.type || !field.key) return null;
+
+    const renderControl = () => {
+        switch (field.type) {
+            case 'toggle':
+                return React.createElement('button', {
+                    className: `es-settings-toggle${value ? ' on' : ''}`,
+                    onClick: () => onChange(tabId, field.key, !value),
+                    type: 'button'
+                },
+                    React.createElement('span', { className: 'es-settings-toggle-knob' })
+                );
+
+            case 'select':
+            case 'color':
+                return React.createElement('div', { className: 'es-settings-select-wrap' },
+                    React.createElement('select', {
+                        className: 'es-settings-select',
+                        value: value || '',
+                        onChange: (e) => onChange(tabId, field.key, e.target.value)
+                    },
+                        (field.options || []).map(opt =>
+                            React.createElement('option', { key: opt.value, value: opt.value }, opt.label)
+                        )
+                    ),
+                    React.createElement('span', { className: 'es-settings-select-arrow' }, '▼')
+                );
+
+            case 'slider': {
+                const sliderVal = value !== undefined && value !== null ? value : (field.min || 0);
+                const suffix = field.suffix || '%';
+                return React.createElement('div', { className: 'es-settings-slider-wrap' },
+                    React.createElement('input', {
+                        type: 'range',
+                        className: 'es-settings-slider',
+                        min: field.min !== undefined ? field.min : 0,
+                        max: field.max !== undefined ? field.max : 100,
+                        step: field.step !== undefined ? field.step : 1,
+                        value: sliderVal,
+                        onChange: (e) => onChange(tabId, field.key, Number(e.target.value))
+                    }),
+                    React.createElement('span', { className: 'es-settings-slider-val' }, `${sliderVal}${suffix}`)
+                );
+            }
+
+            case 'buttons':
+                return React.createElement('div', { className: 'es-settings-btns' },
+                    (field.buttons || []).map(btn =>
+                        React.createElement('button', {
+                            key: btn.value,
+                            type: 'button',
+                            className: 'es-settings-action-btn',
+                            onClick: () => onAction(tabId, field.key, btn.value)
+                        }, btn.label)
+                    )
+                );
+
+            case 'text':
+            case 'input':
+                return React.createElement('input', {
+                    type: field.inputType || 'text',
+                    className: 'es-settings-input',
+                    placeholder: field.placeholder || '',
+                    maxLength: field.maxLength,
+                    spellCheck: false,
+                    autoCapitalize: 'off',
+                    autoCorrect: 'off',
+                    value: value !== undefined && value !== null ? value : '',
+                    onChange: (e) => onChange(tabId, field.key, e.target.value)
+                });
+
+            case 'soundList':
+                return React.createElement('div', { className: 'es-settings-soundlist' },
+                    (field.options || []).map((opt) =>
+                        React.createElement('div', {
+                            key: opt.value,
+                            className: `es-settings-sound-item${value === opt.value ? ' selected' : ''}`
+                        },
+                            React.createElement('button', {
+                                type: 'button',
+                                className: 'es-settings-sound-select',
+                                onClick: () => onChange(tabId, field.key, opt.value)
+                            },
+                                React.createElement('span', { className: 'es-settings-sound-radio' }),
+                                React.createElement('span', { className: 'es-settings-sound-label' }, opt.label)
+                            ),
+                            React.createElement('button', {
+                                type: 'button',
+                                className: 'es-settings-sound-preview',
+                                title: 'Preview',
+                                onClick: (e) => {
+                                    e.stopPropagation();
+                                    nuiPost('settingsPreviewSound', { name: opt.name, set: opt.set });
+                                }
+                            }, '▶')
+                        )
+                    )
+                );
+
+            default:
+                return null;
+        }
+    };
+
+    const rowClass = field.type === 'soundList' ? 'es-settings-row es-settings-row--stack' : 'es-settings-row';
+
+    return React.createElement('div', { className: rowClass },
+        React.createElement('div', { className: 'es-settings-row-info' },
+            React.createElement('div', { className: 'es-settings-row-label' }, field.label),
+            field.description
+                ? React.createElement('div', { className: 'es-settings-row-desc' }, field.description)
+                : null
+        ),
+        React.createElement('div', { className: 'es-settings-row-ctrl' }, renderControl())
+    );
+}
+
+function SettingsPanel({ open, tabs, onClose }) {
+    const [activeTab, setActiveTab] = useState(0);
+    const [values, setValues] = useState({});
+
+    useEffect(() => {
+        if (!open || !tabs) return;
+        const init = {};
+        for (const tab of tabs) {
+            if (!tab || tab.id == null) continue;
+            init[tab.id] = Object.assign({}, tab.values || {});
+        }
+        setValues(init);
+        setActiveTab(0);
+    }, [open, tabs]);
+
+    useEffect(() => {
+        if (!open || !tabs || tabs.length === 0) return;
+        if (activeTab >= tabs.length) setActiveTab(0);
+    }, [open, tabs, activeTab]);
+
+    const handleChange = useCallback((tabId, key, value) => {
+        setValues(prev => ({
+            ...prev,
+            [tabId]: Object.assign({}, prev[tabId] || {}, { [key]: value })
+        }));
+    }, []);
+
+    const handleReset = useCallback(() => {
+        if (!tabs) return;
+        const tab = tabs[activeTab];
+        if (!tab) return;
+        setValues(prev => ({
+            ...prev,
+            [tab.id]: Object.assign({}, tab.defaults || {})
+        }));
+    }, [tabs, activeTab]);
+
+    const handleSave = useCallback(() => {
+        nuiPost('settingsSave', { tabs: values });
+        onClose();
+    }, [values, onClose]);
+
+    const handleCancel = useCallback(() => {
+        nuiPost('settingsCancel', {});
+        onClose();
+    }, [onClose]);
+
+    const handleAction = useCallback((tabId, key, value) => {
+        nuiPost('settingsAction', { tabId, key, value });
+    }, []);
 
     useEffect(() => {
         if (!open) return;
-        const handleClick = (e) => {
-            if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-        };
-        document.addEventListener('mousedown', handleClick);
-        return () => document.removeEventListener('mousedown', handleClick);
-    }, [open]);
+        const onKey = (e) => { if (e.key === 'Escape') handleCancel(); };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [open, handleCancel]);
 
-    const selected = options.find(o => o.value === value);
+    if (!open || !tabs || tabs.length === 0) return null;
 
-    return React.createElement('div', { className: `es-settings-dropdown ${open ? 'open' : ''}`, ref },
-        React.createElement('div', { className: 'es-settings-dropdown-trigger', onClick: () => setOpen(!open) },
-            React.createElement('span', null, selected ? selected.label : String(value)),
-            React.createElement('span', { className: 'es-settings-dropdown-arrow' }, '\u25BC')
-        ),
-        open && React.createElement('div', { className: 'es-settings-dropdown-menu' },
-            options.map(opt => React.createElement('div', {
-                key: opt.value,
-                className: `es-settings-dropdown-option ${opt.value === value ? 'selected' : ''}`,
-                onClick: () => { onChange(opt.value); setOpen(false); }
-            }, opt.label))
-        )
-    );
-}
+    const tab = tabs[activeTab] || tabs[0];
+    const tabValues = values[tab.id] || {};
+    const fields = tab.fields || [];
 
-function SettingsField({ field, value, onChange, onAction, scriptId }) {
-    const type = field.type || 'toggle';
-
-    if (type === 'toggle') {
-        return React.createElement('div', { className: 'es-settings-row' },
-            React.createElement('div', null,
-                React.createElement('div', { className: 'es-settings-row-label' }, field.label),
-                field.description && React.createElement('div', { className: 'es-settings-row-desc' }, field.description)
-            ),
-            React.createElement('div', {
-                className: `es-settings-toggle ${value ? 'active' : ''}`,
-                onClick: () => onChange(!value)
-            }, React.createElement('div', { className: 'es-settings-toggle-knob' }))
-        );
-    }
-
-    if (type === 'select') {
-        return React.createElement('div', { className: 'es-settings-row' },
-            React.createElement('div', null,
-                React.createElement('div', { className: 'es-settings-row-label' }, field.label),
-                field.description && React.createElement('div', { className: 'es-settings-row-desc' }, field.description)
-            ),
-            React.createElement(SettingsDropdown, {
-                value: value,
-                options: field.options || [],
-                onChange: onChange
+    // Build rows with optional section headers
+    const rows = [];
+    let lastSection = null;
+    for (let fi = 0; fi < fields.length; fi++) {
+        const field = fields[fi];
+        if (!field || typeof field !== 'object') continue;
+        const rowKey = field.key != null && field.key !== '' ? String(field.key) : `field-${fi}`;
+        if (field.section && field.section !== lastSection) {
+            lastSection = field.section;
+            rows.push(
+                React.createElement('div', { key: `sec-${field.section}`, className: 'es-settings-section' }, field.section)
+            );
+        }
+        rows.push(
+            React.createElement(SettingsField, {
+                key: rowKey,
+                field,
+                value: tabValues[field.key],
+                tabId: tab.id,
+                onChange: handleChange,
+                onAction: handleAction
             })
         );
     }
 
-    if (type === 'slider') {
-        const min = field.min ?? 0;
-        const max = field.max ?? 100;
-        const suffix = field.suffix || '';
-        return React.createElement('div', { className: 'es-settings-row' },
-            React.createElement('div', null,
-                React.createElement('div', { className: 'es-settings-row-label' }, field.label),
-                field.description && React.createElement('div', { className: 'es-settings-row-desc' }, field.description)
-            ),
-            React.createElement('div', { className: 'es-settings-slider-wrap' },
-                React.createElement('input', {
-                    type: 'range',
-                    className: 'es-settings-slider',
-                    min, max,
-                    value: value ?? min,
-                    onChange: (e) => onChange(Number(e.target.value))
-                }),
-                React.createElement('span', { className: 'es-settings-slider-value' }, `${value ?? min}${suffix}`)
-            )
-        );
-    }
-
-    if (type === 'checkbox') {
-        return React.createElement('div', {
-            className: `es-settings-checkbox ${value ? 'checked' : ''}`,
-            onClick: () => onChange(!value)
-        },
-            React.createElement('div', { className: 'es-settings-checkbox-box' },
-                React.createElement('span', { className: 'es-settings-checkbox-check' }, '\u2713')
-            ),
-            React.createElement('span', { className: 'es-settings-checkbox-label' }, field.label)
-        );
-    }
-
-    if (type === 'action') {
-        return React.createElement('div', { className: 'es-settings-row' },
-            React.createElement('div', null,
-                React.createElement('div', { className: 'es-settings-row-label' }, field.label),
-                field.description && React.createElement('div', { className: 'es-settings-row-desc' }, field.description)
-            ),
-            React.createElement('div', { className: 'es-settings-actions' },
-                (field.actions || []).map((act) => React.createElement('button', {
-                    key: act.action,
-                    className: 'es-settings-btn es-settings-btn-small',
-                    onClick: () => onAction && act?.action && onAction(scriptId, act.action)
-                }, act.label || act.action))
-            )
-        );
-    }
-
-    return null;
-}
-
-function SettingsPanel({ visible, scripts, values, onSave, onClose }) {
-    const [local, setLocal] = useState({});
-    const [activeTab, setActiveTab] = useState(null);
-
-    const scriptKeys = Object.keys(scripts || {});
-
-    useEffect(() => {
-        if (visible && values) {
-            setLocal({ ...values });
-            if (scriptKeys.length > 0 && (!activeTab || !scripts[activeTab])) {
-                setActiveTab(scriptKeys[0]);
-            }
-        }
-    }, [visible, values]);
-
-    const set = useCallback((key, value) => {
-        setLocal(prev => ({ ...prev, [key]: value }));
-    }, []);
-
-    const handleSave = useCallback(() => {
-        onSave(local);
-    }, [local, onSave]);
-
-    const handleReset = useCallback(() => {
-        const defaults = {};
-        for (const scriptId of scriptKeys) {
-            const script = scripts[scriptId];
-            if (!script || !script.settings) continue;
-            for (const field of script.settings) {
-                if (field.key && field.default !== undefined) {
-                    defaults[field.key] = field.default;
-                }
-            }
-        }
-        setLocal(defaults);
-    }, [scripts, scriptKeys]);
-
-    const handleOverlayClick = useCallback((e) => {
-        if (e.target === e.currentTarget) onClose();
-    }, [onClose]);
-
-    const handleAction = useCallback(async (scriptId, action) => {
-        try {
-            await fetch(`https://${GetParentResourceName()}/eslib:settingsAction`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-                body: JSON.stringify({ scriptId, action })
-            });
-        } catch (e) {
-            uiDebugLog('settingsAction post failed', e);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (!visible) return;
-        const handleKey = (e) => {
-            if (e.key === 'Escape') onClose();
-        };
-        window.addEventListener('keydown', handleKey);
-        return () => window.removeEventListener('keydown', handleKey);
-    }, [visible, onClose]);
-
-    if (!visible) return null;
-
-    const currentScript = activeTab && scripts[activeTab] ? scripts[activeTab] : null;
-
-    return React.createElement('div', { className: 'es-settings-overlay', onClick: handleOverlayClick },
-        React.createElement('div', { className: 'es-settings-modal' },
+    return React.createElement('div', { className: 'es-settings-overlay' },
+        React.createElement('div', { className: 'es-settings-panel' },
             // Header
             React.createElement('div', { className: 'es-settings-header' },
                 React.createElement('div', { className: 'es-settings-title' },
-                    React.createElement('span', { className: 'accent' }, 'ES'),
+                    React.createElement('span', { className: 'es-settings-accent' }, 'Cortex'),
                     ' Settings'
                 ),
-                React.createElement('button', { className: 'es-settings-close', onClick: onClose }, '\u2715')
+                React.createElement('button', { type: 'button', className: 'es-settings-close', onClick: handleCancel }, '✕')
             ),
             // Tabs
-            scriptKeys.length > 1 && React.createElement('div', { className: 'es-settings-tabs' },
-                scriptKeys.map(key => React.createElement('button', {
-                    key,
-                    className: `es-settings-tab ${activeTab === key ? 'active' : ''}`,
-                    onClick: () => setActiveTab(key)
-                }, scripts[key].label || key))
+            React.createElement('div', { className: 'es-settings-tabs' },
+                tabs.map((t, i) =>
+                    React.createElement('button', {
+                        key: t && t.id != null ? String(t.id) : `tab-${i}`,
+                        type: 'button',
+                        className: `es-settings-tab${i === activeTab ? ' active' : ''}`,
+                        onClick: () => setActiveTab(i)
+                    }, t && t.label != null ? t.label : '')
+                )
             ),
-            // Body
-            React.createElement('div', { className: 'es-settings-body' },
-                currentScript ? renderScriptSettings(currentScript, local, set, activeTab, handleAction)
-                    : React.createElement('div', { className: 'es-settings-empty' },
-                        React.createElement('div', { className: 'es-settings-empty-title' }, 'No Scripts Detected'),
-                        React.createElement('div', { className: 'es-settings-empty-desc' }, 'No es_ scripts have registered settings.')
-                    )
-            ),
+            // Content
+            React.createElement('div', { className: 'es-settings-content' }, ...rows),
             // Footer
             React.createElement('div', { className: 'es-settings-footer' },
-                React.createElement('button', { className: 'es-settings-btn es-settings-btn-reset', onClick: handleReset }, 'Reset'),
-                React.createElement('button', { className: 'es-settings-btn es-settings-btn-cancel', onClick: onClose }, 'Cancel'),
-                React.createElement('button', { className: 'es-settings-btn es-settings-btn-save', onClick: handleSave }, 'Save')
+                React.createElement('button', { type: 'button', className: 'es-settings-btn reset', onClick: handleReset }, 'RESET'),
+                React.createElement('div', { className: 'es-settings-footer-right' },
+                    React.createElement('button', { type: 'button', className: 'es-settings-btn cancel', onClick: handleCancel }, 'CANCEL'),
+                    React.createElement('button', { type: 'button', className: 'es-settings-btn save', onClick: handleSave }, 'SAVE')
+                )
             )
         )
     );
-}
-
-function renderScriptSettings(script, local, set, scriptId, onAction) {
-    const sections = script.sections || [{ label: null, keys: (script.settings || []).map(f => f.key) }];
-    const settingsMap = {};
-    for (const f of (script.settings || [])) {
-        if (f.key) settingsMap[f.key] = f;
-    }
-
-    const elements = [];
-    for (let i = 0; i < sections.length; i++) {
-        const section = sections[i];
-        if (i > 0) {
-            elements.push(React.createElement('div', { key: `div-${i}`, className: 'es-settings-divider' }));
-        }
-        elements.push(React.createElement('div', { key: `sec-${i}`, className: 'es-settings-section' },
-            section.label && React.createElement('div', { className: 'es-settings-section-title' }, section.label),
-            (section.keys || []).map(key => {
-                const field = settingsMap[key];
-                if (!field) return null;
-                return React.createElement(SettingsField, {
-                    key: key,
-                    field: field,
-                    value: local[key],
-                    onChange: (val) => set(key, val),
-                    onAction,
-                    scriptId
-                });
-            })
-        ));
-    }
-    return React.createElement(React.Fragment, null, ...elements);
 }
 
 // ============================================================================
@@ -2445,7 +2462,8 @@ function App() {
         text: '',
         position: 'bottom-center',
         icon: null,
-        style: null
+        style: null,
+        backdrop: false
     });
 
     const [menu, setMenu] = useState({
@@ -2484,11 +2502,11 @@ function App() {
 
     const [uiApps, setUiApps] = useState({});
 
-    const [settingsPanel, setSettingsPanel] = useState({
-        open: false,
-        scripts: {},
-        values: {}
-    });
+    const [settingsPanel, setSettingsPanel] = useState({ open: false, tabs: [] });
+
+    const closeSettingsPanelLocal = useCallback(() => {
+        setSettingsPanel(prev => ({ ...prev, open: false }));
+    }, []);
 
     const removeNotification = useCallback((id) => {
         setNotifications(prev => prev.filter(n => n.id !== id));
@@ -2507,6 +2525,10 @@ function App() {
         const descNorm = data.description == null ? '' : String(data.description);
         const dedupeKey = `${typeNorm}\u0000${titleNorm}\u0000${descNorm}`;
         const allowDedupe = data.dedupe !== false;
+        const visualOptions = {
+            plain: Boolean(data.plain),
+            hideIcon: data.hideIcon === true || data.icon === false
+        };
 
         setNotifications(prev => {
             if (data.id) {
@@ -2519,7 +2541,8 @@ function App() {
                     description: data.description,
                     duration,
                     showDuration: data.showDuration,
-                    persistent
+                    persistent,
+                    ...visualOptions
                 };
                 const without = prev.filter(n => n.id !== id);
                 return [...without, notification];
@@ -2538,7 +2561,8 @@ function App() {
                         description: data.description,
                         duration,
                         showDuration: data.showDuration,
-                        persistent
+                        persistent,
+                        ...visualOptions
                     };
                     return next;
                 }
@@ -2553,7 +2577,8 @@ function App() {
                 description: data.description,
                 duration,
                 showDuration: data.showDuration,
-                persistent
+                persistent,
+                ...visualOptions
             };
             return [...prev, notification];
         });
@@ -2603,32 +2628,6 @@ function App() {
             });
         } catch (e) {
             uiDebugLog('contextMenuResult post failed', e);
-        }
-    }, []);
-
-    const handleSettingsSave = useCallback(async (values) => {
-        setSettingsPanel(prev => ({ ...prev, open: false }));
-        try {
-            await fetch(`https://${GetParentResourceName()}/eslib:settingsSave`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-                body: JSON.stringify(values)
-            });
-        } catch (e) {
-            uiDebugLog('settingsSave post failed', e);
-        }
-    }, []);
-
-    const handleSettingsClose = useCallback(async () => {
-        setSettingsPanel(prev => ({ ...prev, open: false }));
-        try {
-            await fetch(`https://${GetParentResourceName()}/eslib:settingsClose`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-                body: JSON.stringify({})
-            });
-        } catch (e) {
-            uiDebugLog('settingsClose post failed', e);
         }
     }, []);
 
@@ -2831,7 +2830,8 @@ function App() {
                         text: data?.text || '',
                         position: data?.position || 'bottom-center',
                         icon: data?.icon || null,
-                        style: data?.style || null
+                        style: data?.style || null,
+                        backdrop: Boolean(data?.backdrop)
                     });
                     break;
                 }
@@ -2877,14 +2877,13 @@ function App() {
                     }));
                     break;
                 case 'settingsOpen':
-                    setSettingsPanel({
-                        open: true,
-                        scripts: data?.scripts || {},
-                        values: data?.values || {}
-                    });
+                    setSettingsPanel({ open: true, tabs: Array.isArray(data?.tabs) ? data.tabs : [] });
                     break;
                 case 'settingsClose':
                     setSettingsPanel(prev => ({ ...prev, open: false }));
+                    break;
+                case 'notifySetPosition':
+                    if (data?.position) setNotifyPosition(data.position);
                     break;
             }
         };
@@ -2908,13 +2907,7 @@ function App() {
         React.createElement(RadialMenu, { ...radial }),
         React.createElement(WeatherZoneEditorApp, { appState: uiApps[WEATHER_EDITOR_APP_ID], setUiApps }),
         React.createElement(Menu, { ...menu, setMenu }),
-        React.createElement(SettingsPanel, {
-            visible: settingsPanel.open,
-            scripts: settingsPanel.scripts,
-            values: settingsPanel.values,
-            onSave: handleSettingsSave,
-            onClose: handleSettingsClose
-        })
+        React.createElement(SettingsPanel, { ...settingsPanel, onClose: closeSettingsPanelLocal })
     );
 }
 

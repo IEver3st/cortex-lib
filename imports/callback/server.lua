@@ -1,3 +1,6 @@
+local resourceName = GetCurrentResourceName()
+local isEsLib = resourceName == 'es_lib'
+
 local pendingCallbacks = {}
 local callbackTimestamps = {}
 local callbackId = 0
@@ -29,8 +32,12 @@ local function resolvePendingCallback(id, ...)
 end
 
 local function triggerCallback(name, source, cb, ...)
+    if not isEsLib then
+        return exports.es_lib:callback(name, source, cb, ...)
+    end
+
     callbackId = callbackId + 1
-    local id = callbackId
+    local id = ('%s:%s'):format(resourceName, callbackId)
     local token = createCallbackToken(id, source)
 
     if cb ~= nil then
@@ -46,8 +53,12 @@ local function triggerCallback(name, source, cb, ...)
 end
 
 local function awaitCallback(name, source, ...)
+    if not isEsLib then
+        return exports.es_lib:callbackAwait(name, source, ...)
+    end
+
     callbackId = callbackId + 1
-    local id = callbackId
+    local id = ('%s:%s'):format(resourceName, callbackId)
     local token = createCallbackToken(id, source)
     local p = promise.new()
     pendingCallbacks[id] = {
@@ -63,6 +74,10 @@ local function awaitCallback(name, source, ...)
 end
 
 local function registerCallback(name, cb)
+    if not isEsLib then
+        return exports.es_lib:registerCallback(name, cb)
+    end
+
     registeredCallbacks[name] = cb
 end
 
@@ -75,36 +90,40 @@ local callback = setmetatable({
     end
 })
 
-RegisterNetEvent('es_lib:callback', function(name, id, ...)
-    local source = source
-    local cb = registeredCallbacks[name]
-    
-    if cb then
-        local results = {cb(source, ...)}
-        TriggerClientEvent('es_lib:callbackResponse', source, id, table.unpack(results))
-    end
-end)
+if isEsLib then
+    RegisterNetEvent('es_lib:callback', function(name, id, ...)
+        local src = source
+        local cb = registeredCallbacks[name]
 
-RegisterNetEvent('es_lib:clientCallbackResponse', function(id, token, ...)
-    local src = source
-    local entry = pendingCallbacks[id]
+        if cb then
+            local results = { cb(src, ...) }
+            TriggerClientEvent('es_lib:callbackResponse', src, id, table.unpack(results))
+        else
+            TriggerClientEvent('es_lib:callbackResponse', src, id, nil)
+        end
+    end)
 
-    if entry and entry.source == src and entry.token == token then
-        resolvePendingCallback(id, ...)
-    end
-end)
+    RegisterNetEvent('es_lib:clientCallbackResponse', function(id, token, ...)
+        local src = source
+        local entry = pendingCallbacks[id]
 
-exports('callback', function(name, source, cb, ...)
-    return triggerCallback(name, source, cb, ...)
-end)
+        if entry and entry.source == src and entry.token == token then
+            resolvePendingCallback(id, ...)
+        end
+    end)
 
-exports('callbackAwait', function(name, source, ...)
-    return awaitCallback(name, source, ...)
-end)
+    exports('callback', function(name, source, cb, ...)
+        return triggerCallback(name, source, cb, ...)
+    end)
 
-exports('registerCallback', function(name, cb)
-    return registerCallback(name, cb)
-end)
+    exports('callbackAwait', function(name, source, ...)
+        return awaitCallback(name, source, ...)
+    end)
+
+    exports('registerCallback', function(name, cb)
+        return registerCallback(name, cb)
+    end)
+end
 
 CreateThread(function()
     while true do

@@ -1,3 +1,6 @@
+local resourceName = GetCurrentResourceName()
+local isEsLib = resourceName == 'es_lib'
+
 local pendingCallbacks = {}
 local callbackTimestamps = {}
 local callbackId = 0
@@ -24,8 +27,8 @@ end
 
 local function triggerCallback(name, delay, cb, ...)
     callbackId = callbackId + 1
-    local id = callbackId
-    local args = {...}
+    local id = ('%s:%s'):format(resourceName, callbackId)
+    local args = { ... }
 
     if cb ~= nil then
         pendingCallbacks[id] = cb
@@ -43,8 +46,8 @@ end
 
 local function awaitCallback(name, delay, ...)
     callbackId = callbackId + 1
-    local id = callbackId
-    local args = {...}
+    local id = ('%s:%s'):format(resourceName, callbackId)
+    local args = { ... }
     
     local p = promise.new()
     pendingCallbacks[id] = p
@@ -62,6 +65,10 @@ local function awaitCallback(name, delay, ...)
 end
 
 local function registerCallback(name, cb)
+    if not isEsLib then
+        return exports.es_lib:registerCallback(name, cb)
+    end
+
     registeredCallbacks[name] = cb
 end
 
@@ -78,26 +85,30 @@ RegisterNetEvent('es_lib:callbackResponse', function(id, ...)
     resolvePendingCallback(id, ...)
 end)
 
-RegisterNetEvent('es_lib:clientCallback', function(name, id, token, ...)
-    local cb = registeredCallbacks[name]
-    
-    if cb then
-        local results = {cb(...)}
-        TriggerServerEvent('es_lib:clientCallbackResponse', id, token, table.unpack(results))
-    end
-end)
+if isEsLib then
+    RegisterNetEvent('es_lib:clientCallback', function(name, id, token, ...)
+        local cb = registeredCallbacks[name]
 
-exports('callback', function(name, delay, cb, ...)
-    return triggerCallback(name, delay, cb, ...)
-end)
+        if cb then
+            local results = { cb(...) }
+            TriggerServerEvent('es_lib:clientCallbackResponse', id, token, table.unpack(results))
+        else
+            TriggerServerEvent('es_lib:clientCallbackResponse', id, token, nil)
+        end
+    end)
 
-exports('callbackAwait', function(name, delay, ...)
-    return awaitCallback(name, delay, ...)
-end)
+    exports('callback', function(name, delay, cb, ...)
+        return triggerCallback(name, delay, cb, ...)
+    end)
 
-exports('registerCallback', function(name, cb)
-    return registerCallback(name, cb)
-end)
+    exports('callbackAwait', function(name, delay, ...)
+        return awaitCallback(name, delay, ...)
+    end)
+
+    exports('registerCallback', function(name, cb)
+        return registerCallback(name, cb)
+    end)
+end
 
 CreateThread(function()
     while true do

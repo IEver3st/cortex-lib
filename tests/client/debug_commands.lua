@@ -608,6 +608,7 @@ local function showStyledTextUI()
     lib.showTextUI('Styled prompt', {
         position = 'top-right',
         icon = '✨',
+        backdrop = true,
         style = {
             backgroundColor = 'rgba(15, 23, 42, 0.9)',
             border = '1px solid #38bdf8',
