@@ -1,4 +1,4 @@
-local es_lib = 'es_lib'
+local libResourceName = 'cortex-lib'
 local context = IsDuplicityVersion() and 'server' or 'client'
 
 local cache = {}
@@ -49,9 +49,9 @@ end
 local function loadModule(self, moduleName)
     local dir = ('imports/%s'):format(moduleName)
     
-    local chunk = LoadResourceFile(es_lib, ('%s/%s.lua'):format(dir, context))
+    local chunk = LoadResourceFile(libResourceName, ('%s/%s.lua'):format(dir, context))
     
-    local shared = LoadResourceFile(es_lib, ('%s/shared.lua'):format(dir))
+    local shared = LoadResourceFile(libResourceName, ('%s/shared.lua'):format(dir))
     
     if shared then
         chunk = chunk and ('%s\n%s'):format(shared, chunk) or shared
@@ -61,10 +61,10 @@ local function loadModule(self, moduleName)
         return nil
     end
     
-    local fn, err = load(chunk, ('@@es_lib/imports/%s/%s.lua'):format(moduleName, context))
+    local fn, err = load(chunk, ('@@cortex-lib/imports/%s/%s.lua'):format(moduleName, context))
     
     if not fn then
-        error(('^1[es_lib] Error loading module %s: %s^0'):format(moduleName, err))
+        error(('^1[cortex-lib] Error loading module %s: %s^0'):format(moduleName, err))
     end
     
     local result = fn()
@@ -79,7 +79,7 @@ local function loadModule(self, moduleName)
 end
 
 lib = setmetatable({
-    name = es_lib,
+    name = libResourceName,
     context = context,
     cache = cache,
 }, {
@@ -100,7 +100,7 @@ function lib.load(moduleName)
 end
 
 function lib.isInternalResource()
-    return GetCurrentResourceName() == es_lib
+    return GetCurrentResourceName() == libResourceName
 end
 
 function lib.hasLoaded()
@@ -110,8 +110,8 @@ end
 exports('hasLoaded', lib.hasLoaded)
 
 AddEventHandler('onResourceStart', function(resourceName)
-    if resourceName == es_lib then
-        TriggerEvent('es_lib:loaded')
+    if resourceName == libResourceName then
+        TriggerEvent('cortex-lib:loaded')
     end
 end)
 
@@ -122,6 +122,7 @@ local coreModules = {
     'radial',
     'callback',
     'help',
+    'interaction',
     'getters',
 }
 

@@ -1,5 +1,5 @@
 local resourceName = GetCurrentResourceName()
-local isEsLib = resourceName == 'es_lib'
+local isCortexLib = resourceName == 'cortex-lib'
 
 local pendingCallbacks = {}
 local callbackTimestamps = {}
@@ -32,8 +32,8 @@ local function resolvePendingCallback(id, ...)
 end
 
 local function triggerCallback(name, source, cb, ...)
-    if not isEsLib then
-        return exports.es_lib:callback(name, source, cb, ...)
+    if not isCortexLib then
+        return exports['cortex-lib']:callback(name, source, cb, ...)
     end
 
     callbackId = callbackId + 1
@@ -49,12 +49,12 @@ local function triggerCallback(name, source, cb, ...)
         callbackTimestamps[id] = GetGameTimer()
     end
 
-    TriggerClientEvent('es_lib:clientCallback', source, name, id, token, ...)
+    TriggerClientEvent('cortex-lib:clientCallback', source, name, id, token, ...)
 end
 
 local function awaitCallback(name, source, ...)
-    if not isEsLib then
-        return exports.es_lib:callbackAwait(name, source, ...)
+    if not isCortexLib then
+        return exports['cortex-lib']:callbackAwait(name, source, ...)
     end
 
     callbackId = callbackId + 1
@@ -68,14 +68,14 @@ local function awaitCallback(name, source, ...)
     }
     callbackTimestamps[id] = GetGameTimer()
 
-    TriggerClientEvent('es_lib:clientCallback', source, name, id, token, ...)
+    TriggerClientEvent('cortex-lib:clientCallback', source, name, id, token, ...)
 
     return table.unpack(Citizen.Await(p))
 end
 
 local function registerCallback(name, cb)
-    if not isEsLib then
-        return exports.es_lib:registerCallback(name, cb)
+    if not isCortexLib then
+        return exports['cortex-lib']:registerCallback(name, cb)
     end
 
     registeredCallbacks[name] = cb
@@ -90,20 +90,20 @@ local callback = setmetatable({
     end
 })
 
-if isEsLib then
-    RegisterNetEvent('es_lib:callback', function(name, id, ...)
+if isCortexLib then
+    RegisterNetEvent('cortex-lib:callback', function(name, id, ...)
         local src = source
         local cb = registeredCallbacks[name]
 
         if cb then
             local results = { cb(src, ...) }
-            TriggerClientEvent('es_lib:callbackResponse', src, id, table.unpack(results))
+            TriggerClientEvent('cortex-lib:callbackResponse', src, id, table.unpack(results))
         else
-            TriggerClientEvent('es_lib:callbackResponse', src, id, nil)
+            TriggerClientEvent('cortex-lib:callbackResponse', src, id, nil)
         end
     end)
 
-    RegisterNetEvent('es_lib:clientCallbackResponse', function(id, token, ...)
+    RegisterNetEvent('cortex-lib:clientCallbackResponse', function(id, token, ...)
         local src = source
         local entry = pendingCallbacks[id]
 

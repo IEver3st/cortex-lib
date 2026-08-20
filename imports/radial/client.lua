@@ -45,6 +45,12 @@ local function buildNuiItems()
     return sanitized
 end
 
+local function currentAppearance()
+    if not currentRadial then return nil end
+    local menu = menus[currentRadial]
+    return menu and menu.appearance or nil
+end
+
 local function getItemByIndex(index)
     local items
     
@@ -66,6 +72,7 @@ local function refreshRadial()
         data = {
             items = buildNuiItems(),
             menuId = currentRadial,
+            appearance = currentAppearance(),
             canGoBack = #menuHistory > 0
         }
     })
@@ -141,7 +148,8 @@ local function registerRadial(data)
     
     menus[data.id] = {
         id = data.id,
-        items = data.items or {}
+        items = data.items or {},
+        appearance = data.appearance == 'compact-control' and 'compact-control' or nil
     }
 end
 
@@ -156,7 +164,7 @@ local function showRadial(menuId)
     if menuId then
         local menu = menus[menuId]
         if not menu then
-            print(('^1[es_lib]^7 showRadial: unknown menu id "%s"'):format(menuId))
+            print(('^1[cortex-lib]^7 showRadial: unknown menu id "%s"'):format(menuId))
             return false
         end
         currentRadial = menuId
@@ -178,6 +186,7 @@ local function showRadial(menuId)
         data = {
             items = buildNuiItems(),
             menuId = currentRadial,
+            appearance = currentAppearance(),
             canGoBack = false
         }
     })
@@ -220,6 +229,7 @@ local function navigateToMenu(menuId)
             data = {
                 items = buildNuiItems(),
                 menuId = currentRadial,
+                appearance = currentAppearance(),
                 canGoBack = #menuHistory > 0
             }
         })
@@ -243,6 +253,7 @@ local function radialBack()
             data = {
                 items = buildNuiItems(),
                 menuId = currentRadial,
+                appearance = currentAppearance(),
                 canGoBack = #menuHistory > 0
             }
         })

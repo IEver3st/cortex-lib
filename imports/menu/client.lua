@@ -88,19 +88,19 @@ end
 
 local function registerMenu(menu, cb)
     if type(menu) ~= 'table' then
-        error('es_lib.registerMenu: menu must be a table')
+        error('cortex-lib.registerMenu: menu must be a table')
     end
 
     if type(menu.id) ~= 'string' or menu.id == '' then
-        error('es_lib.registerMenu: menu.id must be a string')
+        error('cortex-lib.registerMenu: menu.id must be a string')
     end
 
     if type(menu.title) ~= 'string' then
-        error('es_lib.registerMenu: menu.title must be a string')
+        error('cortex-lib.registerMenu: menu.title must be a string')
     end
 
     if type(menu.options) ~= 'table' then
-        error('es_lib.registerMenu: menu.options must be a table')
+        error('cortex-lib.registerMenu: menu.options must be a table')
     end
 
     Menus[menu.id] = {
@@ -124,7 +124,7 @@ end
 local function showMenu(id)
     local menu = getMenu(id)
     if not menu then
-        print(('^1[es_lib]^7 showMenu failed: unknown id %s'):format(tostring(id)))
+        print(('^1[cortex-lib]^7 showMenu failed: unknown id %s'):format(tostring(id)))
         return false
     end
 

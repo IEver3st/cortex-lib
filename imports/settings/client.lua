@@ -5,8 +5,8 @@ local GetResourceState = GetResourceState
 local SetResourceKvp = SetResourceKvp
 
 local CURRENT_RESOURCE = GetCurrentResourceName()
-local SETTINGS_PREFIX = 'eslib:'
-local ESLIB_TAB_ID = 'eslib'
+local SETTINGS_PREFIX = 'cortex:'
+local CORTEX_TAB_ID = 'cortex'
 
 local registeredTabs = {}
 local registeredOrder = {}
@@ -15,6 +15,12 @@ local settingListeners = {}
 local discoveredResources = {}
 
 local settingsOpen = false
+local previewSnapshot = nil
+
+local function releaseSettingsFocus()
+    settingsOpen = false
+    SetNuiFocus(false, false)
+end
 
 ---@type { value: string, label: string, name: string, set: string }[]
 local NOTIFY_SOUND_CATALOG = {
@@ -72,13 +78,13 @@ local function normalizeSoundOptions(options)
     return normalized
 end
 
-local eslibDefaults = {
+local cortexDefaults = {
     notifySound = true,
     notifySoundPreset = DEFAULT_NOTIFY_SOUND_PRESET,
     notifyPosition = 'top-right'
 }
 
-local eslibFields = {
+local cortexFields = {
     {
         key = 'notifySound',
         label = 'Notification sounds',
@@ -108,7 +114,7 @@ local eslibFields = {
     },
 }
 
-local eslibSettings = {}
+local cortexSettings = {}
 
 local function shallowCopy(tbl)
     local out = {}
@@ -151,9 +157,9 @@ local function saveStoredValue(key, value)
     SetResourceKvp(SETTINGS_PREFIX .. key, tostring(value))
 end
 
-local function reloadEslibSettings()
-    for key, defaultValue in pairs(eslibDefaults) do
-        eslibSettings[key] = loadStoredValue(key, defaultValue)
+local function reloadCortexSettings()
+    for key, defaultValue in pairs(cortexDefaults) do
+        cortexSettings[key] = loadStoredValue(key, defaultValue)
     end
 end
 
@@ -188,6 +194,16 @@ local function unregisterTab(tabId)
             break
         end
     end
+end
+
+local function resourceHasRegisteredTab(resourceName)
+    for _, tab in pairs(registeredTabs) do
+        if tab and tab.resource == resourceName then
+            return true
+        end
+    end
+
+    return false
 end
 
 local function normalizeFieldType(fieldType)
@@ -380,7 +396,7 @@ local function registerTab(tab, resourceName)
 end
 
 local function emitSettingChanged(key, value, tabId)
-    TriggerEvent('es_lib:settingChanged', key, value)
+    TriggerEvent('cortex-lib:settingChanged', key, value)
 
     local listeners = settingListeners[key]
 
@@ -396,7 +412,7 @@ local function emitTabChanged(tabId, changes)
         return
     end
 
-    TriggerEvent('es_lib:settingsChanged', tabId, changes)
+    TriggerEvent('cortex-lib:settingsChanged', tabId, changes)
 
     for key, value in pairs(changes) do
         emitSettingChanged(key, value, tabId)
@@ -413,6 +429,11 @@ local function tryRegisterResourceDefinition(resourceName)
     end
 
     if discoveredResources[resourceName] then
+        return
+    end
+
+    if resourceHasRegisteredTab(resourceName) then
+        discoveredResources[resourceName] = true
         return
     end
 
@@ -438,15 +459,15 @@ end
 
 local function buildTabsPayload()
     refreshDiscoveredSettingsTabs()
-    reloadEslibSettings()
+    reloadCortexSettings()
 
     local tabs = {
         {
-            id = ESLIB_TAB_ID,
-            label = 'ES LIB',
-            fields = eslibFields,
-            values = shallowCopy(eslibSettings),
-            defaults = shallowCopy(eslibDefaults),
+            id = CORTEX_TAB_ID,
+            label = 'CORTEX',
+            fields = cortexFields,
+            values = shallowCopy(cortexSettings),
+            defaults = shallowCopy(cortexDefaults),
         }
     }
 
@@ -469,11 +490,224 @@ local function buildTabsPayload()
     return tabs
 end
 
+local function getTabState(tabId)
+    if tabId == CORTEX_TAB_ID then
+        return cortexFields, cortexDefaults, cortexSettings
+    end
+
+    local tab = registeredTabs[tabId]
+    if not tab then
+        return nil, nil, nil
+    end
+
+    return tab.fields, tab.defaults, tab.values
+end
+
+local function findTabField(fields, key)
+    for index = 1, #(fields or {}) do
+        local field = fields[index]
+        if field and field.key == key then
+            return field
+        end
+    end
+
+    return nil
+end
+
+local function normalizeNuiSettingValue(tabId, key, value)
+    if type(tabId) ~= 'string' or tabId == '' or #tabId > 64 then
+        return false, nil
+    end
+
+    if type(key) ~= 'string' or key == '' or #key > 128 then
+        return false, nil
+    end
+
+    local fields, defaults, values = getTabState(tabId)
+    if not defaults or not values then
+        return false, nil
+    end
+
+    local field = findTabField(fields, key)
+    local defaultValue = defaults[key]
+    local currentValue = values[key]
+
+    if not field and defaultValue == nil and currentValue == nil then
+        return false, nil
+    end
+
+    local fieldType = field and field.type or nil
+
+    if fieldType == 'toggle' then
+        if type(value) ~= 'boolean' then
+            return false, nil
+        end
+
+        return true, value
+    end
+
+    if fieldType == 'slider' then
+        if type(value) ~= 'number' or value ~= value or value == math.huge or value == -math.huge then
+            return false, nil
+        end
+
+        local minValue = tonumber(field.min)
+        local maxValue = tonumber(field.max)
+        if (minValue and value < minValue) or (maxValue and value > maxValue) then
+            return false, nil
+        end
+
+        return true, value
+    end
+
+    if fieldType == 'select' or fieldType == 'color' or fieldType == 'soundList' then
+        if type(value) ~= 'string' and type(value) ~= 'number' and type(value) ~= 'boolean' then
+            return false, nil
+        end
+
+        for _, option in ipairs(field.options or {}) do
+            if option.value ~= nil and tostring(option.value) == tostring(value) then
+                return true, option.value
+            end
+        end
+
+        return false, nil
+    end
+
+    if fieldType == 'text' or fieldType == 'input' then
+        if type(value) ~= 'string' or value:find('\0', 1, true) then
+            return false, nil
+        end
+
+        local maxLength = math.min(512, math.max(1, tonumber(field.maxLength) or 256))
+        if #value > maxLength then
+            return false, nil
+        end
+
+        return true, value
+    end
+
+    local expectedValue = defaultValue
+    if expectedValue == nil then
+        expectedValue = currentValue
+    end
+
+    if expectedValue == nil or type(value) ~= type(expectedValue) then
+        return false, nil
+    end
+
+    if type(value) == 'number' and (value ~= value or value == math.huge or value == -math.huge) then
+        return false, nil
+    end
+
+    if type(value) == 'string' and (#value > 512 or value:find('\0', 1, true)) then
+        return false, nil
+    end
+
+    if type(value) ~= 'boolean' and type(value) ~= 'number' and type(value) ~= 'string' then
+        return false, nil
+    end
+
+    return true, value
+end
+
+local function notifyCortexRuntimeChanges(changes)
+    if changes.notifyPosition then
+        SendNUIMessage({
+            action = 'notifySetPosition',
+            data = { position = changes.notifyPosition }
+        })
+    end
+end
+
+local function applyRuntimeTabValues(tabId, values)
+    if type(values) ~= 'table' then
+        return 0
+    end
+
+    local _, _, runtimeValues = getTabState(tabId)
+    if not runtimeValues then
+        return 0
+    end
+
+    local changes = {}
+    local applied = 0
+    local inspected = 0
+
+    for key, value in pairs(values) do
+        inspected = inspected + 1
+        if inspected > 128 then
+            break
+        end
+
+        local valid, normalized = normalizeNuiSettingValue(tabId, key, value)
+        if valid and runtimeValues[key] ~= normalized then
+            runtimeValues[key] = normalized
+            if tabId ~= CORTEX_TAB_ID then
+                settingIndex[key] = tabId
+            end
+            changes[key] = normalized
+            applied = applied + 1
+        end
+    end
+
+    if tabId == CORTEX_TAB_ID then
+        notifyCortexRuntimeChanges(changes)
+    end
+
+    emitTabChanged(tabId, changes)
+    return applied
+end
+
+local function beginPreviewSession()
+    previewSnapshot = {
+        [CORTEX_TAB_ID] = shallowCopy(cortexSettings)
+    }
+
+    for index = 1, #registeredOrder do
+        local tabId = registeredOrder[index]
+        local tab = registeredTabs[tabId]
+        if tab then
+            previewSnapshot[tabId] = shallowCopy(tab.values)
+        end
+    end
+end
+
+local function previewTabValue(tabId, key, value)
+    if not settingsOpen or not previewSnapshot then
+        return false
+    end
+
+    local valid, normalized = normalizeNuiSettingValue(tabId, key, value)
+    if not valid then
+        return false
+    end
+
+    applyRuntimeTabValues(tabId, { [key] = normalized })
+    return true
+end
+
+local function rollbackPreviewValues()
+    local snapshot = previewSnapshot
+    previewSnapshot = nil
+
+    if not snapshot then
+        return 0
+    end
+
+    local restored = 0
+    for tabId, values in pairs(snapshot) do
+        restored = restored + applyRuntimeTabValues(tabId, values)
+    end
+
+    return restored
+end
+
 local function setTrackedSetting(key, value)
-    if eslibDefaults[key] ~= nil then
+    if cortexDefaults[key] ~= nil then
         saveStoredValue(key, value)
-        eslibSettings[key] = value
-        emitSettingChanged(key, value, ESLIB_TAB_ID)
+        cortexSettings[key] = value
+        emitSettingChanged(key, value, CORTEX_TAB_ID)
 
         if key == 'notifyPosition' then
             SendNUIMessage({
@@ -503,49 +737,92 @@ local function setTrackedSetting(key, value)
 end
 
 local function applyTabValues(tabId, values)
-    local changes = {}
+    if type(values) ~= 'table' then
+        return 0
+    end
 
-    if tabId == ESLIB_TAB_ID then
+    local changes = {}
+    local applied = 0
+    local inspected = 0
+
+    if tabId == CORTEX_TAB_ID then
         for key, value in pairs(values or {}) do
-            if eslibDefaults[key] ~= nil then
-                saveStoredValue(key, value)
-                eslibSettings[key] = value
-                changes[key] = value
+            inspected = inspected + 1
+            if inspected > 128 then
+                break
+            end
+
+            local valid, normalized = normalizeNuiSettingValue(tabId, key, value)
+            if valid then
+                local changed = cortexSettings[key] ~= normalized
+                saveStoredValue(key, normalized)
+                cortexSettings[key] = normalized
+                if changed then
+                    changes[key] = normalized
+                end
+                applied = applied + 1
             end
         end
 
-        if changes.notifyPosition then
-            SendNUIMessage({
-                action = 'notifySetPosition',
-                data = { position = changes.notifyPosition }
-            })
-        end
+        notifyCortexRuntimeChanges(changes)
 
         emitTabChanged(tabId, changes)
-        return
+        return applied
     end
 
     local tab = registeredTabs[tabId]
 
     if not tab then
-        return
+        return 0
     end
 
     for key, value in pairs(values or {}) do
-        if tab.defaults[key] ~= nil or tab.values[key] ~= nil then
-            saveStoredValue(key, value)
-            tab.values[key] = value
+        inspected = inspected + 1
+        if inspected > 128 then
+            break
+        end
+
+        local valid, normalized = normalizeNuiSettingValue(tabId, key, value)
+        if valid then
+            local changed = tab.values[key] ~= normalized
+            saveStoredValue(key, normalized)
+            tab.values[key] = normalized
             settingIndex[key] = tabId
-            changes[key] = value
+            if changed then
+                changes[key] = normalized
+            end
+            applied = applied + 1
         end
     end
 
     emitTabChanged(tabId, changes)
+    return applied
+end
+
+local function commitPreviewValues(tabs)
+    local committed = 0
+    local inspected = 0
+
+    if type(tabs) == 'table' then
+        for tabId, values in pairs(tabs) do
+            inspected = inspected + 1
+            if inspected > 64 then
+                break
+            end
+
+            if type(tabId) == 'string' and type(values) == 'table' then
+                committed = committed + applyTabValues(tabId, values)
+            end
+        end
+    end
+
+    previewSnapshot = nil
+    return committed
 end
 
 function lib.getSetting(key)
-    if eslibDefaults[key] ~= nil then
-        return eslibSettings[key]
+    if cortexDefaults[key] ~= nil then
+        return cortexSettings[key]
     end
 
     refreshDiscoveredSettingsTabs()
@@ -563,7 +840,7 @@ end
 function lib.getAllSettings()
     refreshDiscoveredSettingsTabs()
 
-    local out = shallowCopy(eslibSettings)
+    local out = shallowCopy(cortexSettings)
 
     for _, tabId in ipairs(registeredOrder) do
         local tab = registeredTabs[tabId]
@@ -660,12 +937,14 @@ function lib.openSettings()
         return
     end
 
-    settingsOpen = true
-    SetNuiFocus(true, true)
+    local tabs = buildTabsPayload()
+    beginPreviewSession()
+
     SendNUIMessage({
         action = 'settingsOpen',
-        data = { tabs = buildTabsPayload() }
+        data = { tabs = tabs }
     })
+    settingsOpen = true
 end
 
 function lib.openSettingsMenu()
@@ -673,36 +952,60 @@ function lib.openSettingsMenu()
 end
 
 function lib.closeSettings()
-    if not settingsOpen then
-        return
-    end
+    local wasOpen = settingsOpen
 
-    settingsOpen = false
-    SetNuiFocus(false, false)
-    SendNUIMessage({ action = 'settingsClose' })
+    releaseSettingsFocus()
+
+    if wasOpen then
+        rollbackPreviewValues()
+        SendNUIMessage({ action = 'settingsClose' })
+    end
 end
 
 function lib.closeSettingsMenu()
     lib.closeSettings()
 end
 
-reloadEslibSettings()
+reloadCortexSettings()
 
-RegisterNUICallback('settingsSave', function(data, cb)
+RegisterNUICallback('settingsReady', function(_, cb)
     cb('ok')
 
-    for tabId, values in pairs((data and data.tabs) or {}) do
-        applyTabValues(tabId, values)
+    if settingsOpen then
+        SetNuiFocus(true, true)
     end
+end)
 
-    settingsOpen = false
-    SetNuiFocus(false, false)
+RegisterNUICallback('settingsSave', function(data, cb)
+    releaseSettingsFocus()
+    local committed = commitPreviewValues(data and data.tabs or nil)
+    cb({ ok = true, committed = committed })
 end)
 
 RegisterNUICallback('settingsCancel', function(_, cb)
-    cb('ok')
-    settingsOpen = false
-    SetNuiFocus(false, false)
+    releaseSettingsFocus()
+    local restored = rollbackPreviewValues()
+    cb({ ok = true, restored = restored })
+end)
+
+RegisterNUICallback('settingsPreview', function(data, cb)
+    local tabId = data and data.tabId or nil
+    local key = data and data.key or nil
+    local value = data and data.value
+    local applied = 0
+    local ok = false
+
+    if settingsOpen and type(data) == 'table' and type(tabId) == 'string' then
+        if type(data.values) == 'table' then
+            applied = applyRuntimeTabValues(tabId, data.values)
+            ok = true
+        else
+            ok = previewTabValue(tabId, key, value)
+            applied = ok and 1 or 0
+        end
+    end
+
+    cb({ ok = ok, applied = applied })
 end)
 
 RegisterNUICallback('settingsPreviewSound', function(data, cb)
@@ -727,7 +1030,7 @@ RegisterNUICallback('settingsAction', function(data, cb)
     local fieldKey = data and data.key or nil
     local action = data and (data.value or data.key) or nil
 
-    TriggerEvent('es_lib:settingsAction', tabId, action, fieldKey, data and data.value or nil)
+    TriggerEvent('cortex-lib:settingsAction', tabId, action, fieldKey, data and data.value or nil)
 end)
 
 AddEventHandler('onResourceStart', function(resourceName)
@@ -741,10 +1044,22 @@ AddEventHandler('onResourceStart', function(resourceName)
 end)
 
 AddEventHandler('onResourceStop', function(resourceName)
+    if resourceName == CURRENT_RESOURCE then
+        releaseSettingsFocus()
+        previewSnapshot = nil
+    end
+
     discoveredResources[resourceName] = nil
 
-    if registeredTabs[resourceName] and registeredTabs[resourceName].resource == resourceName then
-        unregisterTab(resourceName)
+    local stoppedTabs = {}
+    for tabId, tab in pairs(registeredTabs) do
+        if tab and tab.resource == resourceName then
+            stoppedTabs[#stoppedTabs + 1] = tabId
+        end
+    end
+
+    for index = 1, #stoppedTabs do
+        unregisterTab(stoppedTabs[index])
     end
 end)
 
@@ -762,7 +1077,7 @@ exports('getTabSetting', lib.getTabSetting)
 exports('onSettingChange', lib.onSettingChange)
 exports('getNotifySoundCatalog', lib.getNotifySoundCatalog)
 
-RegisterCommand('eslibsettings', function()
+RegisterCommand('cortexsettings', function()
     lib.openSettings()
 end, false)
 

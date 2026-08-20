@@ -157,11 +157,11 @@ end
 
 function lib.registerUiApp(appId, handler)
     if type(appId) ~= 'string' or appId == '' then
-        error('es_lib.registerUiApp: appId must be a non-empty string')
+        error('cortex-lib.registerUiApp: appId must be a non-empty string')
     end
 
     if type(handler) ~= 'function' then
-        error('es_lib.registerUiApp: handler must be a function')
+        error('cortex-lib.registerUiApp: handler must be a function')
     end
 
     uiAppHandlers[appId] = handler
@@ -202,7 +202,7 @@ function lib.closeUiApp(appId)
     })
 end
 
-RegisterNUICallback('eslib:uiEvent', function(data, cb)
+RegisterNUICallback('cortex:uiEvent', function(data, cb)
     local appId = data and data.appId
     local eventType = data and data.type
     local payload = data and data.payload or {}
@@ -218,7 +218,7 @@ RegisterNUICallback('eslib:uiEvent', function(data, cb)
 
     local ok, result = pcall(handler, eventType, payload)
     if not ok then
-        print(('^1[es_lib]^7 ui app handler "%s" failed: %s'):format(appId, result))
+        print(('^1[cortex-lib]^7 ui app handler "%s" failed: %s'):format(appId, result))
         cb({
             ok = false,
             error = 'handler_error'

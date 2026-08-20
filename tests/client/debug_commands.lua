@@ -1,5 +1,5 @@
 --[[
-    es_lib Test Menu
+    cortex-lib Test Menu
     Single menu interface to test all library features
 ]]
 
@@ -48,7 +48,7 @@ end
 
 local function testUpdateById()
     lib.notify({
-        id = 'eslib-update-test',
+        id = 'cortex-update-test',
         type = 'info',
         title = 'Update Test',
         description = 'Updating in 3 seconds...',
@@ -56,7 +56,7 @@ local function testUpdateById()
     })
     Wait(3000)
     lib.notify({
-        id = 'eslib-update-test',
+        id = 'cortex-update-test',
         type = 'success',
         title = 'Update Test',
         description = 'Updated successfully!',
@@ -97,7 +97,7 @@ local function testNotifyHelpers()
 end
 
 local function testHideNotifyById()
-    local id = 'eslib-hide-test'
+    local id = 'cortex-hide-test'
     lib.notify({
         id = id,
         type = 'info',
@@ -339,8 +339,8 @@ local function showTestMenu()
     }
 
     lib.registerMenu({
-        id = 'eslib_test_menu',
-        title = 'ES LIB',
+        id = 'cortex_test_menu',
+        title = 'CORTEX',
         subtitle = 'Menu Option Showcase',
         position = 'top-right',
         canClose = true,
@@ -370,12 +370,12 @@ local function showTestMenu()
         end
     end)
 
-    lib.showMenu('eslib_test_menu')
+    lib.showMenu('cortex_test_menu')
 end
 
 local function showSubMenu()
     lib.registerMenu({
-        id = 'eslib_submenu',
+        id = 'cortex_submenu',
         title = 'SUB MENU',
         subtitle = 'Nested menu test',
         position = 'top-right',
@@ -386,13 +386,13 @@ local function showSubMenu()
         }
     }, function(selected, scrollIndex, args)
         if selected == 1 then
-            lib.showMenu('eslib_main_menu')
+            lib.showMenu('cortex_main_menu')
         else
             lib.notify({ type = 'info', title = 'Sub Menu', description = 'Action ' .. selected, duration = 1500 })
         end
     end)
 
-    lib.showMenu('eslib_submenu')
+    lib.showMenu('cortex_submenu')
 end
 
 local function showLargeMenu()
@@ -406,7 +406,7 @@ local function showLargeMenu()
     end
 
     lib.registerMenu({
-        id = 'eslib_large_menu',
+        id = 'cortex_large_menu',
         title = 'LARGE MENU',
         subtitle = '20 options test',
         position = 'top-right',
@@ -415,14 +415,14 @@ local function showLargeMenu()
         lib.notify({ type = 'info', title = 'Large Menu', description = 'Selected option ' .. selected, duration = 1000 })
     end)
 
-    lib.showMenu('eslib_large_menu')
+    lib.showMenu('cortex_large_menu')
 end
 
 local function showCallbackMenu()
     local sideScrollValues = { 'One', 'Two', 'Three' }
 
     lib.registerMenu({
-        id = 'eslib_callback_menu',
+        id = 'cortex_callback_menu',
         title = 'CALLBACKS',
         subtitle = 'onClose / onSelected / onCheck / onSideScroll',
         position = 'top-right',
@@ -478,12 +478,12 @@ local function showCallbackMenu()
         })
     end)
 
-    lib.showMenu('eslib_callback_menu')
+    lib.showMenu('cortex_callback_menu')
 end
 
 local function showInputLockMenu()
     lib.registerMenu({
-        id = 'eslib_lock_menu',
+        id = 'cortex_lock_menu',
         title = 'INPUT LOCK',
         subtitle = 'disableInput + canClose=false',
         position = 'top-right',
@@ -505,12 +505,12 @@ local function showInputLockMenu()
         end
     end)
 
-    lib.showMenu('eslib_lock_menu')
+    lib.showMenu('cortex_lock_menu')
 end
 
 local function updateMenuOption()
     local progress = math.random(0, 100)
-    lib.setMenuOptions('eslib_test_menu', {
+    lib.setMenuOptions('cortex_test_menu', {
         label = 'Progress option',
         progress = progress,
         description = 'Updated progress: ' .. progress .. '%'
@@ -625,7 +625,7 @@ local function buildDebugPanelPayload(subtitle)
     local cache = lib.cache or {}
 
     return {
-        title = 'ES LIB',
+        title = 'CORTEX',
         subtitle = subtitle,
         position = 'top-right',
         accentColor = '#38bdf8',
@@ -724,7 +724,7 @@ end
 
 -- Notifications submenu
 lib.registerMenu({
-    id = 'eslib_notify_menu',
+    id = 'cortex_notify_menu',
     title = 'NOTIFICATIONS',
     subtitle = 'Test notification features',
     position = 'top-right',
@@ -763,7 +763,7 @@ end)
 
 -- Progress submenu
 lib.registerMenu({
-    id = 'eslib_progress_menu',
+    id = 'cortex_progress_menu',
     title = 'PROGRESS BARS',
     subtitle = 'Test progress bar features',
     position = 'top-right',
@@ -793,7 +793,7 @@ end)
 
 -- Progress extras submenu
 lib.registerMenu({
-    id = 'eslib_progress_extra_menu',
+    id = 'cortex_progress_extra_menu',
     title = 'PROGRESS EXTRAS',
     subtitle = 'Advanced progress features',
     position = 'top-right',
@@ -820,7 +820,7 @@ end)
 
 -- Menu test submenu
 lib.registerMenu({
-    id = 'eslib_menu_test_menu',
+    id = 'cortex_menu_test_menu',
     title = 'MENUS',
     subtitle = 'Test menu features',
     position = 'top-right',
@@ -850,7 +850,7 @@ end)
 
 -- Alert dialogs submenu
 lib.registerMenu({
-    id = 'eslib_alert_menu',
+    id = 'cortex_alert_menu',
     title = 'ALERT DIALOGS',
     subtitle = 'Test alert dialog features',
     position = 'top-right',
@@ -871,7 +871,7 @@ end)
 
 -- Text UI submenu
 lib.registerMenu({
-    id = 'eslib_textui_menu',
+    id = 'cortex_textui_menu',
     title = 'TEXT UI',
     subtitle = 'Test text UI features',
     position = 'top-right',
@@ -898,7 +898,7 @@ end)
 
 -- Debug panel submenu
 lib.registerMenu({
-    id = 'eslib_debug_panel_menu',
+    id = 'cortex_debug_panel_menu',
     title = 'DEBUG PANEL',
     subtitle = 'Test debug panel features',
     position = 'top-right',
@@ -922,7 +922,7 @@ end)
 
 -- Utilities submenu
 lib.registerMenu({
-    id = 'eslib_util_menu',
+    id = 'cortex_util_menu',
     title = 'UTILITIES',
     subtitle = 'Test helper utilities',
     position = 'top-right',
@@ -1436,7 +1436,7 @@ end
 
 -- Getters submenu
 lib.registerMenu({
-    id = 'eslib_getters_menu',
+    id = 'cortex_getters_menu',
     title = 'GETTERS',
     subtitle = 'Test get closest/nearby functions',
     position = 'top-right',
@@ -1458,7 +1458,7 @@ end)
 
 -- Raycast submenu
 lib.registerMenu({
-    id = 'eslib_raycast_menu',
+    id = 'cortex_raycast_menu',
     title = 'RAYCAST',
     subtitle = 'Test raycast functions',
     position = 'top-right',
@@ -1474,7 +1474,7 @@ end)
 
 -- Zones submenu
 lib.registerMenu({
-    id = 'eslib_zones_menu',
+    id = 'cortex_zones_menu',
     title = 'ZONES',
     subtitle = 'Test zone system',
     position = 'top-right',
@@ -1494,7 +1494,7 @@ end)
 
 -- Points submenu
 lib.registerMenu({
-    id = 'eslib_points_menu',
+    id = 'cortex_points_menu',
     title = 'POINTS',
     subtitle = 'Test points system',
     position = 'top-right',
@@ -1514,7 +1514,7 @@ end)
 
 -- Timer submenu
 lib.registerMenu({
-    id = 'eslib_timer_menu',
+    id = 'cortex_timer_menu',
     title = 'TIMER',
     subtitle = 'Test timer utility',
     position = 'top-right',
@@ -1534,7 +1534,7 @@ end)
 
 -- Disable Controls submenu
 lib.registerMenu({
-    id = 'eslib_controls_menu',
+    id = 'cortex_controls_menu',
     title = 'DISABLE CONTROLS',
     subtitle = 'Test control disabling',
     position = 'top-right',
@@ -1552,7 +1552,7 @@ end)
 
 -- WaitFor submenu
 lib.registerMenu({
-    id = 'eslib_waitfor_menu',
+    id = 'cortex_waitfor_menu',
     title = 'WAITFOR',
     subtitle = 'Test waitFor utility',
     position = 'top-right',
@@ -1570,7 +1570,7 @@ end)
 
 local function testBasicRadial()
     lib.registerRadial({
-        id = 'eslib_test_radial',
+        id = 'cortex_test_radial',
         items = {
             { id = 'item1', label = 'Vehicle', icon = '🚗', onSelect = function()
                 lib.notify({ type = 'success', title = 'Radial', description = 'Vehicle selected!', duration = 2000 })
@@ -1587,12 +1587,12 @@ local function testBasicRadial()
         }
     })
     
-    lib.showRadial('eslib_test_radial')
+    lib.showRadial('cortex_test_radial')
 end
 
 local function testRadialWithSubMenu()
     lib.registerRadial({
-        id = 'eslib_radial_submenu',
+        id = 'cortex_radial_submenu',
         items = {
             { id = 'sub1', label = 'Option A', icon = '🅰️', onSelect = function()
                 lib.notify({ type = 'info', title = 'Sub Menu', description = 'Option A selected', duration = 1500 })
@@ -1607,19 +1607,19 @@ local function testRadialWithSubMenu()
     })
     
     lib.registerRadial({
-        id = 'eslib_radial_main',
+        id = 'cortex_radial_main',
         items = {
             { id = 'main1', label = 'Action 1', icon = '⚡', onSelect = function()
                 lib.notify({ type = 'success', title = 'Radial', description = 'Action 1 executed!', duration = 2000 })
             end },
-            { id = 'main2', label = 'Sub Menu', icon = '📂', menu = 'eslib_radial_submenu' },
+            { id = 'main2', label = 'Sub Menu', icon = '📂', menu = 'cortex_radial_submenu' },
             { id = 'main3', label = 'Action 2', icon = '🔥', onSelect = function()
                 lib.notify({ type = 'success', title = 'Radial', description = 'Action 2 executed!', duration = 2000 })
             end },
         }
     })
     
-    lib.showRadial('eslib_radial_main')
+    lib.showRadial('cortex_radial_main')
 end
 
 local function testRadialManyItems()
@@ -1639,11 +1639,11 @@ local function testRadialManyItems()
     end
     
     lib.registerRadial({
-        id = 'eslib_radial_many',
+        id = 'cortex_radial_many',
         items = items
     })
     
-    lib.showRadial('eslib_radial_many')
+    lib.showRadial('cortex_radial_many')
     lib.notify({ type = 'info', title = 'Pagination', description = '12 items - use More button to navigate pages', duration = 3000 })
 end
 
@@ -1671,7 +1671,7 @@ local function testGlobalRadialItems()
         id = 'global3',
         label = 'Sub Menu',
         icon = '📂',
-        menu = 'eslib_test_radial'
+        menu = 'cortex_test_radial'
     })
     
     lib.notify({ type = 'info', title = 'Global Items', description = 'Added 3 items to global radial menu', duration = 2500 })
@@ -1717,7 +1717,7 @@ end
 
 -- Radial Menu submenu
 lib.registerMenu({
-    id = 'eslib_radial_menu',
+    id = 'cortex_radial_menu',
     title = 'RADIAL MENU',
     subtitle = 'Test radial menu system',
     position = 'top-right',
@@ -1751,8 +1751,8 @@ end)
 
 -- Re-register main menu with new options
 lib.registerMenu({
-    id = 'eslib_main_menu',
-    title = 'ES LIB',
+    id = 'cortex_main_menu',
+    title = 'CORTEX',
     subtitle = 'Feature Test Menu',
     position = 'top-right',
     canClose = true,
@@ -1777,22 +1777,22 @@ lib.registerMenu({
         { label = 'Clear All', description = 'Clear everything', icon = '🗑️' },
     }
 }, function(selected, scrollIndex, args)
-    if selected == 1 then lib.showMenu('eslib_notify_menu')
-    elseif selected == 2 then lib.showMenu('eslib_progress_menu')
-    elseif selected == 3 then lib.showMenu('eslib_progress_extra_menu')
-    elseif selected == 4 then lib.showMenu('eslib_menu_test_menu')
-    elseif selected == 5 then lib.showMenu('eslib_radial_menu')
-    elseif selected == 6 then lib.showMenu('eslib_alert_menu')
-    elseif selected == 7 then lib.showMenu('eslib_textui_menu')
-    elseif selected == 8 then lib.showMenu('eslib_debug_panel_menu')
-    elseif selected == 9 then lib.showMenu('eslib_util_menu')
-    elseif selected == 10 then lib.showMenu('eslib_getters_menu')
-    elseif selected == 11 then lib.showMenu('eslib_raycast_menu')
-    elseif selected == 12 then lib.showMenu('eslib_zones_menu')
-    elseif selected == 13 then lib.showMenu('eslib_points_menu')
-    elseif selected == 14 then lib.showMenu('eslib_timer_menu')
-    elseif selected == 15 then lib.showMenu('eslib_controls_menu')
-    elseif selected == 16 then lib.showMenu('eslib_waitfor_menu')
+    if selected == 1 then lib.showMenu('cortex_notify_menu')
+    elseif selected == 2 then lib.showMenu('cortex_progress_menu')
+    elseif selected == 3 then lib.showMenu('cortex_progress_extra_menu')
+    elseif selected == 4 then lib.showMenu('cortex_menu_test_menu')
+    elseif selected == 5 then lib.showMenu('cortex_radial_menu')
+    elseif selected == 6 then lib.showMenu('cortex_alert_menu')
+    elseif selected == 7 then lib.showMenu('cortex_textui_menu')
+    elseif selected == 8 then lib.showMenu('cortex_debug_panel_menu')
+    elseif selected == 9 then lib.showMenu('cortex_util_menu')
+    elseif selected == 10 then lib.showMenu('cortex_getters_menu')
+    elseif selected == 11 then lib.showMenu('cortex_raycast_menu')
+    elseif selected == 12 then lib.showMenu('cortex_zones_menu')
+    elseif selected == 13 then lib.showMenu('cortex_points_menu')
+    elseif selected == 14 then lib.showMenu('cortex_timer_menu')
+    elseif selected == 15 then lib.showMenu('cortex_controls_menu')
+    elseif selected == 16 then lib.showMenu('cortex_waitfor_menu')
     elseif selected == 17 then clearAll()
     end
 end)
@@ -1801,8 +1801,8 @@ end)
 -- COMMANDS
 -- ============================================================================
 
-RegisterCommand('eslib', function()
-    lib.showMenu('eslib_main_menu')
+RegisterCommand('cortex', function()
+    lib.showMenu('cortex_main_menu')
 end, false)
 
-print('^2[es_lib]^7 Test menu loaded. Use /eslib to open the test menu')
+print('^2[cortex-lib]^7 Test menu loaded. Use /cortex to open the test menu')

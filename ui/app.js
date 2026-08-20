@@ -74,7 +74,7 @@ function WeatherZoneEditorApp({ appState, setUiApps }) {
             [WEATHER_EDITOR_APP_ID]: { ...(prev[WEATHER_EDITOR_APP_ID] || {}), open: false }
         }));
 
-        fetch(`https://${GetParentResourceName()}/eslib:uiEvent`, {
+        fetch(`https://${GetParentResourceName()}/cortex:uiEvent`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json; charset=UTF-8' },
             body: JSON.stringify({ appId: WEATHER_EDITOR_APP_ID, type: 'close' })
@@ -83,7 +83,7 @@ function WeatherZoneEditorApp({ appState, setUiApps }) {
 
     const sendEvent = useCallback(async (type, eventPayload) => {
         try {
-            const res = await fetch(`https://${GetParentResourceName()}/eslib:uiEvent`, {
+            const res = await fetch(`https://${GetParentResourceName()}/cortex:uiEvent`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json; charset=UTF-8' },
                 body: JSON.stringify({ appId: WEATHER_EDITOR_APP_ID, type, payload: eventPayload || {} })
@@ -954,8 +954,14 @@ function getUiScale() {
     return clamp(normalized, 1, 2);
 }
 
+function getSettingsUiScale() {
+    const h = window.innerHeight || 1080;
+    return clamp(h / 1080, 0.86, 1);
+}
+
 function applyUiScale(value) {
     document.documentElement.style.setProperty('--es-ui-scale', value);
+    document.documentElement.style.setProperty('--es-settings-scale', getSettingsUiScale());
 }
 
 applyUiScale(getUiScale());
@@ -971,7 +977,7 @@ const uiDebugEnabled = debugParams.get('debug') === '1' || debugParams.get('debu
 function uiDebugLog(...args) {
     if (!uiDebugEnabled) return;
     // eslint-disable-next-line no-console
-    console.log('[es_lib/ui]', ...args);
+    console.log('[cortex-lib/ui]', ...args);
 }
 
 function safeJson(value) {
@@ -983,8 +989,8 @@ function safeJson(value) {
 }
 
 if (uiDebugEnabled) {
-    window.__eslib = window.__eslib || {};
-    window.__eslib.debug = {
+    window.__cortex = window.__cortex || {};
+    window.__cortex.debug = {
         enabled: true,
         push(action, data) {
             window.postMessage({ action, data }, '*');
@@ -1015,7 +1021,7 @@ if (uiDebugEnabled) {
         }
     };
 
-    uiDebugLog('Debug enabled. Try in console:', 'window.__eslib.debug.menu()', 'window.__eslib.debug.notify({ description: "Hello" })');
+    uiDebugLog('Debug enabled. Try in console:', 'window.__cortex.debug.menu()', 'window.__cortex.debug.notify({ description: "Hello" })');
 }
 
 // ============================================================================
@@ -1933,11 +1939,34 @@ function describeSector(cx, cy, outerRadius, innerRadius, startAngle, endAngle, 
     ].join(' ');
 }
 
-function RadialMenu({ open, id, items, canGoBack, visible }) {
+function getRadialPointer(clientX, clientY, element, itemCount, visibleItemCount) {
+    if (!element || visibleItemCount === 0) return { type: 'outside', index: -1 };
+
+    const rect = element.getBoundingClientRect();
+    const svgScale = rect.width / RADIAL_SIZE;
+    if (!Number.isFinite(svgScale) || svgScale <= 0) return { type: 'outside', index: -1 };
+
+    const dx = clientX - (rect.left + rect.width / 2);
+    const dy = clientY - (rect.top + rect.height / 2);
+    const distance = Math.sqrt(dx * dx + dy * dy) / svgScale;
+
+    if (distance < RADIAL_INNER_RADIUS) return { type: 'center', index: -1 };
+    if (distance > RADIAL_OUTER_RADIUS) return { type: 'outside', index: -1 };
+
+    let angle = Math.atan2(dx, -dy) * (180 / Math.PI);
+    if (angle < 0) angle += 360;
+
+    const angleStep = 360 / itemCount;
+    const index = Math.floor(angle / angleStep) % itemCount;
+    if (index >= visibleItemCount) return { type: 'outside', index: -1 };
+    return { type: 'item', index };
+}
+
+function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
     const [hoverIndex, setHoverIndex] = useState(-1);
     const [page, setPage] = useState(1);
     const [isVisible, setIsVisible] = useState(false);
-    const containerRef = useRef(null);
+    const radialSvgRef = useRef(null);
 
     // Reset page when items change or menu opens
     useEffect(() => {
@@ -1975,52 +2004,42 @@ function RadialMenu({ open, id, items, canGoBack, visible }) {
     const itemCount = Math.max(displayItems.length, 3); // Minimum 3 sectors for visual balance
     const angleStep = 360 / itemCount;
 
-    // Handle mouse movement
-    const handleMouseMove = useCallback((e) => {
-        if (!containerRef.current || displayItems.length === 0) return;
+    const activateItem = useCallback((index) => {
+        const item = displayItems[index];
+        if (!item) return;
 
-        const rect = containerRef.current.getBoundingClientRect();
-        const svgScale = rect.width / RADIAL_SIZE;
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-
-        const dx = e.clientX - centerX;
-        const dy = e.clientY - centerY;
-        const distance = Math.sqrt(dx * dx + dy * dy) / svgScale;
-
-        // Center deadzone
-        if (distance < RADIAL_INNER_RADIUS) {
-            setHoverIndex(-1);
+        if (item.id === '__more__') {
+            setPage(p => p < totalPages ? p + 1 : 1);
             return;
         }
 
-        // Calculate angle (0 at top, clockwise)
-        let angle = Math.atan2(dx, -dy) * (180 / Math.PI);
-        if (angle < 0) angle += 360;
+        const sourceIndex = allItems.findIndex(candidate => candidate.id === item.id);
+        if (sourceIndex >= 0) nuiPost('radialClick', { index: sourceIndex });
+    }, [displayItems, totalPages, allItems]);
 
-        const index = Math.floor((angle + angleStep / 2) / angleStep) % displayItems.length;
-        if (index < displayItems.length) {
-            setHoverIndex(index);
-        } else {
-            setHoverIndex(-1);
-        }
-    }, [displayItems, angleStep]);
+    // Handle mouse movement
+    const handleMouseMove = useCallback((e) => {
+        const hit = getRadialPointer(
+            e.clientX,
+            e.clientY,
+            radialSvgRef.current,
+            itemCount,
+            displayItems.length
+        );
+        setHoverIndex(hit.type === 'item' ? hit.index : -1);
+    }, [displayItems.length, itemCount]);
 
     // Handle click
     const handleClick = useCallback((e) => {
-        if (!containerRef.current) return;
+        const hit = getRadialPointer(
+            e.clientX,
+            e.clientY,
+            radialSvgRef.current,
+            itemCount,
+            displayItems.length
+        );
 
-        const rect = containerRef.current.getBoundingClientRect();
-        const svgScale = rect.width / RADIAL_SIZE;
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-
-        const dx = e.clientX - centerX;
-        const dy = e.clientY - centerY;
-        const distance = Math.sqrt(dx * dx + dy * dy) / svgScale;
-
-        // Center click = back/close
-        if (distance < RADIAL_INNER_RADIUS) {
+        if (hit.type === 'center') {
             if (page > 1) {
                 setPage(p => p - 1);
             } else if (canGoBack) {
@@ -2031,17 +2050,8 @@ function RadialMenu({ open, id, items, canGoBack, visible }) {
             return;
         }
 
-        // Click on item
-        if (hoverIndex >= 0 && displayItems[hoverIndex]) {
-            const item = displayItems[hoverIndex];
-            
-            if (item.id === '__more__') {
-                setPage(p => p < totalPages ? p + 1 : 1);
-            } else {
-                nuiPost('radialClick', { index: allItems.findIndex(i => i.id === item.id) });
-            }
-        }
-    }, [hoverIndex, displayItems, canGoBack, page, totalPages, allItems]);
+        if (hit.type === 'item') activateItem(hit.index);
+    }, [activateItem, canGoBack, displayItems.length, itemCount, page]);
 
     // Right-click = back/close
     const handleContextMenu = useCallback((e) => {
@@ -2061,19 +2071,31 @@ function RadialMenu({ open, id, items, canGoBack, visible }) {
 
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
+                e.preventDefault();
                 nuiPost('radialClose', {});
             } else if (e.key === 'Backspace') {
+                e.preventDefault();
                 if (page > 1) {
                     setPage(p => p - 1);
                 } else if (canGoBack) {
                     nuiPost('radialBack', {});
                 }
+            } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                setHoverIndex(current => current < 0 ? 0 : (current + 1) % displayItems.length);
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                setHoverIndex(current => current < 0 ? displayItems.length - 1
+                    : (current - 1 + displayItems.length) % displayItems.length);
+            } else if ((e.key === 'Enter' || e.key === ' ') && hoverIndex >= 0) {
+                e.preventDefault();
+                activateItem(hoverIndex);
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [open, canGoBack, page]);
+    }, [activateItem, open, canGoBack, displayItems.length, hoverIndex, page]);
 
     if (!open) return null;
 
@@ -2081,17 +2103,22 @@ function RadialMenu({ open, id, items, canGoBack, visible }) {
     const centerIcon = hoveredItem?.icon || (page > 1 ? '←' : (canGoBack ? '←' : '✕'));
     const centerLabel = hoveredItem?.label || (page > 1 ? 'Back' : (canGoBack ? 'Back' : 'Close'));
 
+    const compactControl = appearance === 'compact-control';
+
     return React.createElement('div', {
-        className: `es-radial-overlay${isVisible ? ' visible' : ''}`,
+        className: `es-radial-overlay${isVisible ? ' visible' : ''}${compactControl ? ' es-radial-overlay--compact-control' : ''}`,
         onMouseMove: handleMouseMove,
         onClick: handleClick,
         onContextMenu: handleContextMenu,
-        ref: containerRef
+        'aria-label': 'Radial controls'
     },
         React.createElement('svg', {
-            className: 'es-radial-svg',
+            className: `es-radial-svg${compactControl ? ' es-radial-svg--compact-control' : ''}`,
             viewBox: `0 0 ${RADIAL_SIZE} ${RADIAL_SIZE}`,
-            xmlns: 'http://www.w3.org/2000/svg'
+            xmlns: 'http://www.w3.org/2000/svg',
+            ref: radialSvgRef,
+            role: 'menu',
+            'aria-label': id ? `${id.replaceAll('_', ' ')} menu` : 'Controls menu'
         },
             // Sectors
             displayItems.map((item, i) => {
@@ -2105,7 +2132,9 @@ function RadialMenu({ open, id, items, canGoBack, visible }) {
 
                 return React.createElement('g', {
                     key: item.id || i,
-                    className: `es-radial-sector${isHovered ? ' hover' : ''}`
+                    className: `es-radial-sector${isHovered ? ' hover' : ''}`,
+                    role: 'menuitem',
+                    'aria-label': item.label || item.id || `Item ${i + 1}`
                 },
                     // Sector path
                     React.createElement('path', {
@@ -2186,7 +2215,10 @@ function SettingsField({ field, value, tabId, onChange, onAction }) {
                 return React.createElement('button', {
                     className: `es-settings-toggle${value ? ' on' : ''}`,
                     onClick: () => onChange(tabId, field.key, !value),
-                    type: 'button'
+                    type: 'button',
+                    role: 'switch',
+                    'aria-checked': Boolean(value),
+                    'aria-label': field.label
                 },
                     React.createElement('span', { className: 'es-settings-toggle-knob' })
                 );
@@ -2298,6 +2330,12 @@ function SettingsField({ field, value, tabId, onChange, onAction }) {
 function SettingsPanel({ open, tabs, onClose }) {
     const [activeTab, setActiveTab] = useState(0);
     const [values, setValues] = useState({});
+    const [submitError, setSubmitError] = useState('');
+
+    useEffect(() => {
+        if (!open) return;
+        nuiPost('settingsReady', {});
+    }, [open]);
 
     useEffect(() => {
         if (!open || !tabs) return;
@@ -2308,6 +2346,7 @@ function SettingsPanel({ open, tabs, onClose }) {
         }
         setValues(init);
         setActiveTab(0);
+        setSubmitError('');
     }, [open, tabs]);
 
     useEffect(() => {
@@ -2316,30 +2355,42 @@ function SettingsPanel({ open, tabs, onClose }) {
     }, [open, tabs, activeTab]);
 
     const handleChange = useCallback((tabId, key, value) => {
+        setSubmitError('');
         setValues(prev => ({
             ...prev,
             [tabId]: Object.assign({}, prev[tabId] || {}, { [key]: value })
         }));
+        nuiPost('settingsPreview', { tabId, key, value });
     }, []);
 
     const handleReset = useCallback(() => {
         if (!tabs) return;
         const tab = tabs[activeTab];
         if (!tab) return;
+        const nextValues = Object.assign({}, tab.defaults || {});
         setValues(prev => ({
             ...prev,
-            [tab.id]: Object.assign({}, tab.defaults || {})
+            [tab.id]: nextValues
         }));
+        nuiPost('settingsPreview', { tabId: tab.id, values: nextValues });
     }, [tabs, activeTab]);
 
-    const handleSave = useCallback(() => {
-        nuiPost('settingsSave', { tabs: values });
-        onClose();
+    const handleSave = useCallback(async () => {
+        const response = await nuiPost('settingsSave', { tabs: values });
+        if (response?.ok === true) {
+            onClose();
+            return;
+        }
+        setSubmitError('SAVE FAILED');
     }, [values, onClose]);
 
-    const handleCancel = useCallback(() => {
-        nuiPost('settingsCancel', {});
-        onClose();
+    const handleCancel = useCallback(async () => {
+        const response = await nuiPost('settingsCancel', {});
+        if (response?.ok === true) {
+            onClose();
+            return;
+        }
+        setSubmitError('CLOSE FAILED');
     }, [onClose]);
 
     const handleAction = useCallback((tabId, key, value) => {
@@ -2385,31 +2436,50 @@ function SettingsPanel({ open, tabs, onClose }) {
     }
 
     return React.createElement('div', { className: 'es-settings-overlay' },
-        React.createElement('div', { className: 'es-settings-panel' },
+        React.createElement('div', {
+            className: 'es-settings-panel',
+            role: 'dialog',
+            'aria-modal': true,
+            'aria-label': 'Cortex Settings'
+        },
             // Header
             React.createElement('div', { className: 'es-settings-header' },
                 React.createElement('div', { className: 'es-settings-title' },
                     React.createElement('span', { className: 'es-settings-accent' }, 'Cortex'),
                     ' Settings'
                 ),
-                React.createElement('button', { type: 'button', className: 'es-settings-close', onClick: handleCancel }, '✕')
+                React.createElement('button', {
+                    type: 'button',
+                    className: 'es-settings-close',
+                    onClick: handleCancel,
+                    'aria-label': 'Close settings and discard changes'
+                }, '✕')
             ),
             // Tabs
-            React.createElement('div', { className: 'es-settings-tabs' },
+            React.createElement('div', { className: 'es-settings-tabs', role: 'tablist', 'aria-label': 'Cortex resources' },
                 tabs.map((t, i) =>
                     React.createElement('button', {
                         key: t && t.id != null ? String(t.id) : `tab-${i}`,
                         type: 'button',
+                        role: 'tab',
+                        'aria-selected': i === activeTab,
                         className: `es-settings-tab${i === activeTab ? ' active' : ''}`,
                         onClick: () => setActiveTab(i)
                     }, t && t.label != null ? t.label : '')
                 )
             ),
             // Content
-            React.createElement('div', { className: 'es-settings-content' }, ...rows),
+            React.createElement('div', { className: 'es-settings-content', role: 'tabpanel' }, ...rows),
             // Footer
             React.createElement('div', { className: 'es-settings-footer' },
-                React.createElement('button', { type: 'button', className: 'es-settings-btn reset', onClick: handleReset }, 'RESET'),
+                React.createElement('div', { className: 'es-settings-footer-left' },
+                    React.createElement('button', { type: 'button', className: 'es-settings-btn reset', onClick: handleReset }, 'RESET'),
+                    React.createElement(
+                        'span',
+                        { className: `es-settings-live-note${submitError ? ' error' : ''}` },
+                        submitError || 'LIVE · SAVE TO KEEP'
+                    )
+                ),
                 React.createElement('div', { className: 'es-settings-footer-right' },
                     React.createElement('button', { type: 'button', className: 'es-settings-btn cancel', onClick: handleCancel }, 'CANCEL'),
                     React.createElement('button', { type: 'button', className: 'es-settings-btn save', onClick: handleSave }, 'SAVE')
@@ -2424,6 +2494,163 @@ function SettingsPanel({ open, tabs, onClose }) {
 // ============================================================================
 
 let notifyIdCounter = 0;
+const INTERACTION_UI_SCALE = 0.8;
+const VEHICLE_ACCESS_ACTIONS = Object.freeze({
+    'vehicle-clone-key': { order: 0, icon: 'clone-key' },
+    'vehicle-smash-window': { order: 1, icon: 'smash-window' }
+});
+
+function clampInteractionNumber(value, minimum, maximum) {
+    return Math.max(minimum, Math.min(maximum, Number(value) || 0));
+}
+
+function getVehicleAccessPresentation(item) {
+    if (item?.owner !== 'cortex-hud') return null;
+    return VEHICLE_ACCESS_ACTIONS[item.id] || null;
+}
+
+function VehicleAccessIcon({ type }) {
+    if (type === 'clone-key') {
+        return React.createElement('svg', {
+            viewBox: '0 0 20 20',
+            focusable: 'false',
+            'aria-hidden': 'true'
+        },
+            React.createElement('circle', {
+                cx: '4',
+                cy: '10',
+                r: '1.65',
+                fill: 'currentColor',
+                stroke: 'none'
+            }),
+            React.createElement('path', { d: 'M7 6.8a4.55 4.55 0 0 1 0 6.4' }),
+            React.createElement('path', { d: 'M9.5 4.3a8.1 8.1 0 0 1 0 11.4' })
+        );
+    }
+
+    return React.createElement('svg', {
+        viewBox: '0 0 20 20',
+        focusable: 'false',
+        'aria-hidden': 'true'
+    },
+        React.createElement('path', { d: 'M10 2.4 16 4.9v4.35c0 3.85-2.25 6.65-6 8.35-3.75-1.7-6-4.5-6-8.35V4.9L10 2.4Z' }),
+        React.createElement('path', { d: 'm7.5 7.45 5 5m0-5-5 5' })
+    );
+}
+
+function InteractionPrompts({ items, layout }) {
+    if (!Array.isArray(items) || items.length === 0) return null;
+
+    const screenWidth = Number(layout?.screenWidth) || 1920;
+    const screenHeight = Number(layout?.screenHeight) || 1080;
+    const scale = clampInteractionNumber(Math.min(screenWidth / 1920, screenHeight / 1080), 0.75, 1.5)
+        * INTERACTION_UI_SCALE;
+    const style = {
+        '--cortex-interaction-safe-right': `${Math.max(0, Number(layout?.insetRight) || 0)}px`,
+        '--cortex-interaction-safe-bottom': `${Math.max(0, Number(layout?.insetBottom) || 0)}px`,
+        '--cortex-interaction-scale': scale
+    };
+
+    return React.createElement('div', {
+        className: 'cortex-interactions',
+        style,
+        role: 'list',
+        'aria-label': 'Available actions'
+    }, items.map((item) => React.createElement('div', {
+        className: 'cortex-interaction',
+        key: `${item.owner}:${item.id}`,
+        role: 'listitem'
+    },
+        React.createElement('span', { className: 'cortex-interaction-label' }, item.label),
+        React.createElement('span', {
+            className: `cortex-interaction-key${item.key.length > 3 ? ' is-wide' : ''}`,
+            'aria-label': `Press ${item.key}`
+        }, item.key)
+    )));
+}
+
+function WorldInteractionPrompts({ items }) {
+    if (!Array.isArray(items) || items.length === 0) return null;
+
+    const vehicleAccessItems = items
+        .filter((item) => getVehicleAccessPresentation(item))
+        .sort((left, right) => (
+            getVehicleAccessPresentation(left).order - getVehicleAccessPresentation(right).order
+        ));
+    const standardItems = items.filter((item) => !getVehicleAccessPresentation(item));
+    const prompts = standardItems.map((item) => {
+        const scale = clampInteractionNumber(1.035 - (item.distance * 0.025), 0.96, 1.02)
+            * INTERACTION_UI_SCALE;
+        const style = {
+            '--cortex-world-x': `${clampInteractionNumber(item.x, 0, 1) * 100}vw`,
+            '--cortex-world-y': `${clampInteractionNumber(item.y, 0, 1) * 100}vh`,
+            '--cortex-world-scale': scale
+        };
+
+        return React.createElement('div', {
+            className: 'cortex-world-interaction',
+            key: `${item.owner}:${item.id}`,
+            style,
+            role: 'listitem'
+        },
+            React.createElement('span', { className: 'cortex-world-interaction-label' }, item.label),
+            React.createElement('span', {
+                className: `cortex-world-interaction-key${item.key.length > 3 ? ' is-wide' : ''}`,
+                'aria-label': `Use the action button to ${item.label.toLowerCase()}`
+            }, item.key)
+        );
+    });
+
+    if (vehicleAccessItems.length > 0) {
+        const itemCount = vehicleAccessItems.length;
+        const anchor = vehicleAccessItems.reduce((position, item) => ({
+            x: position.x + clampInteractionNumber(item.x, 0, 1) / itemCount,
+            y: position.y + clampInteractionNumber(item.y, 0, 1) / itemCount,
+            distance: position.distance + Math.max(0, Number(item.distance) || 0) / itemCount
+        }), { x: 0, y: 0, distance: 0 });
+        const scale = clampInteractionNumber(1.035 - (anchor.distance * 0.025), 0.96, 1.02)
+            * INTERACTION_UI_SCALE;
+        const style = {
+            '--cortex-world-x': `${anchor.x * 100}vw`,
+            '--cortex-world-y': `${anchor.y * 100}vh`,
+            '--cortex-world-scale': scale,
+            '--cortex-access-shift-x': anchor.x < 0.22 ? '0%' : (anchor.x > 0.78 ? '-100%' : '-50%'),
+            '--cortex-access-shift-y': anchor.y < 0.12 ? '0%' : (anchor.y > 0.88 ? '-100%' : '-50%')
+        };
+
+        prompts.push(React.createElement('div', {
+            className: 'cortex-world-access',
+            key: 'cortex-hud:vehicle-access',
+            style,
+            role: 'presentation'
+        }, vehicleAccessItems.map((item) => {
+            const presentation = getVehicleAccessPresentation(item);
+            const actionName = String(item.label || '').toLowerCase();
+
+            return React.createElement('div', {
+                className: `cortex-world-access-row is-${presentation.icon}`,
+                key: `${item.owner}:${item.id}`,
+                role: 'listitem'
+            },
+                React.createElement('span', {
+                    className: `cortex-world-access-key${item.key.length > 3 ? ' is-wide' : ''}`,
+                    'aria-label': `Press ${item.key} to ${actionName}`
+                }, item.key),
+                React.createElement('span', {
+                    className: 'cortex-world-access-icon',
+                    'aria-hidden': 'true'
+                }, React.createElement(VehicleAccessIcon, { type: presentation.icon })),
+                React.createElement('span', { className: 'cortex-world-access-label' }, item.label)
+            );
+        })));
+    }
+
+    return React.createElement('div', {
+        className: 'cortex-world-interactions',
+        role: 'list',
+        'aria-label': 'Nearby world actions'
+    }, prompts);
+}
 
 function App() {
     const [notifications, setNotifications] = useState([]);
@@ -2489,7 +2716,8 @@ function App() {
         id: null,
         items: [],
         canGoBack: false,
-        visible: true
+        visible: true,
+        appearance: null
     });
 
     const [contextMenu, setContextMenu] = useState({
@@ -2503,6 +2731,25 @@ function App() {
     const [uiApps, setUiApps] = useState({});
 
     const [settingsPanel, setSettingsPanel] = useState({ open: false, tabs: [] });
+
+    const [interactionItems, setInteractionItems] = useState([]);
+    const [worldInteractionItems, setWorldInteractionItems] = useState([]);
+    const [interactionLayout, setInteractionLayout] = useState({
+        insetRight: 0,
+        insetBottom: 0,
+        screenWidth: 1920,
+        screenHeight: 1080
+    });
+
+    useEffect(() => {
+        if (typeof GetParentResourceName !== 'function') return;
+
+        fetch(`https://${GetParentResourceName()}/interactionReady`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+            body: '{}'
+        }).catch(() => {});
+    }, []);
 
     const closeSettingsPanelLocal = useCallback(() => {
         setSettingsPanel(prev => ({ ...prev, open: false }));
@@ -2850,6 +3097,7 @@ function App() {
                         id: data?.menuId || null,
                         items: Array.isArray(data?.items) ? data.items : [],
                         canGoBack: Boolean(data?.canGoBack),
+                        appearance: data?.appearance || null,
                         visible: true
                     });
                     break;
@@ -2861,7 +3109,8 @@ function App() {
                         ...prev,
                         id: data?.menuId || prev.id,
                         items: Array.isArray(data?.items) ? data.items : prev.items,
-                        canGoBack: data?.canGoBack !== undefined ? Boolean(data.canGoBack) : prev.canGoBack
+                        canGoBack: data?.canGoBack !== undefined ? Boolean(data.canGoBack) : prev.canGoBack,
+                        appearance: data?.appearance !== undefined ? data.appearance : prev.appearance
                     }));
                     break;
                 case 'radialTransitionOut':
@@ -2873,6 +3122,7 @@ function App() {
                         id: data?.menuId || null,
                         items: Array.isArray(data?.items) ? data.items : [],
                         canGoBack: Boolean(data?.canGoBack),
+                        appearance: data?.appearance || null,
                         visible: true
                     }));
                     break;
@@ -2884,6 +3134,31 @@ function App() {
                     break;
                 case 'notifySetPosition':
                     if (data?.position) setNotifyPosition(data.position);
+                    break;
+                case 'interaction:update':
+                    setInteractionItems(Array.isArray(data?.items) ? data.items.slice(0, 8) : []);
+                    break;
+                case 'interaction:world':
+                    setWorldInteractionItems(Array.isArray(data?.items)
+                        ? data.items.filter((item) => item
+                            && typeof item.label === 'string'
+                            && typeof item.key === 'string'
+                            && Number.isFinite(Number(item.x))
+                            && Number.isFinite(Number(item.y)))
+                            .slice(0, 4)
+                            .map((item, index) => ({
+                                id: typeof item.id === 'string' ? item.id : `world-${index}`,
+                                owner: typeof item.owner === 'string' ? item.owner : 'unknown',
+                                label: item.label.trim().slice(0, 96),
+                                key: item.key.trim().slice(0, 16),
+                                x: clampInteractionNumber(item.x, 0, 1),
+                                y: clampInteractionNumber(item.y, 0, 1),
+                                distance: clampInteractionNumber(item.distance, 0, 25)
+                            }))
+                        : []);
+                    break;
+                case 'interaction:layout':
+                    setInteractionLayout(prev => ({ ...prev, ...(data || {}) }));
                     break;
             }
         };
@@ -2907,7 +3182,9 @@ function App() {
         React.createElement(RadialMenu, { ...radial }),
         React.createElement(WeatherZoneEditorApp, { appState: uiApps[WEATHER_EDITOR_APP_ID], setUiApps }),
         React.createElement(Menu, { ...menu, setMenu }),
-        React.createElement(SettingsPanel, { ...settingsPanel, onClose: closeSettingsPanelLocal })
+        React.createElement(SettingsPanel, { ...settingsPanel, onClose: closeSettingsPanelLocal }),
+        settingsPanel.open ? null : React.createElement(InteractionPrompts, { items: interactionItems, layout: interactionLayout }),
+        settingsPanel.open ? null : React.createElement(WorldInteractionPrompts, { items: worldInteractionItems })
     );
 }
 

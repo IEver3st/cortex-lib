@@ -1,5 +1,5 @@
 local resourceName = GetCurrentResourceName()
-local isEsLib = resourceName == 'es_lib'
+local isCortexLib = resourceName == 'cortex-lib'
 
 local pendingCallbacks = {}
 local callbackTimestamps = {}
@@ -37,10 +37,10 @@ local function triggerCallback(name, delay, cb, ...)
 
     if delay and delay > 0 then
         SetTimeout(delay, function()
-            TriggerServerEvent('es_lib:callback', name, id, table.unpack(args))
+            TriggerServerEvent('cortex-lib:callback', name, id, table.unpack(args))
         end)
     else
-        TriggerServerEvent('es_lib:callback', name, id, table.unpack(args))
+        TriggerServerEvent('cortex-lib:callback', name, id, table.unpack(args))
     end
 end
 
@@ -55,18 +55,18 @@ local function awaitCallback(name, delay, ...)
     
     if delay and delay > 0 then
         SetTimeout(delay, function()
-            TriggerServerEvent('es_lib:callback', name, id, table.unpack(args))
+            TriggerServerEvent('cortex-lib:callback', name, id, table.unpack(args))
         end)
     else
-        TriggerServerEvent('es_lib:callback', name, id, table.unpack(args))
+        TriggerServerEvent('cortex-lib:callback', name, id, table.unpack(args))
     end
     
     return table.unpack(Citizen.Await(p))
 end
 
 local function registerCallback(name, cb)
-    if not isEsLib then
-        return exports.es_lib:registerCallback(name, cb)
+    if not isCortexLib then
+        return exports['cortex-lib']:registerCallback(name, cb)
     end
 
     registeredCallbacks[name] = cb
@@ -81,19 +81,19 @@ local callback = setmetatable({
     end
 })
 
-RegisterNetEvent('es_lib:callbackResponse', function(id, ...)
+RegisterNetEvent('cortex-lib:callbackResponse', function(id, ...)
     resolvePendingCallback(id, ...)
 end)
 
-if isEsLib then
-    RegisterNetEvent('es_lib:clientCallback', function(name, id, token, ...)
+if isCortexLib then
+    RegisterNetEvent('cortex-lib:clientCallback', function(name, id, token, ...)
         local cb = registeredCallbacks[name]
 
         if cb then
             local results = { cb(...) }
-            TriggerServerEvent('es_lib:clientCallbackResponse', id, token, table.unpack(results))
+            TriggerServerEvent('cortex-lib:clientCallbackResponse', id, token, table.unpack(results))
         else
-            TriggerServerEvent('es_lib:clientCallbackResponse', id, token, nil)
+            TriggerServerEvent('cortex-lib:clientCallbackResponse', id, token, nil)
         end
     end)
 

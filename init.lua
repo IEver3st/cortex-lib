@@ -1,11 +1,11 @@
 if not _VERSION:find('5.4') then
-    error('^1[es_lib] Lua 5.4 is required. Add `lua54 \'yes\'` to your fxmanifest.lua^0')
+    error('^1[cortex-lib] Lua 5.4 is required. Add `lua54 \'yes\'` to your fxmanifest.lua^0')
 end
 
-local es_lib = 'es_lib'
+local libResourceName = 'cortex-lib'
 
-if GetResourceState(es_lib) ~= 'started' then
-    error('^1[es_lib] es_lib must be started before this resource^0')
+if GetResourceState(libResourceName) ~= 'started' then
+    error('^1[cortex-lib] cortex-lib must be started before this resource^0')
 end
 
 local context = IsDuplicityVersion() and 'server' or 'client'
@@ -58,9 +58,9 @@ end
 local function loadModule(self, moduleName)
     local dir = ('imports/%s'):format(moduleName)
     
-    local chunk = LoadResourceFile(es_lib, ('%s/%s.lua'):format(dir, context))
+    local chunk = LoadResourceFile(libResourceName, ('%s/%s.lua'):format(dir, context))
     
-    local shared = LoadResourceFile(es_lib, ('%s/shared.lua'):format(dir))
+    local shared = LoadResourceFile(libResourceName, ('%s/shared.lua'):format(dir))
     
     if shared then
         chunk = chunk and ('%s\n%s'):format(shared, chunk) or shared
@@ -70,10 +70,10 @@ local function loadModule(self, moduleName)
         return nil
     end
     
-    local fn, err = load(chunk, ('@@es_lib/imports/%s/%s.lua'):format(moduleName, context))
+    local fn, err = load(chunk, ('@@cortex-lib/imports/%s/%s.lua'):format(moduleName, context))
     
     if not fn then
-        error(('^1[es_lib] Error loading module %s: %s^0'):format(moduleName, err))
+        error(('^1[cortex-lib] Error loading module %s: %s^0'):format(moduleName, err))
     end
     
     local result = fn()
@@ -88,7 +88,7 @@ local function loadModule(self, moduleName)
 end
 
 lib = setmetatable({
-    name = es_lib,
+    name = libResourceName,
     context = context,
     cache = cache,
 }, {
@@ -109,7 +109,7 @@ function lib.load(moduleName)
 end
 
 function lib.isInternalResource()
-    return GetCurrentResourceName() == es_lib
+    return GetCurrentResourceName() == libResourceName
 end
 
 lib._moduleCache = lib._moduleCache or {}
@@ -140,6 +140,28 @@ function lib.require(modulePath)
 
     lib._moduleCache[cacheKey] = result
     return result
+end
+
+if context == 'client' then
+    function lib.showInteraction(data)
+        return exports[libResourceName]:showInteraction(data)
+    end
+
+    function lib.hideInteraction(id)
+        return exports[libResourceName]:hideInteraction(id)
+    end
+
+    function lib.setInteractions(items)
+        return exports[libResourceName]:setInteractions(items)
+    end
+
+    function lib.clearInteractions()
+        return exports[libResourceName]:clearInteractions()
+    end
+
+    function lib.isInteractionActive(id)
+        return exports[libResourceName]:isInteractionActive(id)
+    end
 end
 
 return lib

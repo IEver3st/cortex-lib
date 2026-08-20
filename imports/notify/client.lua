@@ -491,7 +491,7 @@ RegisterNUICallback('contextMenuResult', function(data, cb)
     cb({ ok = true })
 end)
 
-RegisterNetEvent('es_lib:notify', function(data)
+RegisterNetEvent('cortex-lib:notify', function(data)
     notify(data)
 end)
 

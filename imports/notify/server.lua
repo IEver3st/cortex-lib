@@ -2,14 +2,14 @@ local function notify(source, data)
     if type(data) == 'string' then
         data = { description = data }
     end
-    TriggerClientEvent('es_lib:notify', source, data)
+    TriggerClientEvent('cortex-lib:notify', source, data)
 end
 
 local function notifyAll(data)
     if type(data) == 'string' then
         data = { description = data }
     end
-    TriggerClientEvent('es_lib:notify', -1, data)
+    TriggerClientEvent('cortex-lib:notify', -1, data)
 end
 
 exports('notify', notify)

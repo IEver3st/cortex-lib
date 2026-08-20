@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract release metadata
+        id: meta
+        shell: bash
+        run: |
+          version=$(sed -n "s/^[[:space:]]*version[[:space:]]*['\"]\([^'\"]*\)['\"].*/\1/p" fxmanifest.lua | head -n1)
+          if [ -z "$version" ]; then
+            echo "::error::Could not extract version from fxmanifest.lua"
+            exit 1
+          fi
+          repo_name="${GITHUB_REPOSITORY##*/}"
+          fx_name=$(sed -n "s/^[[:space:]]*name[[:space:]]*['\"]\([^'\"]*\)['\"].*/\1/p" fxmanifest.lua | head -n1)
+          display_name="${fx_name:-$repo_name}"
+          tag="v${version}"
+          asset="${repo_name}-v${version}.zip"
+          echo "name=${repo_name}" >> "$GITHUB_OUTPUT"
+          echo "display_name=${display_name}" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "asset=${asset}" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if release already exists
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = '${{ steps.meta.outputs.tag }}';
+            try {
+              await github.rest.git.getRef({
+                ...context.repo,
+                ref: `tags/${tag}`
+              });
+              console.log(`Release tag ${tag} already exists. Skipping.`);
+              core.setOutput('exists', 'true');
+            } catch (error) {
+              if (error.status === 404) {
+                core.setOutput('exists', 'false');
+              } else {
+                throw error;
+              }
+            }
+
+      - name: Setup Bun
+        if: steps.check.outputs.exists == 'false' && hashFiles('**/package.json') != ''
+        uses: oven-sh/setup-bun@v2
+
+      - name: Build web assets
+        if: steps.check.outputs.exists == 'false' && hashFiles('**/package.json') != ''
+        shell: bash
+        run: |
+          for dir in . web-src web; do
+            if [ -f "${dir}/package.json" ]; then
+              has_build=$(node -e "process.exit(require('./${dir}/package.json').scripts?.build ? 0 : 1)" 2>/dev/null && echo true || echo false)
+              if [ "$has_build" = "true" ]; then
+                echo "Building ${dir}..."
+                (cd "${dir}" && bun install && bun run build)
+              fi
+            fi
+          done
+
+      - name: Create release archive
+        if: steps.check.outputs.exists == 'false'
+        shell: bash
+        run: |
+          name="${{ steps.meta.outputs.name }}"
+          asset="${{ steps.meta.outputs.asset }}"
+          mkdir -p "../staging/${name}" "../release"
+          find . -type f \
+            -not -path './.git/*' \
+            -not -path './.git' \
+            -not -path './.github/*' \
+            -not -path './.github' \
+            -not -name '.gitignore' \
+            -not -path '*node_modules*' \
+            -not -path './.cortex/*' \
+            -not -path './.cortex' \
+            -not -path './.agents/*' \
+            -not -path './.agents' \
+            -not -path './.copilot/*' \
+            -not -path './.copilot' \
+            -not -path './.cursor/*' \
+            -not -path './.cursor' \
+            -not -path './.claude/*' \
+            -not -path './.claude' \
+            -not -path './.memories/*' \
+            -not -path './.memories' \
+            -not -path './releases/*' \
+            -not -path './releases' \
+            -not -name '.env*' \
+            -not -name '*.log' \
+            -not -name '*.tmp' \
+            -not -name '.tmp' \
+            -exec cp --parents {} "../staging/${name}/" \;
+          (cd ../staging && zip -r "../release/${asset}" "${name}")
+
+      - name: Create GitHub release
+        if: steps.check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.display_name }} ${{ steps.meta.outputs.tag }}
+          files: ../release/${{ steps.meta.outputs.asset }}
+          generate_release_notes: true
