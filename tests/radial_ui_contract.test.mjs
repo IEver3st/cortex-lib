@@ -41,7 +41,7 @@ assert.match(
 );
 assert.match(
     radial,
-    /className: `es-radial-svg[\s\S]*?ref: radialSvgRef/,
+    /className: `cortex-radial-svg[\s\S]*?ref: radialSvgRef/,
     'the geometry ref must be attached to the rendered SVG'
 );
 assert.doesNotMatch(
@@ -104,17 +104,17 @@ assert.deepEqual(
 
 assert.match(
     styles,
-    /\.es-radial-svg\s*{[\s\S]*?width:\s*calc\(350px \* var\(--es-ui-scale\)\);[\s\S]*?height:\s*calc\(350px \* var\(--es-ui-scale\)\);/,
+    /\.cortex-radial-svg\s*{[\s\S]*?width:\s*calc\(350px \* var\(--cortex-ui-scale\)\);[\s\S]*?height:\s*calc\(350px \* var\(--cortex-ui-scale\)\);/,
     'the shared radial default must retain its existing dimensions'
 );
 assert.match(
     styles,
-    /\.es-radial-svg--compact-control\s*{[\s\S]*?width:\s*calc\(297\.5px \* var\(--es-ui-scale\)\);[\s\S]*?height:\s*calc\(297\.5px \* var\(--es-ui-scale\)\);/,
+    /\.cortex-radial-svg--compact-control\s*{[\s\S]*?width:\s*calc\(297\.5px \* var\(--cortex-ui-scale\)\);[\s\S]*?height:\s*calc\(297\.5px \* var\(--cortex-ui-scale\)\);/,
     'the compact-control appearance must be exactly 15 percent smaller than the 350px default'
 );
 assert.match(
     radial,
-    /appearance === 'compact-control'[\s\S]*?es-radial-svg--compact-control/,
+    /appearance === 'compact-control'[\s\S]*?cortex-radial-svg--compact-control/,
     'only menus requesting the compact-control appearance may receive the redesign'
 );
 assert.match(
@@ -128,7 +128,7 @@ assert.ok(
 );
 assert.match(
     styles,
-    /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.es-radial-overlay/,
+    /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.cortex-radial-overlay/,
     'the radial must expose a reduced-motion path'
 );
 

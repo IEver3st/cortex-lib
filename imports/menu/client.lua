@@ -212,7 +212,7 @@ local function setMenuOptions(id, options, index)
     return true
 end
 
-RegisterNUICallback('es_menu_close', function(data, cb)
+RegisterNUICallback('cortex_menu_close', function(data, cb)
     local id = data and data.id
     local keyPressed = data and data.keyPressed
 
@@ -235,7 +235,7 @@ RegisterNUICallback('es_menu_close', function(data, cb)
     cb({ ok = true })
 end)
 
-RegisterNUICallback('es_menu_selected', function(data, cb)
+RegisterNUICallback('cortex_menu_selected', function(data, cb)
     local id = data and data.id
     if not id or OpenMenuId ~= id then
         cb({ ok = true })
@@ -253,7 +253,7 @@ RegisterNUICallback('es_menu_selected', function(data, cb)
     cb({ ok = true })
 end)
 
-RegisterNUICallback('es_menu_sideScroll', function(data, cb)
+RegisterNUICallback('cortex_menu_sideScroll', function(data, cb)
     local id = data and data.id
     if not id or OpenMenuId ~= id then
         cb({ ok = true })
@@ -274,7 +274,7 @@ RegisterNUICallback('es_menu_sideScroll', function(data, cb)
     cb({ ok = true })
 end)
 
-RegisterNUICallback('es_menu_check', function(data, cb)
+RegisterNUICallback('cortex_menu_check', function(data, cb)
     local id = data and data.id
     if not id or OpenMenuId ~= id then
         cb({ ok = true })
@@ -293,7 +293,7 @@ RegisterNUICallback('es_menu_check', function(data, cb)
     cb({ ok = true })
 end)
 
-RegisterNUICallback('es_menu_submit', function(data, cb)
+RegisterNUICallback('cortex_menu_submit', function(data, cb)
     local id = data and data.id
     if not id or OpenMenuId ~= id then
         cb({ ok = true })

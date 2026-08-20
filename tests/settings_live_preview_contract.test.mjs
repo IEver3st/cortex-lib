@@ -51,11 +51,11 @@ assert.match(
   'interaction prompts must not render over the modal settings surface',
 )
 
-const panelBlock = cssSource.match(/\.es-settings-panel \{([\s\S]*?)\n\}/)
+const panelBlock = cssSource.match(/\.cortex-settings-panel \{([\s\S]*?)\n\}/)
 assert.ok(panelBlock, 'settings panel CSS must remain discoverable')
 
-const widthMatch = panelBlock[1].match(/width:\s*min\(calc\((\d+)px \* var\(--es-settings-scale\)\)/)
-const heightMatch = panelBlock[1].match(/height:\s*min\(calc\((\d+)px \* var\(--es-settings-scale\)\)/)
+const widthMatch = panelBlock[1].match(/width:\s*min\(calc\((\d+)px \* var\(--cortex-settings-scale\)\)/)
+const heightMatch = panelBlock[1].match(/height:\s*min\(calc\((\d+)px \* var\(--cortex-settings-scale\)\)/)
 assert.ok(widthMatch, 'settings panel must use a fixed compact desktop width ceiling')
 assert.ok(heightMatch, 'settings panel must use a fixed compact desktop height ceiling')
 assert.ok(Number(widthMatch[1]) <= 640, 'settings panel desktop width ceiling must be 640px or less')

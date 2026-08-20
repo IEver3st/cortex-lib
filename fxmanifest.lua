@@ -4,7 +4,7 @@ game 'gta5'
 name 'cortex-lib'
 author 'Cortex'
 version '2.0.0'
-description 'Lightweight UI and utility library for the Everest ecosystem (module-based)'
+description 'Lightweight UI and utility library for the Cortex ecosystem (module-based)'
 
 shared_script 'resource/init.lua'
 

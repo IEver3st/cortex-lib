@@ -14,6 +14,7 @@ Desktop.ini
 .cursor/
 .claude/
 .memories/
+AGENTS.md
 
 # Logs
 *.log

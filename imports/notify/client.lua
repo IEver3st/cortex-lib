@@ -1,5 +1,5 @@
 --[[
-    Everest Lib - Client Notification System
+    Cortex Lib - Client Notification System
     Lazy-loaded module that returns notify functions
 
     Usage: lib.notify({ type = 'success', description = 'Hello!' })

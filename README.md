@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  Lightweight, modular UI and utility library for the <strong>Everest</strong> ecosystem on FiveM.<br />
+  Lightweight, modular UI and utility library for the <strong>Cortex</strong> ecosystem on FiveM.<br />
   Shared client / server helpers, NUI components, and game utilities through a single <code>lib</code> global.
 </p>
 
@@ -21,7 +21,7 @@
 
 ## Overview
 
-**cortex-lib** is the shared foundation for Everest resources. It lazy-loads only what you use, exposes a consistent `lib` API on both client and server, and ships a vendored React 18 NUI bundle so your UI never depends on a CDN.
+**cortex-lib** is the shared foundation for Cortex resources. It lazy-loads only what you use, exposes a consistent `lib` API on both client and server, and ships a vendored React 18 NUI bundle so your UI never depends on a CDN.
 
 Use it for notifications, progress bars, menus, radial menus, zones, callbacks, interactions, settings, and common game utilities without reimplementing the same helpers in every resource.
 

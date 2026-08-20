@@ -1,5 +1,5 @@
 /**
- * Everest Lib - React UI System
+ * Cortex Lib - React UI System
  * Notifications + Progress Bars
  */
 
@@ -347,9 +347,9 @@ function WeatherZoneEditorApp({ appState, setUiApps }) {
 
     if (!open) return null;
 
-    return React.createElement('div', { className: 'es-editor-root' },
+    return React.createElement('div', { className: 'cortex-editor-root' },
         React.createElement(EditorToolbar, { onSave: saveZones, onClose: closeEditor, onCalibrate: autoCalibrate, onZoomIn: zoomIn, onZoomOut: zoomOut, status }),
-        React.createElement('div', { className: 'es-editor-workspace' },
+        React.createElement('div', { className: 'cortex-editor-workspace' },
             React.createElement(EditorSidebar, {
                 zones,
                 selectedId,
@@ -414,22 +414,22 @@ function normalizeZone(zone) {
 }
 
 function EditorToolbar({ onSave, onClose, onCalibrate, onZoomIn, onZoomOut, status }) {
-    return React.createElement('div', { className: 'es-editor-toolbar' },
-        React.createElement('div', { className: 'es-editor-title' },
-            React.createElement('span', { style: { color: 'var(--es-warning)' } }, 'ES'),
+    return React.createElement('div', { className: 'cortex-editor-toolbar' },
+        React.createElement('div', { className: 'cortex-editor-title' },
+            React.createElement('span', { style: { color: 'var(--cortex-warning)' } }, 'CORTEX'),
             ' WEATHER'
         ),
-        React.createElement('div', { className: 'es-editor-spacer' }),
-        status ? React.createElement('div', { className: 'es-editor-status' }, status) : null,
-        React.createElement('div', { className: 'es-editor-actions' },
-            React.createElement('button', { className: 'es-editor-btn calibrate', onClick: onCalibrate }, 'Auto-Calibrate'),
-            React.createElement('button', { className: 'es-editor-btn primary', onClick: onSave }, 'Save Changes'),
-            React.createElement('div', { className: 'es-toolbar-divider' }),
-            React.createElement('div', { className: 'es-editor-zoom-controls' },
-                React.createElement('button', { className: 'es-editor-btn icon', onClick: onZoomOut, title: 'Zoom Out' }, '−'),
-                React.createElement('button', { className: 'es-editor-btn icon', onClick: onZoomIn, title: 'Zoom In' }, '+')
+        React.createElement('div', { className: 'cortex-editor-spacer' }),
+        status ? React.createElement('div', { className: 'cortex-editor-status' }, status) : null,
+        React.createElement('div', { className: 'cortex-editor-actions' },
+            React.createElement('button', { className: 'cortex-editor-btn calibrate', onClick: onCalibrate }, 'Auto-Calibrate'),
+            React.createElement('button', { className: 'cortex-editor-btn primary', onClick: onSave }, 'Save Changes'),
+            React.createElement('div', { className: 'cortex-toolbar-divider' }),
+            React.createElement('div', { className: 'cortex-editor-zoom-controls' },
+                React.createElement('button', { className: 'cortex-editor-btn icon', onClick: onZoomOut, title: 'Zoom Out' }, '−'),
+                React.createElement('button', { className: 'cortex-editor-btn icon', onClick: onZoomIn, title: 'Zoom In' }, '+')
             ),
-            React.createElement('button', { className: 'es-editor-btn ghost icon', onClick: onClose }, '✕')
+            React.createElement('button', { className: 'cortex-editor-btn ghost icon', onClick: onClose }, '✕')
         )
     );
 }
@@ -443,23 +443,23 @@ function EditorSidebar({ zones, selectedId, onSelect, onUpdate, onDelete, onCent
         setTab('config');
     }, [selectedId]);
 
-    return React.createElement('div', { className: 'es-editor-sidebar' },
-        React.createElement('div', { className: 'es-sidebar-header' },
-            React.createElement('div', { className: 'es-sidebar-title' }, 'ZONES'),
-            React.createElement('button', { className: 'es-editor-btn full-width primary', onClick: onAdd }, '+ NEW ZONE')
+    return React.createElement('div', { className: 'cortex-editor-sidebar' },
+        React.createElement('div', { className: 'cortex-sidebar-header' },
+            React.createElement('div', { className: 'cortex-sidebar-title' }, 'ZONES'),
+            React.createElement('button', { className: 'cortex-editor-btn full-width primary', onClick: onAdd }, '+ NEW ZONE')
         ),
-        React.createElement('div', { className: 'es-zone-list' },
+        React.createElement('div', { className: 'cortex-zone-list' },
             zones.map(zone => React.createElement('div', {
                 key: zone.id,
-                className: `es-zone-item${zone.id === selectedId ? ' active' : ''}`,
+                className: `cortex-zone-item${zone.id === selectedId ? ' active' : ''}`,
                 onClick: () => onSelect(zone.id)
             },
-                React.createElement('div', { className: 'es-zone-info' },
-                    React.createElement('span', { className: 'es-zone-name' }, zone.label || zone.id),
-                    React.createElement('span', { className: 'es-zone-meta' }, zone.mode === 'fixed' ? zone.weather : `${zone.weathers.length} weathers`)
+                React.createElement('div', { className: 'cortex-zone-info' },
+                    React.createElement('span', { className: 'cortex-zone-name' }, zone.label || zone.id),
+                    React.createElement('span', { className: 'cortex-zone-meta' }, zone.mode === 'fixed' ? zone.weather : `${zone.weathers.length} weathers`)
                 ),
                 React.createElement('button', {
-                    className: 'es-zone-delete',
+                    className: 'cortex-zone-delete',
                     onClick: (e) => {
                         e.stopPropagation();
                         // eslint-disable-next-line no-restricted-globals
@@ -468,45 +468,45 @@ function EditorSidebar({ zones, selectedId, onSelect, onUpdate, onDelete, onCent
                 }, '×')
             ))
         ),
-        selected ? React.createElement('div', { className: 'es-selected-panel' },
-            React.createElement('div', { className: 'es-panel-header' },
-                React.createElement('div', { className: 'es-panel-title' }, selected.label || 'Unnamed Zone'),
-                React.createElement('button', { className: 'es-icon-btn', onClick: () => onCenter && onCenter(selected), title: 'Center Map' }, '⌖')
+        selected ? React.createElement('div', { className: 'cortex-selected-panel' },
+            React.createElement('div', { className: 'cortex-panel-header' },
+                React.createElement('div', { className: 'cortex-panel-title' }, selected.label || 'Unnamed Zone'),
+                React.createElement('button', { className: 'cortex-icon-btn', onClick: () => onCenter && onCenter(selected), title: 'Center Map' }, '⌖')
             ),
-            React.createElement('div', { className: 'es-draw-actions' },
+            React.createElement('div', { className: 'cortex-draw-actions' },
                 React.createElement('button', {
-                    className: `es-editor-btn small ${drawMode ? 'primary' : ''}`,
+                    className: `cortex-editor-btn small ${drawMode ? 'primary' : ''}`,
                     onClick: () => setDrawMode(!drawMode),
                     title: 'Toggle Draw Mode'
                 }, drawMode ? 'FINISH DRAWING' : 'DRAW POINTS'),
                 drawMode && React.createElement(React.Fragment, null,
                     React.createElement('button', {
-                        className: 'es-editor-btn small ghost',
+                        className: 'cortex-editor-btn small ghost',
                         onClick: () => onUndo(selected.id),
                         disabled: selected.points.length === 0,
                         title: 'Undo last point'
                     }, 'UNDO'),
                     React.createElement('button', {
-                        className: 'es-editor-btn small ghost',
+                        className: 'cortex-editor-btn small ghost',
                         onClick: () => onClearPoints(selected.id),
                         disabled: selected.points.length === 0,
                         title: 'Clear all points'
                     }, 'CLEAR')
                 )
             ),
-            React.createElement('div', { className: 'es-panel-tabs' },
-                React.createElement('button', { className: `es-tab ${tab === 'config' ? 'active' : ''}`, onClick: () => setTab('config') }, 'CONFIG'),
-                React.createElement('button', { className: `es-tab ${tab === 'points' ? 'active' : ''}`, onClick: () => setTab('points') }, 'POINTS'),
-                React.createElement('button', { className: `es-tab ${tab === 'debug' ? 'active' : ''}`, onClick: () => setTab('debug') }, 'DEBUG')
+            React.createElement('div', { className: 'cortex-panel-tabs' },
+                React.createElement('button', { className: `cortex-tab ${tab === 'config' ? 'active' : ''}`, onClick: () => setTab('config') }, 'CONFIG'),
+                React.createElement('button', { className: `cortex-tab ${tab === 'points' ? 'active' : ''}`, onClick: () => setTab('points') }, 'POINTS'),
+                React.createElement('button', { className: `cortex-tab ${tab === 'debug' ? 'active' : ''}`, onClick: () => setTab('debug') }, 'DEBUG')
             ),
-            React.createElement('div', { className: 'es-panel-content' },
+            React.createElement('div', { className: 'cortex-panel-content' },
                 tab === 'config'
                     ? React.createElement(ZoneConfigForm, { selected, onUpdate })
                     : tab === 'points'
                         ? React.createElement(ZonePointsList, { selected })
                         : React.createElement(ZoneDebugView, { selected, bounds, mapSize, view })
             )
-        ) : React.createElement('div', { className: 'es-empty-state' },
+        ) : React.createElement('div', { className: 'cortex-empty-state' },
             React.createElement('span', null, 'Select a zone to edit'),
             React.createElement(EditorHelp, null)
         )
@@ -529,45 +529,45 @@ function ZoneDebugView({ selected, bounds, mapSize, view }) {
         ? String(selected.weather || '')
         : (Array.isArray(selected.weathers) ? selected.weathers.join(', ') : '');
 
-    return React.createElement('div', { className: 'es-debug-view' },
-        React.createElement('div', { className: 'es-debug-section' },
-            React.createElement('div', { className: 'es-debug-section-title' }, 'ZONE'),
-            React.createElement('div', { className: 'es-debug-grid' },
-                React.createElement('span', { className: 'es-debug-key' }, 'ID:'),
-                React.createElement('span', { className: 'es-debug-val' }, selected.id),
-                React.createElement('span', { className: 'es-debug-key' }, 'Label:'),
-                React.createElement('span', { className: 'es-debug-val' }, selected.label),
-                React.createElement('span', { className: 'es-debug-key' }, 'Mode:'),
-                React.createElement('span', { className: 'es-debug-val' }, modeText),
-                React.createElement('span', { className: 'es-debug-key' }, modeText === 'fixed' ? 'Weather:' : 'Weathers:'),
-                React.createElement('span', { className: 'es-debug-val' }, weatherText),
+    return React.createElement('div', { className: 'cortex-debug-view' },
+        React.createElement('div', { className: 'cortex-debug-section' },
+            React.createElement('div', { className: 'cortex-debug-section-title' }, 'ZONE'),
+            React.createElement('div', { className: 'cortex-debug-grid' },
+                React.createElement('span', { className: 'cortex-debug-key' }, 'ID:'),
+                React.createElement('span', { className: 'cortex-debug-val' }, selected.id),
+                React.createElement('span', { className: 'cortex-debug-key' }, 'Label:'),
+                React.createElement('span', { className: 'cortex-debug-val' }, selected.label),
+                React.createElement('span', { className: 'cortex-debug-key' }, 'Mode:'),
+                React.createElement('span', { className: 'cortex-debug-val' }, modeText),
+                React.createElement('span', { className: 'cortex-debug-key' }, modeText === 'fixed' ? 'Weather:' : 'Weathers:'),
+                React.createElement('span', { className: 'cortex-debug-val' }, weatherText),
                 modeText === 'dynamic' ? React.createElement(React.Fragment, null,
-                    React.createElement('span', { className: 'es-debug-key' }, 'Interval:'),
-                    React.createElement('span', { className: 'es-debug-val' }, `${Number(selected.intervalMinutes || 0)}m`)
+                    React.createElement('span', { className: 'cortex-debug-key' }, 'Interval:'),
+                    React.createElement('span', { className: 'cortex-debug-val' }, `${Number(selected.intervalMinutes || 0)}m`)
                 ) : null,
-                React.createElement('span', { className: 'es-debug-key' }, 'Thickness:'),
-                React.createElement('span', { className: 'es-debug-val' }, String(selected.thickness || 0)),
-                React.createElement('span', { className: 'es-debug-key' }, 'Points:'),
-                React.createElement('span', { className: 'es-debug-val' }, String(selected.points.length))
+                React.createElement('span', { className: 'cortex-debug-key' }, 'Thickness:'),
+                React.createElement('span', { className: 'cortex-debug-val' }, String(selected.thickness || 0)),
+                React.createElement('span', { className: 'cortex-debug-key' }, 'Points:'),
+                React.createElement('span', { className: 'cortex-debug-val' }, String(selected.points.length))
             )
         ),
-        React.createElement('div', { className: 'es-debug-section' },
-            React.createElement('div', { className: 'es-debug-section-title' }, 'MAP / VIEW'),
-            React.createElement('div', { className: 'es-debug-grid' },
-                React.createElement('span', { className: 'es-debug-key' }, 'Bounds X:'),
-                React.createElement('span', { className: 'es-debug-val' }, bounds ? `${bounds.minX.toFixed(0)}..${bounds.maxX.toFixed(0)}` : 'n/a'),
-                React.createElement('span', { className: 'es-debug-key' }, 'Bounds Y:'),
-                React.createElement('span', { className: 'es-debug-val' }, bounds ? `${bounds.minY.toFixed(0)}..${bounds.maxY.toFixed(0)}` : 'n/a'),
-                React.createElement('span', { className: 'es-debug-key' }, 'MapSize:'),
-                React.createElement('span', { className: 'es-debug-val' }, String(mapSize)),
-                React.createElement('span', { className: 'es-debug-key' }, 'Zoom:'),
-                React.createElement('span', { className: 'es-debug-val' }, view.scale.toFixed(2)),
-                React.createElement('span', { className: 'es-debug-key' }, 'Pan:'),
-                React.createElement('span', { className: 'es-debug-val' }, `${view.x.toFixed(0)}, ${view.y.toFixed(0)}`)
+        React.createElement('div', { className: 'cortex-debug-section' },
+            React.createElement('div', { className: 'cortex-debug-section-title' }, 'MAP / VIEW'),
+            React.createElement('div', { className: 'cortex-debug-grid' },
+                React.createElement('span', { className: 'cortex-debug-key' }, 'Bounds X:'),
+                React.createElement('span', { className: 'cortex-debug-val' }, bounds ? `${bounds.minX.toFixed(0)}..${bounds.maxX.toFixed(0)}` : 'n/a'),
+                React.createElement('span', { className: 'cortex-debug-key' }, 'Bounds Y:'),
+                React.createElement('span', { className: 'cortex-debug-val' }, bounds ? `${bounds.minY.toFixed(0)}..${bounds.maxY.toFixed(0)}` : 'n/a'),
+                React.createElement('span', { className: 'cortex-debug-key' }, 'MapSize:'),
+                React.createElement('span', { className: 'cortex-debug-val' }, String(mapSize)),
+                React.createElement('span', { className: 'cortex-debug-key' }, 'Zoom:'),
+                React.createElement('span', { className: 'cortex-debug-val' }, view.scale.toFixed(2)),
+                React.createElement('span', { className: 'cortex-debug-key' }, 'Pan:'),
+                React.createElement('span', { className: 'cortex-debug-val' }, `${view.x.toFixed(0)}, ${view.y.toFixed(0)}`)
             )
         ),
-        React.createElement('div', { className: 'es-point-table-container' },
-            React.createElement('table', { className: 'es-point-table' },
+        React.createElement('div', { className: 'cortex-point-table-container' },
+            React.createElement('table', { className: 'cortex-point-table' },
                 React.createElement('thead', null,
                     React.createElement('tr', null,
                         React.createElement('th', null, '#'),
@@ -587,8 +587,8 @@ function ZoneDebugView({ selected, bounds, mapSize, view }) {
                             React.createElement('td', null, pt.x.toFixed(2)),
                             React.createElement('td', null, pt.y.toFixed(2)),
                             React.createElement('td', null, Number(wz).toFixed(2)),
-                            React.createElement('td', { style: { color: 'var(--es-info)' } }, mapPt.x.toFixed(1)),
-                            React.createElement('td', { style: { color: 'var(--es-info)' } }, mapPt.y.toFixed(1))
+                            React.createElement('td', { style: { color: 'var(--cortex-info)' } }, mapPt.x.toFixed(1)),
+                            React.createElement('td', { style: { color: 'var(--cortex-info)' } }, mapPt.y.toFixed(1))
                         );
                     })
                 )
@@ -638,25 +638,25 @@ function ZoneConfigForm({ selected, onUpdate }) {
 }
 
 function ZonePointsList({ selected }) {
-    return React.createElement('div', { className: 'es-points-list' },
-        React.createElement('div', { className: 'es-points-header' },
+    return React.createElement('div', { className: 'cortex-points-list' },
+        React.createElement('div', { className: 'cortex-points-header' },
             React.createElement('span', null, '#'),
             React.createElement('span', null, 'X'),
             React.createElement('span', null, 'Y')
         ),
-        selected.points.map((pt, i) => React.createElement('div', { key: i, className: 'es-point-row' },
-            React.createElement('span', { className: 'es-point-index' }, i + 1),
-            React.createElement('span', { className: 'es-point-val' }, pt.x.toFixed(1)),
-            React.createElement('span', { className: 'es-point-val' }, pt.y.toFixed(1))
+        selected.points.map((pt, i) => React.createElement('div', { key: i, className: 'cortex-point-row' },
+            React.createElement('span', { className: 'cortex-point-index' }, i + 1),
+            React.createElement('span', { className: 'cortex-point-val' }, pt.x.toFixed(1)),
+            React.createElement('span', { className: 'cortex-point-val' }, pt.y.toFixed(1))
         ))
     );
 }
 
 function EditorField({ label, value, onChange, readOnly }) {
-    return React.createElement('div', { className: 'es-editor-group' },
-        React.createElement('div', { className: 'es-editor-label' }, label),
+    return React.createElement('div', { className: 'cortex-editor-group' },
+        React.createElement('div', { className: 'cortex-editor-label' }, label),
         React.createElement('input', {
-            className: 'es-editor-input',
+            className: 'cortex-editor-input',
             value: value,
             readOnly: !!readOnly,
             onChange: onChange ? (e) => onChange(e.target.value) : undefined
@@ -665,12 +665,12 @@ function EditorField({ label, value, onChange, readOnly }) {
 }
 
 function EditorSelect({ label, value, options, onChange }) {
-    return React.createElement('div', { className: 'es-editor-group' },
-        React.createElement('div', { className: 'es-editor-label' }, label),
-        React.createElement('div', { className: 'es-editor-select' },
+    return React.createElement('div', { className: 'cortex-editor-group' },
+        React.createElement('div', { className: 'cortex-editor-label' }, label),
+        React.createElement('div', { className: 'cortex-editor-select' },
             options.map(option => React.createElement('button', {
                 key: option,
-                className: `es-editor-pill${option === value ? ' active' : ''}`,
+                className: `cortex-editor-pill${option === value ? ' active' : ''}`,
                 onClick: () => onChange(option)
             }, option))
         )
@@ -678,13 +678,13 @@ function EditorSelect({ label, value, options, onChange }) {
 }
 
 function EditorHelp() {
-    return React.createElement('div', { className: 'es-editor-help' },
-        React.createElement('div', { className: 'es-editor-label' }, 'MAP CONTROLS'),
-        React.createElement('div', { className: 'es-editor-help-line' }, React.createElement('strong', null, 'Draw Mode:'), ' Click map to add points'),
-        React.createElement('div', { className: 'es-editor-help-line' }, 'Right-click point: remove'),
-        React.createElement('div', { className: 'es-editor-help-line' }, 'Drag points: move'),
-        React.createElement('div', { className: 'es-editor-help-line' }, 'Scroll: zoom, drag map: pan'),
-        React.createElement('div', { className: 'es-editor-help-line' }, React.createElement('strong', null, 'Calibrate:'), ' Links map to game world. Stand in-game, then click corresponding spot on map (2 points needed).')
+    return React.createElement('div', { className: 'cortex-editor-help' },
+        React.createElement('div', { className: 'cortex-editor-label' }, 'MAP CONTROLS'),
+        React.createElement('div', { className: 'cortex-editor-help-line' }, React.createElement('strong', null, 'Draw Mode:'), ' Click map to add points'),
+        React.createElement('div', { className: 'cortex-editor-help-line' }, 'Right-click point: remove'),
+        React.createElement('div', { className: 'cortex-editor-help-line' }, 'Drag points: move'),
+        React.createElement('div', { className: 'cortex-editor-help-line' }, 'Scroll: zoom, drag map: pan'),
+        React.createElement('div', { className: 'cortex-editor-help-line' }, React.createElement('strong', null, 'Calibrate:'), ' Links map to game world. Stand in-game, then click corresponding spot on map (2 points needed).')
     );
 }
 
@@ -699,17 +699,17 @@ function CalibrationOverlay({ calibration, onCancel }) {
         ? 'Stand at your first reference point in-game, then CLICK that location on this map.'
         : 'Move to your second reference point in-game, then CLICK that location on this map.';
 
-    return React.createElement('div', { className: 'es-calibration-overlay' },
-        React.createElement('div', { className: 'es-calibration-box' },
-            React.createElement('div', { className: 'es-calibration-title' }, title),
-            React.createElement('div', { className: 'es-calibration-instruction' }, instruction),
-            React.createElement('div', { className: 'es-calibration-hint' },
+    return React.createElement('div', { className: 'cortex-calibration-overlay' },
+        React.createElement('div', { className: 'cortex-calibration-box' },
+            React.createElement('div', { className: 'cortex-calibration-title' }, title),
+            React.createElement('div', { className: 'cortex-calibration-instruction' }, instruction),
+            React.createElement('div', { className: 'cortex-calibration-hint' },
                 isPickAnchor
                     ? 'Tip: Choose two points far apart for best accuracy (e.g., opposite corners of the map)'
                     : 'Anchor A is marked. Now place Anchor B at a different location.'
             ),
             React.createElement('button', {
-                className: 'es-calibration-cancel',
+                className: 'cortex-calibration-cancel',
                 onClick: onCancel
             }, 'Cancel (ESC)')
         )
@@ -839,13 +839,13 @@ function EditorMap({ zones, selectedId, onSelect, onUpdate, onAddPoint, onRemove
 
     return React.createElement('div', {
         ref: containerRef,
-        className: `es-editor-map${calibration && calibration.active ? ' calibrating' : ''}${drawMode ? ' drawing' : ''}`,
+        className: `cortex-editor-map${calibration && calibration.active ? ' calibrating' : ''}${drawMode ? ' drawing' : ''}`,
         onPointerDown: handleMapPointerDown,
         onContextMenu: (event) => event.preventDefault()
     },
-        drawMode && React.createElement('div', { className: 'es-draw-indicator' }, 'DRAW MODE ACTIVE'),
+        drawMode && React.createElement('div', { className: 'cortex-draw-indicator' }, 'DRAW MODE ACTIVE'),
         React.createElement('div', {
-            className: 'es-map-transform-layer',
+            className: 'cortex-map-transform-layer',
             ref: mapRef,
             style: {
                 width: `${mapSize}px`,
@@ -855,13 +855,13 @@ function EditorMap({ zones, selectedId, onSelect, onUpdate, onAddPoint, onRemove
         },
             React.createElement('img', {
                 src: imageUrl,
-                className: 'es-map-image',
+                className: 'cortex-map-image',
                 draggable: false,
                 width: mapSize,
                 height: mapSize
             }),
             React.createElement('svg', {
-                className: 'es-map-svg',
+                className: 'cortex-map-svg',
                 viewBox: `0 0 ${mapSize} ${mapSize}`,
                 onPointerDown: (event) => {
                     if (event.button !== 0) return;
@@ -960,8 +960,8 @@ function getSettingsUiScale() {
 }
 
 function applyUiScale(value) {
-    document.documentElement.style.setProperty('--es-ui-scale', value);
-    document.documentElement.style.setProperty('--es-settings-scale', getSettingsUiScale());
+    document.documentElement.style.setProperty('--cortex-ui-scale', value);
+    document.documentElement.style.setProperty('--cortex-settings-scale', getSettingsUiScale());
 }
 
 applyUiScale(getUiScale());
@@ -1122,7 +1122,7 @@ function NotificationContainer({ notifications, position, onRemove }) {
 
 function DebugPanelLine({ line }) {
     if (typeof line === 'string') {
-        return React.createElement('div', { className: 'es-debug-line' }, line);
+        return React.createElement('div', { className: 'cortex-debug-line' }, line);
     }
 
     const label = line?.label;
@@ -1131,29 +1131,29 @@ function DebugPanelLine({ line }) {
     if (value == null) value = '';
     if (typeof value === 'object') value = safeJson(value);
 
-    return React.createElement('div', { className: 'es-debug-line' },
-        React.createElement('span', { className: 'es-debug-label' }, label || ''),
-        React.createElement('span', { className: 'es-debug-value', style: line?.color ? { color: line.color } : undefined }, String(value))
+    return React.createElement('div', { className: 'cortex-debug-line' },
+        React.createElement('span', { className: 'cortex-debug-label' }, label || ''),
+        React.createElement('span', { className: 'cortex-debug-value', style: line?.color ? { color: line.color } : undefined }, String(value))
     );
 }
 
 function DebugPanel({ open, title, subtitle, position, lines, data }) {
     if (!open) return null;
 
-    const rootClass = `es-debug-root ${position || 'top-right'}`;
+    const rootClass = `cortex-debug-root ${position || 'top-right'}`;
     const hasData = data && typeof data === 'object';
 
     return React.createElement('div', { className: rootClass },
-        React.createElement('div', { className: 'es-debug-panel' },
-            React.createElement('div', { className: 'es-debug-header' },
-                React.createElement('div', { className: 'es-debug-title' }, title || 'DEBUG'),
-                subtitle ? React.createElement('div', { className: 'es-debug-subtitle' }, subtitle) : null
+        React.createElement('div', { className: 'cortex-debug-panel' },
+            React.createElement('div', { className: 'cortex-debug-header' },
+                React.createElement('div', { className: 'cortex-debug-title' }, title || 'DEBUG'),
+                subtitle ? React.createElement('div', { className: 'cortex-debug-subtitle' }, subtitle) : null
             ),
-            React.createElement('div', { className: 'es-debug-body' },
+            React.createElement('div', { className: 'cortex-debug-body' },
                 Array.isArray(lines)
                     ? lines.map((line, idx) => React.createElement(DebugPanelLine, { key: idx, line }))
                     : null,
-                hasData ? React.createElement('pre', { className: 'es-debug-json' }, safeJson(data)) : null
+                hasData ? React.createElement('pre', { className: 'cortex-debug-json' }, safeJson(data)) : null
             )
         )
     );
@@ -1410,7 +1410,7 @@ function Menu({ open, id, title, subtitle, position, canClose, disableInput, opt
             return { ...prev, selected: clamped, tooltip: nextTooltip };
         });
 
-        nuiPost('es_menu_selected', {
+        nuiPost('cortex_menu_selected', {
             id,
             selected: clamped,
             secondary: secondary ?? false
@@ -1419,7 +1419,7 @@ function Menu({ open, id, title, subtitle, position, canClose, disableInput, opt
 
     const closeMenu = useCallback(async (keyPressed) => {
         if (!canClose) return;
-        await nuiPost('es_menu_close', { id, keyPressed: keyPressed || null });
+        await nuiPost('cortex_menu_close', { id, keyPressed: keyPressed || null });
         setMenu(prev => ({ ...prev, open: false, id: null }));
     }, [id, canClose, setMenu]);
 
@@ -1444,7 +1444,7 @@ function Menu({ open, id, title, subtitle, position, canClose, disableInput, opt
             tooltip: valueDescription || opt.description || ''
         }));
 
-        nuiPost('es_menu_sideScroll', {
+        nuiPost('cortex_menu_sideScroll', {
             id,
             selected: idx + 1,
             scrollIndex: nextIndex
@@ -1463,7 +1463,7 @@ function Menu({ open, id, title, subtitle, position, canClose, disableInput, opt
 
         setMenu(prev => ({ ...prev, options: opts.slice(0) }));
 
-        nuiPost('es_menu_check', {
+        nuiPost('cortex_menu_check', {
             id,
             selected: idx + 1,
             checked: nextChecked
@@ -1476,7 +1476,7 @@ function Menu({ open, id, title, subtitle, position, canClose, disableInput, opt
         const opt = opts[idx];
         if (!opt) return;
 
-        const res = await nuiPost('es_menu_submit', {
+        const res = await nuiPost('cortex_menu_submit', {
             id,
             selected: idx + 1,
             scrollIndex: opt.scrollIndex || 1
@@ -1547,7 +1547,7 @@ function Menu({ open, id, title, subtitle, position, canClose, disableInput, opt
         if (!bodyRef.current) return;
 
         const body = bodyRef.current;
-        const active = body.querySelector('.es-menu-option.active');
+        const active = body.querySelector('.cortex-menu-option.active');
         if (!active) return;
 
         const bodyRect = body.getBoundingClientRect();
@@ -1563,7 +1563,7 @@ function Menu({ open, id, title, subtitle, position, canClose, disableInput, opt
 
     if (!open) return null;
 
-    const rootClass = `es-menu-root ${position || 'top-left'}${disableInput ? ' input-disabled' : ''}`;
+    const rootClass = `cortex-menu-root ${position || 'top-left'}${disableInput ? ' input-disabled' : ''}`;
 
 
     return React.createElement('div', {
@@ -1574,12 +1574,12 @@ function Menu({ open, id, title, subtitle, position, canClose, disableInput, opt
             }
         }
     },
-        React.createElement('div', { className: 'es-menu' },
-            React.createElement('div', { className: 'es-menu-header' },
-                React.createElement('div', { className: 'es-menu-title' }, title || ''),
-                subtitle ? React.createElement('div', { className: 'es-menu-subtitle' }, subtitle) : null
+        React.createElement('div', { className: 'cortex-menu' },
+            React.createElement('div', { className: 'cortex-menu-header' },
+                React.createElement('div', { className: 'cortex-menu-title' }, title || ''),
+                subtitle ? React.createElement('div', { className: 'cortex-menu-subtitle' }, subtitle) : null
             ),
-            React.createElement('div', { className: 'es-menu-body', ref: bodyRef },
+            React.createElement('div', { className: 'cortex-menu-body', ref: bodyRef },
                 options.map((opt, i) => {
                     const optionIndex = i + 1;
                     const active = optionIndex === selected;
@@ -1592,27 +1592,27 @@ function Menu({ open, id, title, subtitle, position, canClose, disableInput, opt
 
                     return React.createElement('div', {
                         key: `${id || 'menu'}:${optionIndex}:${opt.label}`,
-                        className: `es-menu-option${active ? ' active' : ''}`,
+                        className: `cortex-menu-option${active ? ' active' : ''}`,
                         onMouseEnter: () => setSelectedIndex(optionIndex),
                         onMouseDown: (e) => { e.preventDefault(); e.stopPropagation(); },
                         onClick: (e) => { e.preventDefault(); e.stopPropagation(); submit(); }
                     },
-                        React.createElement('div', { className: 'es-menu-option-main' },
-                            React.createElement('div', { className: 'es-menu-option-label' }, opt.label),
-                            opt.progress != null ? React.createElement('div', { className: 'es-menu-option-progress' },
+                        React.createElement('div', { className: 'cortex-menu-option-main' },
+                            React.createElement('div', { className: 'cortex-menu-option-label' }, opt.label),
+                            opt.progress != null ? React.createElement('div', { className: 'cortex-menu-option-progress' },
                                 React.createElement('div', {
-                                    className: 'es-menu-option-progressFill',
+                                    className: 'cortex-menu-option-progressFill',
                                     style: { width: `${Math.max(0, Math.min(100, opt.progress))}%` }
                                 })
                             ) : null
                         ),
-                        rightBadge ? React.createElement('div', { className: 'es-menu-option-badge' }, rightBadge) : null
+                        rightBadge ? React.createElement('div', { className: 'cortex-menu-option-badge' }, rightBadge) : null
                     );
                 })
             ),
-            React.createElement('div', { className: 'es-menu-footer' },
-                React.createElement('div', { className: 'es-menu-tooltip' }, tooltip || ''),
-                React.createElement('div', { className: 'es-menu-hints' },
+            React.createElement('div', { className: 'cortex-menu-footer' },
+                React.createElement('div', { className: 'cortex-menu-tooltip' }, tooltip || ''),
+                React.createElement('div', { className: 'cortex-menu-hints' },
                     React.createElement('span', null, 'Enter: Select'),
                     React.createElement('span', null, 'Arrows: Navigate'),
                     React.createElement('span', null, 'Esc/Back: Close')
@@ -1680,12 +1680,12 @@ function AlertDialog({ open, header, content, centered, cancel, labels, style, o
 function HelpBar({ open, items }) {
     if (!open || !items || !items.length) return null;
 
-    return React.createElement('div', { className: 'es-help-bar' },
-        items.map((item, i) => React.createElement('div', { key: i, className: 'es-help-item' },
-            React.createElement('div', { className: 'es-help-label' }, item.label),
-            React.createElement('div', { className: 'es-help-values' },
+    return React.createElement('div', { className: 'cortex-help-bar' },
+        items.map((item, i) => React.createElement('div', { key: i, className: 'cortex-help-item' },
+            React.createElement('div', { className: 'cortex-help-label' }, item.label),
+            React.createElement('div', { className: 'cortex-help-values' },
                 item.value.split(' ').map((key, j) =>
-                    React.createElement('span', { key: j, className: 'es-help-key' }, key)
+                    React.createElement('span', { key: j, className: 'cortex-help-key' }, key)
                 )
             )
         ))
@@ -1702,15 +1702,15 @@ function ContextMenuCheckbox({ field, value, onChange }) {
     }, [field.name, value, onChange]);
 
     return React.createElement('div', {
-        className: 'es-context-checkbox',
+        className: 'cortex-context-checkbox',
         onClick: handleClick
     },
-        React.createElement('div', { className: `es-context-checkbox-box${value ? ' checked' : ''}` },
+        React.createElement('div', { className: `cortex-context-checkbox-box${value ? ' checked' : ''}` },
             React.createElement('svg', { viewBox: '0 0 24 24' },
                 React.createElement('path', { d: 'M20 6L9 17l-5-5' })
             )
         ),
-        React.createElement('span', { className: 'es-context-checkbox-label' }, field.label)
+        React.createElement('span', { className: 'cortex-context-checkbox-label' }, field.label)
     );
 }
 
@@ -1741,25 +1741,25 @@ function ContextMenuSelect({ field, value, onChange }) {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [dropdownOpen]);
 
-    return React.createElement('div', { className: 'es-context-select', ref: selectRef },
+    return React.createElement('div', { className: 'cortex-context-select', ref: selectRef },
         React.createElement('div', {
-            className: 'es-context-select-trigger',
+            className: 'cortex-context-select-trigger',
             onClick: () => setDropdownOpen(!dropdownOpen)
         },
-            field.icon && React.createElement('div', { className: 'es-context-select-icon' }, field.icon),
-            React.createElement('span', { className: 'es-context-select-value' }, displayValue),
-            React.createElement('svg', { className: 'es-context-select-arrow', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 },
+            field.icon && React.createElement('div', { className: 'cortex-context-select-icon' }, field.icon),
+            React.createElement('span', { className: 'cortex-context-select-value' }, displayValue),
+            React.createElement('svg', { className: 'cortex-context-select-arrow', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 },
                 React.createElement('path', { d: 'M6 9l6 6 6-6' })
             )
         ),
-        dropdownOpen && React.createElement('div', { className: 'es-context-select-dropdown' },
+        dropdownOpen && React.createElement('div', { className: 'cortex-context-select-dropdown' },
             (field.options || []).map((opt, i) => {
                 const optValue = typeof opt === 'object' ? opt.value : opt;
                 const optLabel = typeof opt === 'object' ? opt.label : opt;
                 const isSelected = optValue === value;
                 return React.createElement('div', {
                     key: i,
-                    className: `es-context-select-option${isSelected ? ' selected' : ''}`,
+                    className: `cortex-context-select-option${isSelected ? ' selected' : ''}`,
                     onClick: () => handleSelect(optValue)
                 }, optLabel);
             })
@@ -1773,7 +1773,7 @@ function ContextMenuInput({ field, value, onChange }) {
     }, [field.name, onChange]);
 
     return React.createElement('input', {
-        className: 'es-context-input',
+        className: 'cortex-context-input',
         type: field.inputType || 'text',
         placeholder: field.placeholder || '',
         value: value || '',
@@ -1818,21 +1818,21 @@ function ContextMenu({ open, title, fields, values, labels, onClose }) {
     if (!open) return null;
 
     return React.createElement('div', {
-        className: 'es-context-overlay',
+        className: 'cortex-context-overlay',
         onMouseDown: handleCancel
     },
         React.createElement('div', {
-            className: 'es-context-dialog',
+            className: 'cortex-context-dialog',
             onMouseDown: (e) => e.stopPropagation(),
             onClick: (e) => e.stopPropagation()
         },
-            title && React.createElement('div', { className: 'es-context-header' }, title),
-            React.createElement('div', { className: 'es-context-body' },
+            title && React.createElement('div', { className: 'cortex-context-header' }, title),
+            React.createElement('div', { className: 'cortex-context-body' },
                 (fields || []).map((field, i) => {
                     const fieldValue = formValues[field.name];
                     
                     if (field.type === 'checkbox') {
-                        return React.createElement('div', { key: i, className: 'es-context-field' },
+                        return React.createElement('div', { key: i, className: 'cortex-context-field' },
                             React.createElement(ContextMenuCheckbox, {
                                 field,
                                 value: Boolean(fieldValue),
@@ -1842,12 +1842,12 @@ function ContextMenu({ open, title, fields, values, labels, onClose }) {
                     }
 
                     if (field.type === 'select') {
-                        return React.createElement('div', { key: i, className: 'es-context-field' },
-                            React.createElement('div', { className: 'es-context-label' },
+                        return React.createElement('div', { key: i, className: 'cortex-context-field' },
+                            React.createElement('div', { className: 'cortex-context-label' },
                                 field.label,
                                 field.required && React.createElement('span', { className: 'required' }, '*')
                             ),
-                            field.description && React.createElement('div', { className: 'es-context-sublabel' }, field.description),
+                            field.description && React.createElement('div', { className: 'cortex-context-sublabel' }, field.description),
                             React.createElement(ContextMenuSelect, {
                                 field,
                                 value: fieldValue,
@@ -1857,12 +1857,12 @@ function ContextMenu({ open, title, fields, values, labels, onClose }) {
                     }
 
                     if (field.type === 'input' || field.type === 'text') {
-                        return React.createElement('div', { key: i, className: 'es-context-field' },
-                            React.createElement('div', { className: 'es-context-label' },
+                        return React.createElement('div', { key: i, className: 'cortex-context-field' },
+                            React.createElement('div', { className: 'cortex-context-label' },
                                 field.label,
                                 field.required && React.createElement('span', { className: 'required' }, '*')
                             ),
-                            field.description && React.createElement('div', { className: 'es-context-sublabel' }, field.description),
+                            field.description && React.createElement('div', { className: 'cortex-context-sublabel' }, field.description),
                             React.createElement(ContextMenuInput, {
                                 field,
                                 value: fieldValue,
@@ -1874,13 +1874,13 @@ function ContextMenu({ open, title, fields, values, labels, onClose }) {
                     return null;
                 })
             ),
-            React.createElement('div', { className: 'es-context-actions' },
+            React.createElement('div', { className: 'cortex-context-actions' },
                 React.createElement('button', {
-                    className: 'es-context-btn cancel',
+                    className: 'cortex-context-btn cancel',
                     onClick: handleCancel
                 }, cancelLabel),
                 React.createElement('button', {
-                    className: 'es-context-btn confirm',
+                    className: 'cortex-context-btn confirm',
                     onClick: handleConfirm
                 }, confirmLabel)
             )
@@ -2106,14 +2106,14 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
     const compactControl = appearance === 'compact-control';
 
     return React.createElement('div', {
-        className: `es-radial-overlay${isVisible ? ' visible' : ''}${compactControl ? ' es-radial-overlay--compact-control' : ''}`,
+        className: `cortex-radial-overlay${isVisible ? ' visible' : ''}${compactControl ? ' cortex-radial-overlay--compact-control' : ''}`,
         onMouseMove: handleMouseMove,
         onClick: handleClick,
         onContextMenu: handleContextMenu,
         'aria-label': 'Radial controls'
     },
         React.createElement('svg', {
-            className: `es-radial-svg${compactControl ? ' es-radial-svg--compact-control' : ''}`,
+            className: `cortex-radial-svg${compactControl ? ' cortex-radial-svg--compact-control' : ''}`,
             viewBox: `0 0 ${RADIAL_SIZE} ${RADIAL_SIZE}`,
             xmlns: 'http://www.w3.org/2000/svg',
             ref: radialSvgRef,
@@ -2132,7 +2132,7 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
 
                 return React.createElement('g', {
                     key: item.id || i,
-                    className: `es-radial-sector${isHovered ? ' hover' : ''}`,
+                    className: `cortex-radial-sector${isHovered ? ' hover' : ''}`,
                     role: 'menuitem',
                     'aria-label': item.label || item.id || `Item ${i + 1}`
                 },
@@ -2143,13 +2143,13 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
                             RADIAL_OUTER_RADIUS, RADIAL_INNER_RADIUS,
                             startAngle, endAngle, RADIAL_GAP
                         ),
-                        className: 'es-radial-sector-bg'
+                        className: 'cortex-radial-sector-bg'
                     }),
                     // Icon
                     React.createElement('text', {
                         x: iconPos.x,
                         y: iconPos.y - 6,
-                        className: 'es-radial-sector-icon',
+                        className: 'cortex-radial-sector-icon',
                         textAnchor: 'middle',
                         dominantBaseline: 'middle'
                     }, item.icon || '•'),
@@ -2157,7 +2157,7 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
                     React.createElement('text', {
                         x: iconPos.x,
                         y: iconPos.y + 14,
-                        className: 'es-radial-sector-label',
+                        className: 'cortex-radial-sector-label',
                         textAnchor: 'middle',
                         dominantBaseline: 'middle'
                     }, item.label?.length > 12 ? item.label.substring(0, 11) + '...' : item.label)
@@ -2169,14 +2169,14 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
                 cx: RADIAL_CENTER,
                 cy: RADIAL_CENTER,
                 r: RADIAL_INNER_RADIUS - 2,
-                className: 'es-radial-center-bg'
+                className: 'cortex-radial-center-bg'
             }),
 
             // Center icon
             React.createElement('text', {
                 x: RADIAL_CENTER,
                 y: RADIAL_CENTER - 6,
-                className: 'es-radial-center-icon',
+                className: 'cortex-radial-center-icon',
                 textAnchor: 'middle',
                 dominantBaseline: 'middle'
             }, centerIcon),
@@ -2185,7 +2185,7 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
             React.createElement('text', {
                 x: RADIAL_CENTER,
                 y: RADIAL_CENTER + 12,
-                className: 'es-radial-center-label',
+                className: 'cortex-radial-center-label',
                 textAnchor: 'middle',
                 dominantBaseline: 'middle'
             }, centerLabel?.length > 10 ? centerLabel.substring(0, 9) + '...' : centerLabel),
@@ -2194,7 +2194,7 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
             needsPagination && React.createElement('text', {
                 x: RADIAL_CENTER,
                 y: RADIAL_SIZE - 15,
-                className: 'es-radial-page-indicator',
+                className: 'cortex-radial-page-indicator',
                 textAnchor: 'middle'
             }, `${page}/${totalPages}`)
         )
@@ -2213,21 +2213,21 @@ function SettingsField({ field, value, tabId, onChange, onAction }) {
         switch (field.type) {
             case 'toggle':
                 return React.createElement('button', {
-                    className: `es-settings-toggle${value ? ' on' : ''}`,
+                    className: `cortex-settings-toggle${value ? ' on' : ''}`,
                     onClick: () => onChange(tabId, field.key, !value),
                     type: 'button',
                     role: 'switch',
                     'aria-checked': Boolean(value),
                     'aria-label': field.label
                 },
-                    React.createElement('span', { className: 'es-settings-toggle-knob' })
+                    React.createElement('span', { className: 'cortex-settings-toggle-knob' })
                 );
 
             case 'select':
             case 'color':
-                return React.createElement('div', { className: 'es-settings-select-wrap' },
+                return React.createElement('div', { className: 'cortex-settings-select-wrap' },
                     React.createElement('select', {
-                        className: 'es-settings-select',
+                        className: 'cortex-settings-select',
                         value: value || '',
                         onChange: (e) => onChange(tabId, field.key, e.target.value)
                     },
@@ -2235,33 +2235,33 @@ function SettingsField({ field, value, tabId, onChange, onAction }) {
                             React.createElement('option', { key: opt.value, value: opt.value }, opt.label)
                         )
                     ),
-                    React.createElement('span', { className: 'es-settings-select-arrow' }, '▼')
+                    React.createElement('span', { className: 'cortex-settings-select-arrow' }, '▼')
                 );
 
             case 'slider': {
                 const sliderVal = value !== undefined && value !== null ? value : (field.min || 0);
                 const suffix = field.suffix || '%';
-                return React.createElement('div', { className: 'es-settings-slider-wrap' },
+                return React.createElement('div', { className: 'cortex-settings-slider-wrap' },
                     React.createElement('input', {
                         type: 'range',
-                        className: 'es-settings-slider',
+                        className: 'cortex-settings-slider',
                         min: field.min !== undefined ? field.min : 0,
                         max: field.max !== undefined ? field.max : 100,
                         step: field.step !== undefined ? field.step : 1,
                         value: sliderVal,
                         onChange: (e) => onChange(tabId, field.key, Number(e.target.value))
                     }),
-                    React.createElement('span', { className: 'es-settings-slider-val' }, `${sliderVal}${suffix}`)
+                    React.createElement('span', { className: 'cortex-settings-slider-val' }, `${sliderVal}${suffix}`)
                 );
             }
 
             case 'buttons':
-                return React.createElement('div', { className: 'es-settings-btns' },
+                return React.createElement('div', { className: 'cortex-settings-btns' },
                     (field.buttons || []).map(btn =>
                         React.createElement('button', {
                             key: btn.value,
                             type: 'button',
-                            className: 'es-settings-action-btn',
+                            className: 'cortex-settings-action-btn',
                             onClick: () => onAction(tabId, field.key, btn.value)
                         }, btn.label)
                     )
@@ -2271,7 +2271,7 @@ function SettingsField({ field, value, tabId, onChange, onAction }) {
             case 'input':
                 return React.createElement('input', {
                     type: field.inputType || 'text',
-                    className: 'es-settings-input',
+                    className: 'cortex-settings-input',
                     placeholder: field.placeholder || '',
                     maxLength: field.maxLength,
                     spellCheck: false,
@@ -2282,23 +2282,23 @@ function SettingsField({ field, value, tabId, onChange, onAction }) {
                 });
 
             case 'soundList':
-                return React.createElement('div', { className: 'es-settings-soundlist' },
+                return React.createElement('div', { className: 'cortex-settings-soundlist' },
                     (field.options || []).map((opt) =>
                         React.createElement('div', {
                             key: opt.value,
-                            className: `es-settings-sound-item${value === opt.value ? ' selected' : ''}`
+                            className: `cortex-settings-sound-item${value === opt.value ? ' selected' : ''}`
                         },
                             React.createElement('button', {
                                 type: 'button',
-                                className: 'es-settings-sound-select',
+                                className: 'cortex-settings-sound-select',
                                 onClick: () => onChange(tabId, field.key, opt.value)
                             },
-                                React.createElement('span', { className: 'es-settings-sound-radio' }),
-                                React.createElement('span', { className: 'es-settings-sound-label' }, opt.label)
+                                React.createElement('span', { className: 'cortex-settings-sound-radio' }),
+                                React.createElement('span', { className: 'cortex-settings-sound-label' }, opt.label)
                             ),
                             React.createElement('button', {
                                 type: 'button',
-                                className: 'es-settings-sound-preview',
+                                className: 'cortex-settings-sound-preview',
                                 title: 'Preview',
                                 onClick: (e) => {
                                     e.stopPropagation();
@@ -2314,16 +2314,16 @@ function SettingsField({ field, value, tabId, onChange, onAction }) {
         }
     };
 
-    const rowClass = field.type === 'soundList' ? 'es-settings-row es-settings-row--stack' : 'es-settings-row';
+    const rowClass = field.type === 'soundList' ? 'cortex-settings-row cortex-settings-row--stack' : 'cortex-settings-row';
 
     return React.createElement('div', { className: rowClass },
-        React.createElement('div', { className: 'es-settings-row-info' },
-            React.createElement('div', { className: 'es-settings-row-label' }, field.label),
+        React.createElement('div', { className: 'cortex-settings-row-info' },
+            React.createElement('div', { className: 'cortex-settings-row-label' }, field.label),
             field.description
-                ? React.createElement('div', { className: 'es-settings-row-desc' }, field.description)
+                ? React.createElement('div', { className: 'cortex-settings-row-desc' }, field.description)
                 : null
         ),
-        React.createElement('div', { className: 'es-settings-row-ctrl' }, renderControl())
+        React.createElement('div', { className: 'cortex-settings-row-ctrl' }, renderControl())
     );
 }
 
@@ -2420,7 +2420,7 @@ function SettingsPanel({ open, tabs, onClose }) {
         if (field.section && field.section !== lastSection) {
             lastSection = field.section;
             rows.push(
-                React.createElement('div', { key: `sec-${field.section}`, className: 'es-settings-section' }, field.section)
+                React.createElement('div', { key: `sec-${field.section}`, className: 'cortex-settings-section' }, field.section)
             );
         }
         rows.push(
@@ -2435,54 +2435,54 @@ function SettingsPanel({ open, tabs, onClose }) {
         );
     }
 
-    return React.createElement('div', { className: 'es-settings-overlay' },
+    return React.createElement('div', { className: 'cortex-settings-overlay' },
         React.createElement('div', {
-            className: 'es-settings-panel',
+            className: 'cortex-settings-panel',
             role: 'dialog',
             'aria-modal': true,
             'aria-label': 'Cortex Settings'
         },
             // Header
-            React.createElement('div', { className: 'es-settings-header' },
-                React.createElement('div', { className: 'es-settings-title' },
-                    React.createElement('span', { className: 'es-settings-accent' }, 'Cortex'),
+            React.createElement('div', { className: 'cortex-settings-header' },
+                React.createElement('div', { className: 'cortex-settings-title' },
+                    React.createElement('span', { className: 'cortex-settings-accent' }, 'Cortex'),
                     ' Settings'
                 ),
                 React.createElement('button', {
                     type: 'button',
-                    className: 'es-settings-close',
+                    className: 'cortex-settings-close',
                     onClick: handleCancel,
                     'aria-label': 'Close settings and discard changes'
                 }, '✕')
             ),
             // Tabs
-            React.createElement('div', { className: 'es-settings-tabs', role: 'tablist', 'aria-label': 'Cortex resources' },
+            React.createElement('div', { className: 'cortex-settings-tabs', role: 'tablist', 'aria-label': 'Cortex resources' },
                 tabs.map((t, i) =>
                     React.createElement('button', {
                         key: t && t.id != null ? String(t.id) : `tab-${i}`,
                         type: 'button',
                         role: 'tab',
                         'aria-selected': i === activeTab,
-                        className: `es-settings-tab${i === activeTab ? ' active' : ''}`,
+                        className: `cortex-settings-tab${i === activeTab ? ' active' : ''}`,
                         onClick: () => setActiveTab(i)
                     }, t && t.label != null ? t.label : '')
                 )
             ),
             // Content
-            React.createElement('div', { className: 'es-settings-content', role: 'tabpanel' }, ...rows),
+            React.createElement('div', { className: 'cortex-settings-content', role: 'tabpanel' }, ...rows),
             // Footer
-            React.createElement('div', { className: 'es-settings-footer' },
-                React.createElement('div', { className: 'es-settings-footer-left' },
-                    React.createElement('button', { type: 'button', className: 'es-settings-btn reset', onClick: handleReset }, 'RESET'),
+            React.createElement('div', { className: 'cortex-settings-footer' },
+                React.createElement('div', { className: 'cortex-settings-footer-left' },
+                    React.createElement('button', { type: 'button', className: 'cortex-settings-btn reset', onClick: handleReset }, 'RESET'),
                     React.createElement(
                         'span',
-                        { className: `es-settings-live-note${submitError ? ' error' : ''}` },
+                        { className: `cortex-settings-live-note${submitError ? ' error' : ''}` },
                         submitError || 'LIVE · SAVE TO KEEP'
                     )
                 ),
-                React.createElement('div', { className: 'es-settings-footer-right' },
-                    React.createElement('button', { type: 'button', className: 'es-settings-btn cancel', onClick: handleCancel }, 'CANCEL'),
-                    React.createElement('button', { type: 'button', className: 'es-settings-btn save', onClick: handleSave }, 'SAVE')
+                React.createElement('div', { className: 'cortex-settings-footer-right' },
+                    React.createElement('button', { type: 'button', className: 'cortex-settings-btn cancel', onClick: handleCancel }, 'CANCEL'),
+                    React.createElement('button', { type: 'button', className: 'cortex-settings-btn save', onClick: handleSave }, 'SAVE')
                 )
             )
         )
