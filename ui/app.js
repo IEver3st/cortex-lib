@@ -956,7 +956,8 @@ function getUiScale() {
 
 function getSettingsUiScale() {
     const h = window.innerHeight || 1080;
-    return clamp(h / 1080, 0.86, 1);
+    // Keep the compact low-resolution floor, but grow with the viewport through 4K.
+    return clamp(h / 1080, 0.86, 2);
 }
 
 function applyUiScale(value) {

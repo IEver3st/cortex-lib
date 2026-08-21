@@ -162,6 +162,14 @@ if context == 'client' then
     function lib.isInteractionActive(id)
         return exports[libResourceName]:isInteractionActive(id)
     end
+
+    function lib.startInteractionHold(id)
+        return exports[libResourceName]:startInteractionHold(id)
+    end
+
+    function lib.cancelInteractionHold(id)
+        return exports[libResourceName]:cancelInteractionHold(id)
+    end
 end
 
 return lib

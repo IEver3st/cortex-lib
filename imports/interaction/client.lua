@@ -14,6 +14,8 @@ local MAX_BONE_BYTES = 64
 local MAX_ENTITY_HANDLE = 2147483647
 local MAX_WORLD_COORD = 100000.0
 local MAX_ANCHOR_OFFSET = 10.0
+local MIN_HOLD_DURATION_MS = 100
+local MAX_HOLD_DURATION_MS = 600000
 
 if not lib.isInternalResource() then
     return {
@@ -25,6 +27,8 @@ if not lib.isInternalResource() then
             return exports['cortex-lib']:getInteractions()
         end,
         isActive = lib.isInteractionActive,
+        startHold = lib.startInteractionHold,
+        cancelHold = lib.cancelInteractionHold,
     }
 end
 
@@ -240,6 +244,9 @@ local function buildSnapshot()
             priority = entry.priority,
             sequence = entry.sequence,
             anchor = copyAnchor(entry.anchor),
+            holdDuration = entry.holdDuration,
+            holdActive = entry.holdActive == true,
+            holdRevision = entry.holdRevision or 0,
         }
     end
 
@@ -302,6 +309,22 @@ local function normalize(data)
 
     priority = math.max(-1000, math.min(1000, math.floor(priority)))
 
+    local holdDuration = nil
+    if data.holdDuration ~= nil then
+        local holdError
+        holdDuration, holdError = validateFiniteNumber(
+            data.holdDuration,
+            'holdDuration',
+            MIN_HOLD_DURATION_MS,
+            MAX_HOLD_DURATION_MS
+        )
+        if not holdDuration then
+            return nil, holdError
+        end
+
+        holdDuration = math.floor(holdDuration)
+    end
+
     local anchor, anchorError = normalizeAnchor(data.anchor)
     if anchorError then
         return nil, anchorError
@@ -313,6 +336,9 @@ local function normalize(data)
         key = key,
         priority = priority,
         anchor = anchor,
+        holdDuration = holdDuration,
+        holdActive = false,
+        holdRevision = 0,
     }
 end
 
@@ -338,6 +364,7 @@ local function showInteraction(data)
         and current.label == normalized.label
         and current.key == normalized.key
         and current.priority == normalized.priority
+        and current.holdDuration == normalized.holdDuration
         and anchorsEqual(current.anchor, normalized.anchor)
     then
         return true, normalized.id
@@ -345,6 +372,10 @@ local function showInteraction(data)
 
     if current then
         normalized.sequence = current.sequence
+        if current.holdDuration == normalized.holdDuration then
+            normalized.holdActive = current.holdActive == true
+            normalized.holdRevision = current.holdRevision or 0
+        end
     else
         sequence = sequence + 1
         normalized.sequence = sequence
@@ -462,6 +493,7 @@ local function setInteractions(items)
                 or current.label ~= entry.label
                 or current.key ~= entry.key
                 or current.priority ~= entry.priority
+                or current.holdDuration ~= entry.holdDuration
                 or not anchorsEqual(current.anchor, entry.anchor)
             then
                 unchanged = false
@@ -474,11 +506,16 @@ local function setInteractions(items)
         return true
     end
 
-    local previousSequences = {}
+    local previousStates = {}
 
     for _, entry in pairs(interactions) do
         if entry.owner == owner then
-            previousSequences[entry.id] = entry.sequence
+            previousStates[entry.id] = {
+                sequence = entry.sequence,
+                holdDuration = entry.holdDuration,
+                holdActive = entry.holdActive == true,
+                holdRevision = entry.holdRevision or 0,
+            }
         end
     end
 
@@ -487,7 +524,13 @@ local function setInteractions(items)
     for index = 1, #normalizedItems do
         local entry = normalizedItems[index]
         entry.owner = owner
-        entry.sequence = previousSequences[entry.id]
+        local previous = previousStates[entry.id]
+        entry.sequence = previous and previous.sequence or nil
+
+        if previous and previous.holdDuration == entry.holdDuration then
+            entry.holdActive = previous.holdActive
+            entry.holdRevision = previous.holdRevision
+        end
 
         if not entry.sequence then
             sequence = sequence + 1
@@ -523,6 +566,42 @@ local function isInteractionActive(id)
     return false, 'interaction not found'
 end
 
+local function setInteractionHold(id, active)
+    if type(active) ~= 'boolean' then
+        return false, 'hold state must be a boolean'
+    end
+
+    local owner = resolveOwner()
+    local normalizedId, err = validateId(id)
+    if not normalizedId then return false, err end
+
+    local entry = interactions[owner .. ':' .. normalizedId]
+    if not entry then
+        return false, 'interaction not found'
+    end
+
+    if not entry.holdDuration then
+        return false, 'interaction does not define holdDuration'
+    end
+
+    if entry.holdActive == active then
+        return true
+    end
+
+    entry.holdActive = active
+    entry.holdRevision = (entry.holdRevision or 0) + 1
+    publish()
+    return true
+end
+
+local function startInteractionHold(id)
+    return setInteractionHold(id, true)
+end
+
+local function cancelInteractionHold(id)
+    return setInteractionHold(id, false)
+end
+
 AddEventHandler('onClientResourceStop', function(resourceName)
     if type(resourceName) == 'string' and resourceName ~= GetCurrentResourceName() then
         clearOwner(resourceName)
@@ -535,6 +614,8 @@ exports('setInteractions', setInteractions)
 exports('clearInteractions', clearInteractions)
 exports('getInteractions', getInteractions)
 exports('isInteractionActive', isInteractionActive)
+exports('startInteractionHold', startInteractionHold)
+exports('cancelInteractionHold', cancelInteractionHold)
 
 lib.showInteraction = showInteraction
 lib.hideInteraction = hideInteraction
@@ -542,6 +623,8 @@ lib.setInteractions = setInteractions
 lib.clearInteractions = clearInteractions
 lib.getInteractions = getInteractions
 lib.isInteractionActive = isInteractionActive
+lib.startInteractionHold = startInteractionHold
+lib.cancelInteractionHold = cancelInteractionHold
 
 return {
     show = showInteraction,
@@ -550,4 +633,6 @@ return {
     clear = clearInteractions,
     get = getInteractions,
     isActive = isInteractionActive,
+    startHold = startInteractionHold,
+    cancelHold = cancelInteractionHold,
 }

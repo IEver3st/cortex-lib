@@ -27,6 +27,9 @@ local function copyPresentationItem(item)
         owner = item.owner,
         label = item.label,
         key = item.key,
+        holdDuration = item.holdDuration,
+        holdActive = item.holdActive == true,
+        holdRevision = item.holdRevision or 0,
     }
 end
 
