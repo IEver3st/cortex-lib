@@ -351,7 +351,7 @@ local function showTestMenu()
             { label = 'Checkbox option', checked = true, description = 'Space toggles. Enter selects.', args = { message = 'Checkbox option selected' } },
             { label = 'Side scroll option', values = scrollValues, defaultIndex = 2, description = 'Left/Right switches value.' },
             { label = 'Progress option', progress = 65, description = 'Static progress bar.' },
-            { label = 'With icon', description = 'Menu option with icon', icon = '⚙️', iconColor = '#10b981' },
+            { label = 'With icon', description = 'Menu option with icon', icon = '⚙️', iconColor = 'var(--state-success)' },
             { label = 'Args option', description = 'Shows data passed through args', args = { message = 'Hello from args!' } },
             { label = 'Long description option', description = 'This is a much longer description to test text wrapping and layout.' },
         }
@@ -563,9 +563,9 @@ local function testStyledDialog()
             cancel = 'Close'
         },
         style = {
-            backgroundColor = 'rgba(15, 23, 42, 0.95)',
-            border = '1px solid #38bdf8',
-            color = '#e2e8f0'
+            backgroundColor = 'var(--surface-panel-solid)',
+            border = '1px solid var(--state-focus)',
+            color = 'var(--text-primary)'
         }
     })
     lib.notify({
@@ -610,9 +610,9 @@ local function showStyledTextUI()
         icon = '✨',
         backdrop = true,
         style = {
-            backgroundColor = 'rgba(15, 23, 42, 0.9)',
-            border = '1px solid #38bdf8',
-            color = '#e2e8f0'
+            backgroundColor = 'var(--surface-panel-solid)',
+            border = '1px solid var(--state-focus)',
+            color = 'var(--text-primary)'
         }
     })
 end
@@ -628,7 +628,7 @@ local function buildDebugPanelPayload(subtitle)
         title = 'CORTEX',
         subtitle = subtitle,
         position = 'top-right',
-        accentColor = '#38bdf8',
+        accentColor = 'var(--state-focus)',
         lines = {
             { label = 'Progress', value = lib.isProgressActive() and 'Active' or 'Idle' },
             { label = 'Menu', value = lib.getOpenMenu() or 'None' },

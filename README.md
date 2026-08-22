@@ -1,7 +1,7 @@
 # cortex-lib
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.0-blue?style=flat-square" alt="Version 2.0.0" />
+  <img src="https://img.shields.io/badge/version-2.2.0-blue?style=flat-square" alt="Version 2.2.0" />
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License MIT" />
   <img src="https://img.shields.io/badge/FiveM-cerulean-0ea5e9?style=flat-square" alt="FiveM cerulean" />
   <img src="https://img.shields.io/badge/Lua-5.4-2C2D72?style=flat-square&logo=lua&logoColor=white" alt="Lua 5.4" />
@@ -205,14 +205,56 @@ lib.setInteractions({
   { id = 'aim',   label = 'AIM',   key = 'RMB', priority = 10 },
 })
 
+-- GTA-style target context: actions sharing this validated panel render as
+-- labeled key discs, a divider, and one filled-center context marker.
+local targetPanel = {
+  id = 'social-target',
+  label = 'STRANGER',
+  variant = 'target',
+}
+
+lib.setInteractions({
+  { id = 'greet', label = 'GREET', key = 'G', priority = 20, panel = targetPanel },
+  { id = 'taunt', label = 'TAUNT', key = 'H', priority = 19, panel = targetPanel },
+})
+
 lib.hideInteraction('example-action')
 lib.clearInteractions()
 ```
 
-<details>
-<summary><strong>World anchors (entity / bone)</strong></summary>
+Screen interactions are press-only: perform the action once from the mapped
+`+command` after checking `lib.isInteractionActive(id)`. Supplying
+`holdDuration` without a world anchor is rejected so the input behavior cannot
+contradict the one-press screen UI.
 
-Attach a prompt to an entity bone instead of the screen list:
+`panel` is optional and screen-only. The supported `target` variant shows each
+caller-supplied key label inside its white action disc and uses an outer ring with a
+filled center for the context marker. `id` and `label` are bounded and sanitized
+at the registry boundary; panel data is copied in public snapshots so callers
+cannot mutate live renderer state.
+
+<details>
+<summary><strong>World anchors (position / entity / bone)</strong></summary>
+
+Follow a bone-less or moving object's root transform:
+
+```lua
+lib.showInteraction({
+  id = 'wallet-pickup',
+  label = 'PICK UP WALLET',
+  key = 'E',
+  holdDuration = 350,
+  anchor = {
+    type = 'entity',
+    entity = wallet,
+    model = GetEntityModel(wallet), -- optional handle-reuse guard
+    offset = { z = 0.08 },
+    maxDistance = 2.0,
+  },
+})
+```
+
+Use a named entity bone when the exact moving part matters:
 
 ```lua
 lib.showInteraction({
@@ -220,6 +262,7 @@ lib.showInteraction({
   label = 'OPEN',
   key = 'E',
   priority = 100,
+  holdDuration = 1200,
   anchor = {
     type = 'entity-bone',
     entity = vehicle,
@@ -238,9 +281,11 @@ lib.showInteraction({
 })
 ```
 
-- `anchor.offset` is world-space.
-- The renderer revalidates entity existence, bone, range and screen projection every frame.
-- World anchors render an empty action dot; `key` is still required so the owner resource can handle input.
+- For `world` anchors, `anchor.offset` follows world axes. For `entity` and `entity-bone` anchors, it follows the entity's local axes.
+- The renderer revalidates entity existence, the optional expected model, range, and screen projection every frame. Bone indices are cached per entity/model pair and rebuilt automatically if the handle resolves to a different model.
+- World anchors use the same key disc and may opt into the outer hold-progress ring with `holdDuration` (**100-600000 ms**).
+- Start and cancel that ring from the owning `+command` / `-command` pair with `lib.startInteractionHold(id)` and `lib.cancelInteractionHold(id)`. The ring is presentation only; the resource still measures elapsed time, revalidates the target, and owns the action.
+- `lib.getInteractionState(id)` returns an owner-scoped copy with `active`, `visible`, and (for a visible world prompt) `distance`. `lib.isInteractionVisible(id)` is the cheap boolean form. Check it before starting an anchored action, then revalidate entity identity and gameplay rules again before mutating anything.
 
 </details>
 
@@ -250,8 +295,57 @@ lib.showInteraction({
 - Max **8 prompts per resource**, **16 total** in the client registry.
 - Prompts are removed automatically when their owner resource stops.
 - When keys collide, only the highest `priority` prompt is active. Gate gameplay mutations with `lib.isInteractionActive(id)`.
+- A world prompt is `visible` only while its winning entry is in range and successfully projected on screen; callers cannot set renderer-owned visibility.
+- `lib.startInteractionHold(id)` and `lib.cancelInteractionHold(id)` are owner-scoped and require a world prompt that defines `holdDuration`.
 
 Available via `lib`, `lib.interaction`, and `exports['cortex-lib']`.
+
+### Performance pattern
+
+Register prompts on state transitions, not in a permanent `Wait(0)` loop. This keeps the export boundary and input normalization off the frame path. Repeating an identical `showInteraction` or `setInteractions` call is an optimized no-op, but event-driven ownership is still cheaper and easier to reason about.
+
+| Hot path | Previous work | Current work |
+| :--- | :--- | :--- |
+| `isInteractionActive` | Deep-copy and sort the full registry per query | Direct owner/id lookup against mutation-time arbitration |
+| Capacity checks | Rebuild the snapshot and scan owners | Constant-time total and per-owner counters |
+| Stable visible entity-bone prompt | Resolve the bone and send NUI every frame | Revalidate the model, reuse the bone index, and skip an unchanged NUI frame |
+| Moving world prompt in React | Update the root app state | Coalesce to one animation-frame update in an isolated interaction surface |
+| Stable vehicle seat cache | Scan fixed seats every 100 ms | Check the cached seat once; scan the vehicle's real seat range only after a change |
+| Points with nothing nearby | Resume an empty coroutine every frame | No frame coroutine until the detector finds a nearby point |
+
+```lua
+local benchPoint = lib.points.new({
+  coords = vector3(-347.14, -133.42, 39.01),
+  distance = 2.0,
+
+  onEnter = function()
+    lib.showInteraction({
+      id = 'mechanic-bench',
+      label = 'USE BENCH',
+      key = 'E',
+      priority = 50,
+    })
+  end,
+
+  onExit = function()
+    lib.hideInteraction('mechanic-bench')
+  end,
+
+  nearby = function(self)
+    if self.currentDistance <= 1.5
+      and IsControlJustReleased(0, 38)
+      and lib.isInteractionActive('mechanic-bench')
+    then
+      -- The server must revalidate the job, inventory and bench proximity.
+      TriggerServerEvent('mechanic:server:openBench')
+    end
+  end,
+})
+```
+
+Key arbitration is recomputed only when the registry changes, so `lib.isInteractionActive(id)` is a direct owner-scoped lookup. World projection remains frame-bound only while a prompt is visible; distant anchors use an adaptive wait, stable entity bones reuse their lookup, unchanged frames do not cross the NUI bridge, and the React interaction surface is isolated from unrelated UI.
+
+The scheduling follows the [Cfx `Citizen.Wait` guidance](https://docs.fivem.net/docs/scripting-reference/runtimes/lua/functions/Citizen.Wait): reserve `Wait(0)` for genuinely frame-bound work, adapt idle waits, and cache infrequently changing native results. The cache and points lifecycles are adapted from proven [ox_lib cache](https://github.com/overextended/ox_lib/blob/main/resource/cache/client.lua) and [points](https://github.com/overextended/ox_lib/blob/main/imports/points/client.lua) patterns while retaining cortex-lib's existing public values and callback timing.
 
 ---
 
@@ -336,9 +430,20 @@ lib.clearNotifications()
 Node contract tests:
 
 ```bash
-node --test tests/radial_ui_contract.test.mjs
-node --test tests/settings_live_preview_contract.test.mjs
+node --test tests/*.test.mjs
 ```
+
+For an interaction performance comparison, restart `cortex-lib`, let each state settle for 10-15 seconds, and record the same route and camera movement before and after the change:
+
+```text
+resmon 1
+profiler record 500
+profiler saveJSON cortex-lib-interactions.json
+```
+
+Capture at least: no prompts, one screen prompt, four static world prompts, four moving entity-bone prompts, and the 16-prompt collision limit. The Cfx profiler identifies resource threads and source lines; `resmon`/profiler results from a live FiveM client are the release measurement, while the repository tests only prove static contracts and deterministic operation counts.
+
+See the official [Cfx profiler workflow](https://docs.fivem.net/docs/scripting-manual/debugging/using-profiler/) for `profiler status`, `profiler view`, and loading saved captures.
 
 > [!NOTE]
 > `tests/client/debug_commands.lua` is for development — don't ship it enabled in production.
@@ -370,4 +475,3 @@ MIT — see [LICENSE](LICENSE).
 Copyright (c) 2026 Ever3st
 
 The embedded **Barlow Condensed** interaction font is distributed under the SIL Open Font License — see `ui/barlow-condensed-OFL.txt`.
-

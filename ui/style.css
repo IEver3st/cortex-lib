@@ -7,25 +7,88 @@
 }
 
 :root {
-    /* cortex-lib HUD design tokens */
-    --hud-color: #ffffff;
-    --hud-glow: rgba(255, 255, 255, 0.4);
-    --hud-dim: rgba(200, 200, 200, 0.8);
-    --hud-bg: rgba(0, 0, 0, 0.4);
+    /* Base palette: coloured greys with restrained, system-specific accents. */
+    --cortex-black: #09090a;
+    --cortex-surface: #151516;
+    --cortex-surface-raised: #1d1c1e;
+    --cortex-white: #ebe9e6;
+    --cortex-grey: #9b989b;
+    --cortex-dim: #666469;
+    --cortex-lavender: #bea9de;
+    --cortex-blue: #9bbcd3;
+    --cortex-aqua: #8fcbbf;
+    --cortex-aqua-raised: #a8ddd3;
+    --cortex-rose: #d6a5b6;
+    --cortex-sage: #9bc2ae;
+    --cortex-amber: #d8ba82;
+    --cortex-red: #df8989;
+    --cortex-coral: #df918d;
 
-    --hud-panel: rgba(18, 18, 18, 0.88);
-    --hud-panel-2: rgba(24, 24, 24, 0.88);
-    --hud-line: rgba(255, 255, 255, 0.12);
-    --hud-line-2: rgba(255, 255, 255, 0.18);
+    /* Semantic text and surfaces. */
+    --text-primary: var(--cortex-white);
+    --text-secondary: #a7a3a5;
+    --text-muted: #777478;
+    --text-disabled: #5f5d61;
+    --text-inverse: var(--cortex-black);
+    --surface-hud: rgba(7, 7, 8, 0.92);
+    --surface-hud-soft: rgba(7, 7, 8, 0.74);
+    --surface-panel: rgba(18, 18, 20, 0.88);
+    --surface-panel-subtle: rgba(24, 23, 25, 0.82);
+    --surface-panel-solid: var(--cortex-surface);
+    --surface-control: rgba(235, 233, 230, 0.06);
+    --surface-control-hover: rgba(235, 233, 230, 0.10);
+    --surface-control-active: rgba(235, 233, 230, 0.14);
+    --surface-scrim: rgba(7, 7, 8, 0.52);
+    --surface-scrim-strong: rgba(7, 7, 8, 0.72);
+    --border-subtle: rgba(235, 233, 230, 0.08);
+    --border-default: rgba(235, 233, 230, 0.14);
+    --border-strong: rgba(235, 233, 230, 0.22);
+
+    /* Semantic states. Solid hues remain readable on neutral HUD surfaces. */
+    --state-success: var(--cortex-sage);
+    --state-error: var(--cortex-coral);
+    --state-warning: var(--cortex-amber);
+    --state-info: var(--cortex-blue);
+    --state-focus: var(--cortex-aqua);
+    --state-selection: var(--cortex-lavender);
+    --state-success-surface: rgba(155, 194, 174, 0.20);
+    --state-error-surface: rgba(223, 137, 137, 0.22);
+    --state-error-surface-hover: rgba(223, 137, 137, 0.32);
+    --state-warning-surface: rgba(216, 186, 130, 0.18);
+    --state-warning-surface-hover: rgba(216, 186, 130, 0.26);
+    --state-info-surface: rgba(155, 188, 211, 0.20);
+    --state-focus-surface: rgba(143, 203, 191, 0.24);
+    --state-focus-surface-hover: rgba(143, 203, 191, 0.34);
+    --state-selection-surface: rgba(190, 169, 222, 0.20);
+    --state-selection-surface-hover: rgba(190, 169, 222, 0.30);
+
+    /* Shared HUD identities for current and dependent Cortex surfaces. */
+    --hud-health: var(--cortex-rose);
+    --hud-armor: var(--cortex-blue);
+    --hud-stamina: var(--cortex-lavender);
+    --hud-progress: var(--cortex-lavender);
+    --hud-interaction: var(--cortex-white);
+    --hud-waypoint: var(--cortex-lavender);
+    --shadow-color: rgba(7, 7, 8, 0.82);
+    --shadow-color-soft: rgba(7, 7, 8, 0.48);
 
     --font-hud: 'Share Tech Mono', 'Courier New', monospace;
-    --text-shadow: 0 0 4px var(--hud-glow);
+    --text-shadow: 0 1px 2px var(--shadow-color);
 
-    /* cortex-lib semantic variants mapped into HUD palette */
-    --cortex-success: #10b981;
-    --cortex-error: #ff4444;
-    --cortex-warning: #ffaa00;
-    --cortex-info: var(--hud-color);
+    /* Compatibility aliases retained for existing custom-style contracts. */
+    --hud-color: var(--text-primary);
+    --hud-glow: var(--shadow-color-soft);
+    --hud-dim: var(--text-secondary);
+    --hud-bg: var(--surface-scrim);
+    --hud-panel: var(--surface-panel);
+    --hud-panel-2: var(--surface-panel-subtle);
+    --hud-line: var(--border-default);
+    --hud-line-2: var(--border-strong);
+    --cortex-success: var(--state-success);
+    --cortex-error: var(--state-error);
+    --cortex-warning: var(--state-warning);
+    --cortex-info: var(--state-info);
+    --cortex-accent: var(--state-focus);
 
     /* Resolution scaling (defaults tuned for 1080p) */
     --cortex-ui-scale: 1;
@@ -33,7 +96,7 @@
 
     /* UI geometry */
     --cortex-radius: calc(2px * var(--cortex-ui-scale));
-    --cortex-border: rgba(255, 255, 255, 0.15);
+    --cortex-border: var(--border-default);
 }
 
 * {
@@ -58,6 +121,20 @@ body {
     user-select: none;
     color: var(--hud-color);
     text-shadow: var(--text-shadow);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+    outline: 2px solid var(--state-focus);
+    outline-offset: 2px;
+}
+
+button:disabled,
+input:disabled,
+select:disabled {
+    color: var(--text-disabled);
+    cursor: not-allowed;
 }
 
 .cortex-editor-root {
@@ -116,14 +193,14 @@ body {
 
 /* Notification base (PolCam HUD-inspired) */
 .notify {
-    background: rgba(0, 0, 0, 0.65);
+    background: var(--surface-hud);
     border-radius: var(--cortex-radius);
     padding: calc(8px * var(--cortex-ui-scale)) calc(10px * var(--cortex-ui-scale));
     display: flex;
     align-items: flex-start;
     gap: calc(8px * var(--cortex-ui-scale));
     border: 1px solid var(--cortex-border);
-    filter: drop-shadow(0 0 6px var(--hud-glow));
+    filter: drop-shadow(0 4px 10px var(--shadow-color-soft));
     animation: slideIn 0.2s ease-out;
     opacity: 1;
     transform: translateX(0);
@@ -138,20 +215,20 @@ body {
 
 /* Type variants */
 .notify.success {
-    border-color: rgba(16, 185, 129, 0.35);
+    border-color: var(--state-success);
 }
 
 .notify.error {
-    border-color: rgba(255, 68, 68, 0.45);
+    border-color: var(--state-error);
 }
 
 .notify.warning {
-    border-color: rgba(255, 170, 0, 0.45);
+    border-color: var(--state-warning);
 }
 
 .notify.info,
 .notify.inform {
-    border-color: var(--cortex-border);
+    border-color: var(--state-info);
 }
 
 .notify.notify-plain {
@@ -191,7 +268,7 @@ body {
 
 .notify.info::before,
 .notify.inform::before {
-    background: var(--hud-color);
+    background: var(--state-info);
 }
 
 /* Icon */
@@ -217,7 +294,7 @@ body {
 
 .notify.info .notify-icon,
 .notify.inform .notify-icon {
-    color: var(--hud-color);
+    color: var(--state-info);
 }
 
 /* Content */
@@ -263,8 +340,8 @@ body {
 }
 
 .notify-close:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.25);
+    background: var(--surface-control-hover);
+    border-color: var(--border-strong);
 }
 
 .notify.persistent {
@@ -277,8 +354,8 @@ body {
     bottom: 0;
     left: 0;
     height: 2px;
-    background: rgba(255, 255, 255, 0.55);
-    filter: drop-shadow(0 0 4px var(--hud-glow));
+    background: var(--text-secondary);
+    filter: none;
 }
 
 /* Animations */
@@ -407,18 +484,18 @@ body {
 }
 
 #textui.textui-backdrop {
-    background: rgba(20, 20, 20, 0.85);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.35));
+    background: var(--surface-panel);
+    border: 1px solid var(--border-default);
+    filter: drop-shadow(0 3px 8px var(--shadow-color-soft));
 }
 
 #textui .textui-text {
     white-space: pre-wrap;
-    filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.55));
+    filter: drop-shadow(0 1px 2px var(--shadow-color));
 }
 
 #textui:not(.textui-backdrop) .textui-text {
-    filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.65));
+    filter: drop-shadow(0 1px 2px var(--shadow-color));
 }
 
 #textui .textui-icon {
@@ -475,17 +552,17 @@ body {
     justify-content: center;
     pointer-events: auto;
 
-    background: rgba(0, 0, 0, 0.35);
+    background: var(--surface-scrim);
 }
 
 .alert-dialog {
     min-width: calc(420px * var(--cortex-ui-scale));
     max-width: calc(620px * var(--cortex-ui-scale));
-    background: rgba(18, 18, 18, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--surface-panel-solid);
+    border: 1px solid var(--border-default);
     border-radius: calc(6px * var(--cortex-ui-scale));
     padding: calc(18px * var(--cortex-ui-scale)) calc(18px * var(--cortex-ui-scale));
-    filter: drop-shadow(0 12px 26px rgba(0, 0, 0, 0.45));
+    filter: drop-shadow(0 12px 26px var(--shadow-color-soft));
 
     display: flex;
     flex-direction: column;
@@ -507,7 +584,7 @@ body {
 
 .alert-content {
     white-space: pre-wrap;
-    color: rgba(240, 240, 240, 0.85);
+    color: var(--text-secondary);
     line-height: 1.4;
     font-size: calc(13px * var(--cortex-ui-scale));
 }
@@ -521,9 +598,9 @@ body {
 
 .alert-btn {
     pointer-events: auto;
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--surface-control);
     color: var(--hud-color);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid var(--border-default);
     border-radius: calc(4px * var(--cortex-ui-scale));
     padding: calc(10px * var(--cortex-ui-scale)) calc(16px * var(--cortex-ui-scale));
     font-family: var(--font-hud);
@@ -534,30 +611,30 @@ body {
 }
 
 .alert-btn:hover {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--surface-control-hover);
+    border-color: var(--border-strong);
 }
 
 .alert-btn.cancel {
-    background: rgba(239, 68, 68, 0.25);
-    border-color: rgba(239, 68, 68, 0.4);
-    color: #ffffff;
+    background: var(--state-error-surface);
+    border-color: var(--state-error);
+    color: var(--text-primary);
 }
 
 .alert-btn.cancel:hover {
-    background: rgba(239, 68, 68, 0.35);
-    border-color: rgba(239, 68, 68, 0.5);
+    background: var(--state-error-surface-hover);
+    border-color: var(--state-error);
 }
 
 .alert-btn.confirm {
-    background: rgba(59, 130, 246, 0.5);
-    border-color: rgba(59, 130, 246, 0.6);
-    color: #ffffff;
+    background: var(--state-focus-surface);
+    border-color: var(--state-focus);
+    color: var(--text-primary);
 }
 
 .alert-btn.confirm:hover {
-    background: rgba(59, 130, 246, 0.65);
-    border-color: rgba(59, 130, 246, 0.75);
+    background: var(--state-focus-surface-hover);
+    border-color: var(--state-focus);
 }
 
 /* ============================================================================
@@ -594,30 +671,30 @@ body {
 
 .cortex-debug-panel {
     width: calc(340px * var(--cortex-ui-scale));
-    background: rgba(10, 10, 10, 0.75);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--surface-hud-soft);
+    border: 1px solid var(--border-default);
     border-radius: calc(6px * var(--cortex-ui-scale));
     overflow: hidden;
-    filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.45));
+    filter: drop-shadow(0 10px 24px var(--shadow-color-soft));
 }
 
 .cortex-debug-header {
     padding: calc(10px * var(--cortex-ui-scale)) calc(12px * var(--cortex-ui-scale));
-    background: rgba(0, 0, 0, 0.25);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+    background: var(--surface-panel-subtle);
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .cortex-debug-title {
     font-weight: 900;
     letter-spacing: 1px;
     font-size: calc(13px * var(--cortex-ui-scale));
-    color: rgba(255, 255, 255, 0.92);
+    color: var(--text-primary);
 }
 
 .cortex-debug-subtitle {
     margin-top: calc(4px * var(--cortex-ui-scale));
     font-size: calc(11px * var(--cortex-ui-scale));
-    color: rgba(220, 220, 220, 0.70);
+    color: var(--text-secondary);
     letter-spacing: 0.6px;
 }
 
@@ -635,17 +712,17 @@ body {
     justify-content: space-between;
     gap: calc(10px * var(--cortex-ui-scale));
     font-size: calc(11px * var(--cortex-ui-scale));
-    color: rgba(245, 245, 245, 0.90);
+    color: var(--text-primary);
     letter-spacing: 0.4px;
 }
 
 .cortex-debug-label {
-    color: rgba(200, 200, 200, 0.75);
+    color: var(--text-secondary);
     flex: 0 0 auto;
 }
 
 .cortex-debug-value {
-    color: rgba(255, 255, 255, 0.92);
+    color: var(--text-primary);
     flex: 1;
     text-align: right;
     overflow: hidden;
@@ -656,11 +733,11 @@ body {
 .cortex-debug-json {
     margin-top: calc(6px * var(--cortex-ui-scale));
     padding: calc(8px * var(--cortex-ui-scale));
-    background: rgba(0, 0, 0, 0.30);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--surface-hud);
+    border: 1px solid var(--border-subtle);
     border-radius: calc(4px * var(--cortex-ui-scale));
     font-size: calc(10px * var(--cortex-ui-scale));
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--text-secondary);
     max-height: calc(160px * var(--cortex-ui-scale));
     overflow: hidden;
     white-space: pre-wrap;
@@ -704,7 +781,7 @@ body {
     border: 1px solid var(--hud-line);
     border-radius: calc(6px * var(--cortex-ui-scale));
     overflow: hidden;
-    filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.45));
+    filter: drop-shadow(0 10px 24px var(--shadow-color-soft));
 }
 
 .cortex-menu-header {
@@ -741,12 +818,12 @@ body {
 }
 
 .cortex-menu-body::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.18);
+    background: var(--border-strong);
     border-radius: calc(6px * var(--cortex-ui-scale));
 }
 
 .cortex-menu-body::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--surface-hud-soft);
 }
 
 .cortex-menu-option {
@@ -755,15 +832,15 @@ body {
     justify-content: space-between;
     gap: calc(10px * var(--cortex-ui-scale));
     padding: calc(9px * var(--cortex-ui-scale)) calc(12px * var(--cortex-ui-scale));
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    border-bottom: 1px solid var(--border-subtle);
     border-left: 3px solid transparent;
     cursor: pointer;
-    background: rgba(0, 0, 0, 0.0);
+    background: transparent;
     transition: background 0.12s, border-color 0.12s;
 }
 
 .cortex-menu-option:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--surface-control-hover);
 }
 
 .cortex-menu-option:last-child {
@@ -771,8 +848,8 @@ body {
 }
 
 .cortex-menu-option.active {
-    background: rgba(16, 185, 129, 0.15);
-    border-left-color: var(--cortex-success);
+    background: var(--state-selection-surface);
+    border-left-color: var(--state-selection);
 }
 
 .cortex-menu-option-main {
@@ -796,7 +873,7 @@ body {
     font-size: calc(11px * var(--cortex-ui-scale));
     letter-spacing: 1px;
     color: var(--hud-dim);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    border: 1px solid var(--border-default);
     border-radius: calc(4px * var(--cortex-ui-scale));
     padding: calc(4px * var(--cortex-ui-scale)) calc(8px * var(--cortex-ui-scale));
     flex-shrink: 0;
@@ -806,18 +883,18 @@ body {
     height: calc(4px * var(--cortex-ui-scale));
     border-radius: calc(4px * var(--cortex-ui-scale));
     overflow: hidden;
-    background: rgba(255, 255, 255, 0.10);
+    background: var(--surface-control-active);
 }
 
 .cortex-menu-option-progressFill {
     height: 100%;
-    background: rgba(255, 255, 255, 0.55);
+    background: var(--state-info);
 }
 
 .cortex-menu-footer {
     padding: calc(10px * var(--cortex-ui-scale)) calc(12px * var(--cortex-ui-scale));
     border-top: 1px solid var(--hud-line);
-    background: rgba(0, 0, 0, 0.15);
+    background: var(--surface-hud-soft);
     display: flex;
     flex-direction: column;
     gap: calc(8px * var(--cortex-ui-scale));
@@ -825,7 +902,7 @@ body {
 
 .cortex-menu-tooltip {
     font-size: calc(12px * var(--cortex-ui-scale));
-    color: rgba(240, 240, 240, 0.85);
+    color: var(--text-secondary);
     min-height: calc(14px * var(--cortex-ui-scale));
     line-height: 1.35;
 }
@@ -847,7 +924,7 @@ body {
     position: fixed;
     inset: 0;
     z-index: 10000;
-    background: #0b0b0b;
+    background: var(--cortex-black);
     display: flex;
     flex-direction: column;
     user-select: none;
@@ -888,8 +965,8 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: var(--surface-control);
+    border: 1px solid var(--border-default);
     color: var(--hud-color);
     padding: calc(6px * var(--cortex-ui-scale)) calc(12px * var(--cortex-ui-scale));
     border-radius: calc(4px * var(--cortex-ui-scale));
@@ -899,11 +976,12 @@ body {
     font-size: calc(11px * var(--cortex-ui-scale));
     letter-spacing: 0.5px;
     text-transform: uppercase;
-    transition: all 0.15s ease;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease, transform 0.15s ease;
 }
 
 .cortex-editor-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--surface-control-hover);
+    border-color: var(--border-strong);
 }
 
 .cortex-editor-btn:active {
@@ -911,28 +989,31 @@ body {
 }
 
 .cortex-editor-btn:disabled {
-    opacity: 0.5;
+    background: var(--surface-control);
+    border-color: var(--border-subtle);
+    color: var(--text-disabled);
+    opacity: 1;
     cursor: not-allowed;
 }
 
 .cortex-editor-btn.primary {
-    background: var(--cortex-success);
+    background: var(--state-focus);
     border-color: transparent;
-    color: #000;
+    color: var(--text-inverse);
 }
 
 .cortex-editor-btn.primary:hover {
-    background: #34d399;
+    background: var(--cortex-aqua-raised);
 }
 
 .cortex-editor-btn.calibrate {
-    background: rgba(255, 170, 0, 0.1);
-    border-color: var(--cortex-warning);
-    color: var(--cortex-warning);
+    background: var(--state-warning-surface);
+    border-color: var(--state-warning);
+    color: var(--state-warning);
 }
 
 .cortex-editor-btn.calibrate:hover {
-    background: rgba(255, 170, 0, 0.2);
+    background: var(--state-warning-surface-hover);
 }
 
 .cortex-editor-btn.ghost {
@@ -942,7 +1023,7 @@ body {
 }
 
 .cortex-editor-btn.ghost:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--surface-control-hover);
     opacity: 1;
 }
 
@@ -1023,20 +1104,20 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: calc(8px * var(--cortex-ui-scale)) calc(10px * var(--cortex-ui-scale));
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--surface-control);
     border: 1px solid transparent;
     border-radius: calc(4px * var(--cortex-ui-scale));
     cursor: pointer;
-    transition: all 0.1s;
+    transition: background 0.1s, border-color 0.1s;
 }
 
 .cortex-zone-item:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--surface-control-hover);
 }
 
 .cortex-zone-item.active {
-    background: rgba(255, 170, 0, 0.15);
-    border-color: rgba(255, 170, 0, 0.3);
+    background: var(--state-selection-surface);
+    border-color: var(--state-selection);
 }
 
 .cortex-zone-info {
@@ -1056,7 +1137,7 @@ body {
 }
 
 .cortex-zone-item.active .cortex-zone-name {
-    color: var(--cortex-warning);
+    color: var(--state-selection);
 }
 
 .cortex-zone-meta {
@@ -1100,7 +1181,7 @@ body {
     display: flex;
     flex-direction: column;
     z-index: 10;
-    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+    box-shadow: 4px 0 20px var(--shadow-color-soft);
 }
 
 .cortex-panel-header {
@@ -1138,7 +1219,7 @@ body {
     text-transform: uppercase;
     letter-spacing: 1px;
     font-weight: 700;
-    transition: all 0.2s;
+    transition: color 0.2s, border-color 0.2s;
 }
 
 .cortex-tab:hover {
@@ -1146,8 +1227,8 @@ body {
 }
 
 .cortex-tab.active {
-    color: var(--cortex-warning);
-    border-bottom-color: var(--cortex-warning);
+    color: var(--state-selection);
+    border-bottom-color: var(--state-selection);
 }
 
 .cortex-panel-content {
@@ -1179,7 +1260,7 @@ body {
 }
 
 .cortex-editor-input {
-    background: rgba(0, 0, 0, 0.3);
+    background: var(--surface-hud-soft);
     border: 1px solid var(--hud-line);
     color: var(--hud-color);
     padding: calc(8px * var(--cortex-ui-scale));
@@ -1189,8 +1270,7 @@ body {
 }
 
 .cortex-editor-input:focus {
-    border-color: var(--cortex-warning);
-    outline: none;
+    border-color: var(--state-focus);
 }
 
 .cortex-editor-select {
@@ -1201,8 +1281,8 @@ body {
 .cortex-editor-pill {
     flex: 1;
     padding: calc(6px * var(--cortex-ui-scale));
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--surface-control);
+    border: 1px solid var(--border-subtle);
     color: var(--hud-dim);
     text-align: center;
     font-size: calc(10px * var(--cortex-ui-scale));
@@ -1211,9 +1291,9 @@ body {
 }
 
 .cortex-editor-pill.active {
-    background: rgba(255, 170, 0, 0.15);
-    border-color: var(--cortex-warning);
-    color: var(--cortex-warning);
+    background: var(--state-selection-surface);
+    border-color: var(--state-selection);
+    color: var(--state-selection);
     font-weight: 700;
 }
 
@@ -1232,7 +1312,7 @@ body {
 }
 
 .cortex-editor-help {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--surface-control);
     border: 1px solid var(--hud-line);
     padding: calc(12px * var(--cortex-ui-scale));
     border-radius: calc(4px * var(--cortex-ui-scale));
@@ -1254,7 +1334,7 @@ body {
 /* Map & Calibration */
 .cortex-editor-map {
     flex: 1;
-    background: #050505;
+    background: var(--cortex-black);
     position: relative;
     overflow: hidden;
     cursor: grab;
@@ -1285,7 +1365,7 @@ body {
 }
 
 .zone-poly {
-    fill: rgba(255, 255, 255, 0.1);
+    fill: var(--state-info-surface);
     stroke: var(--hud-dim);
     stroke-width: 1.5px;
     vector-effect: non-scaling-stroke;
@@ -1294,18 +1374,18 @@ body {
 }
 
 .zone-poly:hover {
-    fill: rgba(255, 255, 255, 0.2);
+    fill: var(--state-selection-surface);
 }
 
 .zone-poly.selected {
-    fill: rgba(255, 170, 0, 0.2);
-    stroke: var(--cortex-warning);
+    fill: var(--state-selection-surface-hover);
+    stroke: var(--state-selection);
     stroke-width: 2.5px;
 }
 
 .zone-handle {
-    fill: var(--cortex-warning);
-    stroke: #000;
+    fill: var(--state-selection);
+    stroke: var(--text-inverse);
     stroke-width: 1px;
     r: 4px;
     cursor: grab;
@@ -1321,15 +1401,15 @@ body {
     top: calc(16px * var(--cortex-ui-scale));
     left: 50%;
     transform: translateX(-50%);
-    background: var(--cortex-success);
-    color: #000;
+    background: var(--state-focus);
+    color: var(--text-inverse);
     font-weight: 900;
     font-size: calc(12px * var(--cortex-ui-scale));
     padding: calc(6px * var(--cortex-ui-scale)) calc(16px * var(--cortex-ui-scale));
     border-radius: calc(20px * var(--cortex-ui-scale));
     pointer-events: none;
     z-index: 50;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 12px var(--shadow-color-soft);
     animation: slideDown 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -1346,7 +1426,7 @@ body {
 .cortex-calibration-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: var(--surface-scrim-strong);
     backdrop-filter: blur(2px);
     display: flex;
     justify-content: center;
@@ -1355,17 +1435,17 @@ body {
 }
 
 .cortex-calibration-box {
-    background: #0b0b0b;
-    border: 2px solid var(--cortex-warning);
+    background: var(--surface-panel-solid);
+    border: 2px solid var(--state-warning);
     border-radius: calc(8px * var(--cortex-ui-scale));
     padding: calc(24px * var(--cortex-ui-scale));
     max-width: calc(480px * var(--cortex-ui-scale));
     text-align: center;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+    box-shadow: 0 10px 40px var(--shadow-color);
 }
 
 .cortex-calibration-title {
-    color: var(--cortex-warning);
+    color: var(--state-warning);
     font-size: calc(16px * var(--cortex-ui-scale));
     font-weight: 900;
     margin-bottom: calc(16px * var(--cortex-ui-scale));
@@ -1378,7 +1458,7 @@ body {
 }
 
 .cortex-calibration-hint {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface-control);
     padding: calc(12px * var(--cortex-ui-scale));
     font-size: calc(11px * var(--cortex-ui-scale));
     color: var(--hud-dim);
@@ -1386,8 +1466,8 @@ body {
 }
 
 .cortex-calibration-cancel {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: var(--surface-control);
+    border: 1px solid var(--border-default);
     color: var(--hud-dim);
     padding: calc(8px * var(--cortex-ui-scale)) calc(16px * var(--cortex-ui-scale));
     border-radius: calc(4px * var(--cortex-ui-scale));
@@ -1399,8 +1479,8 @@ body {
 }
 
 .cortex-calibration-cancel:hover {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.35);
+    background: var(--surface-control-hover);
+    border-color: var(--border-strong);
     color: var(--hud-color);
 }
 
@@ -1416,7 +1496,7 @@ body {
 .cortex-points-header {
     display: grid;
     grid-template-columns: 32px 1fr 1fr;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface-control);
     padding: calc(8px * var(--cortex-ui-scale));
     font-size: calc(10px * var(--cortex-ui-scale));
     font-weight: 700;
@@ -1428,7 +1508,7 @@ body {
     grid-template-columns: 32px 1fr 1fr;
     padding: calc(6px * var(--cortex-ui-scale)) calc(8px * var(--cortex-ui-scale));
     font-size: calc(11px * var(--cortex-ui-scale));
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid var(--border-subtle);
     font-family: monospace;
 }
 
@@ -1445,7 +1525,7 @@ body {
 
 .cortex-debug-section-title {
     font-size: calc(10px * var(--cortex-ui-scale));
-    color: var(--cortex-warning);
+    color: var(--state-warning);
     border-bottom: 1px solid var(--hud-line);
     padding-bottom: 4px;
     margin-bottom: 8px;
@@ -1485,7 +1565,7 @@ body {
 .cortex-point-table th {
     position: sticky;
     top: 0;
-    background: #222;
+    background: var(--cortex-surface-raised);
     text-align: left;
     padding: 4px;
     color: var(--hud-dim);
@@ -1493,7 +1573,7 @@ body {
 
 .cortex-point-table td {
     padding: 4px;
-    border-bottom: 1px solid #333;
+    border-bottom: 1px solid var(--border-default);
 }
 
 .cortex-icon-btn {
@@ -1511,7 +1591,7 @@ body {
 
 .cortex-icon-btn:hover {
     color: var(--hud-color);
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--surface-control-hover);
 }
 
 
@@ -1554,18 +1634,18 @@ body {
 .progress-track {
     width: 100%;
     height: calc(10px * var(--cortex-ui-scale));
-    background: rgba(0, 0, 0, 0.35);
+    background: var(--surface-hud-soft);
     border-radius: var(--cortex-radius);
     overflow: hidden;
     border: 1px solid var(--cortex-border);
-    filter: drop-shadow(0 0 6px var(--hud-glow));
+    filter: drop-shadow(0 2px 6px var(--shadow-color-soft));
 }
 
 .progress-fill {
     height: 100%;
     width: 0%;
-    background: rgba(255, 255, 255, 0.6);
-    filter: drop-shadow(0 0 6px var(--hud-glow));
+    background: var(--hud-progress);
+    filter: none;
     border-radius: 0;
     transition: width 0.1s linear;
 }
@@ -1588,13 +1668,13 @@ body {
 
 .progress-circle-track {
     fill: none;
-    stroke: rgba(255, 255, 255, 0.15);
+    stroke: var(--border-strong);
     stroke-width: 10;
 }
 
 .progress-circle-fill {
     fill: none;
-    stroke: var(--cortex-success);
+    stroke: var(--hud-progress);
     stroke-width: 10;
     stroke-linecap: round;
 }
@@ -1657,7 +1737,7 @@ body {
 }
 
 .cortex-help-label {
-    color: #cbd5e1;
+    color: var(--text-secondary);
     font-size: calc(14px * var(--cortex-ui-scale));
     font-weight: 500;
     text-transform: capitalize;
@@ -1675,8 +1755,8 @@ body {
     min-width: calc(24px * var(--cortex-ui-scale));
     height: calc(24px * var(--cortex-ui-scale));
     padding: 0 calc(6px * var(--cortex-ui-scale));
-    background: #ffffff;
-    color: #0f172a;
+    background: var(--text-primary);
+    color: var(--text-inverse);
     border-radius: calc(3px * var(--cortex-ui-scale));
     font-size: calc(13px * var(--cortex-ui-scale));
     font-weight: 700;
@@ -1709,7 +1789,7 @@ body {
 .cortex-radial-svg {
     width: calc(350px * var(--cortex-ui-scale));
     height: calc(350px * var(--cortex-ui-scale));
-    filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.5));
+    filter: drop-shadow(0 4px 20px var(--shadow-color-soft));
 }
 
 /* ============================================================================
@@ -1734,14 +1814,114 @@ body {
     align-items: center;
     justify-content: flex-end;
     gap: calc(8px * var(--cortex-interaction-scale, 1));
-    min-height: calc(38px * var(--cortex-interaction-scale, 1));
+    min-height: calc(46px * var(--cortex-interaction-scale, 1));
     animation: cortex-interaction-enter 0.18s cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.cortex-target-panel {
+    display: grid;
+    width: calc(278px * var(--cortex-interaction-scale, 1));
+    color: var(--hud-interaction);
+    pointer-events: none;
+    animation: cortex-interaction-enter 0.18s cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.cortex-target-actions {
+    display: grid;
+    gap: calc(14px * var(--cortex-interaction-scale, 1));
+}
+
+.cortex-target-action,
+.cortex-target-context {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) calc(52px * var(--cortex-interaction-scale, 1));
+    align-items: center;
+    gap: calc(14px * var(--cortex-interaction-scale, 1));
+}
+
+.cortex-target-action {
+    min-height: calc(60px * var(--cortex-interaction-scale, 1));
+}
+
+.cortex-target-action-label,
+.cortex-target-context-label {
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    padding: calc(2px * var(--cortex-interaction-scale, 1));
+    color: var(--hud-interaction);
+    font-family: 'Barlow Condensed', Impact, sans-serif;
+    font-weight: 800;
+    font-synthesis: none;
+    line-height: 0.94;
+    text-align: right;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    paint-order: stroke fill;
+    white-space: nowrap;
+    -webkit-text-stroke: calc(1.15px * var(--cortex-interaction-scale, 1)) var(--cortex-black);
+    text-shadow:
+        calc(1px * var(--cortex-interaction-scale, 1)) calc(1px * var(--cortex-interaction-scale, 1)) 0 var(--shadow-color),
+        calc(-1px * var(--cortex-interaction-scale, 1)) calc(1px * var(--cortex-interaction-scale, 1)) 0 var(--shadow-color),
+        0 calc(2px * var(--cortex-interaction-scale, 1)) calc(2px * var(--cortex-interaction-scale, 1)) var(--shadow-color);
+}
+
+.cortex-target-action-label {
+    font-size: calc(28px * var(--cortex-interaction-scale, 1));
+    letter-spacing: calc(1.35px * var(--cortex-interaction-scale, 1));
+}
+
+.cortex-target-action-dot {
+    display: grid;
+    width: calc(42px * var(--cortex-interaction-scale, 1));
+    height: calc(42px * var(--cortex-interaction-scale, 1));
+    justify-self: center;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--hud-interaction);
+    color: var(--cortex-black);
+    font-family: 'Barlow Condensed', Impact, sans-serif;
+    font-size: calc(24px * var(--cortex-interaction-scale, 1));
+    font-weight: 800;
+    line-height: 1;
+    text-transform: uppercase;
+    box-shadow:
+        0 0 0 calc(1.5px * var(--cortex-interaction-scale, 1)) var(--cortex-black),
+        0 calc(2px * var(--cortex-interaction-scale, 1)) calc(2px * var(--cortex-interaction-scale, 1)) var(--shadow-color);
+}
+
+.cortex-target-divider {
+    display: block;
+    width: 100%;
+    height: calc(3px * var(--cortex-interaction-scale, 1));
+    margin: calc(10px * var(--cortex-interaction-scale, 1)) 0 calc(8px * var(--cortex-interaction-scale, 1));
+    background: var(--hud-interaction);
+    box-shadow: 0 calc(1px * var(--cortex-interaction-scale, 1)) calc(1px * var(--cortex-interaction-scale, 1)) var(--shadow-color);
+}
+
+.cortex-target-context {
+    /* Match the 54px world glyph after the shared 0.8 interaction scale. */
+    --cortex-target-marker-size: calc(43.2px * var(--cortex-ui-scale));
+    grid-template-columns: minmax(0, 1fr) var(--cortex-target-marker-size);
+    min-height: var(--cortex-target-marker-size);
+}
+
+.cortex-target-context-label {
+    font-size: calc(32px * var(--cortex-interaction-scale, 1));
+    letter-spacing: calc(1.15px * var(--cortex-interaction-scale, 1));
+}
+
+.cortex-target-marker {
+    width: var(--cortex-target-marker-size);
+    height: var(--cortex-target-marker-size);
+    justify-self: center;
 }
 
 .cortex-interaction-label,
 .cortex-world-interaction-label {
     overflow: hidden;
-    color: rgba(245, 243, 239, 0.98);
+    color: var(--hud-interaction);
     font-family: 'Barlow Condensed', Impact, sans-serif;
     font-weight: 800;
     font-synthesis: none;
@@ -1758,22 +1938,24 @@ body {
     letter-spacing: calc(0.5px * var(--cortex-interaction-scale, 1));
     padding: calc(2px * var(--cortex-interaction-scale, 1));
     margin: calc(-2px * var(--cortex-interaction-scale, 1));
-    -webkit-text-stroke: calc(1.15px * var(--cortex-interaction-scale, 1)) rgba(20, 19, 20, 0.98);
+    -webkit-text-stroke: calc(1.15px * var(--cortex-interaction-scale, 1)) var(--cortex-black);
     text-shadow:
-        calc(1px * var(--cortex-interaction-scale, 1)) calc(1px * var(--cortex-interaction-scale, 1)) 0 rgba(12, 11, 12, 0.96),
-        calc(-1px * var(--cortex-interaction-scale, 1)) calc(1px * var(--cortex-interaction-scale, 1)) 0 rgba(12, 11, 12, 0.96),
-        0 calc(2px * var(--cortex-interaction-scale, 1)) calc(2px * var(--cortex-interaction-scale, 1)) rgba(0, 0, 0, 0.88);
+        calc(1px * var(--cortex-interaction-scale, 1)) calc(1px * var(--cortex-interaction-scale, 1)) 0 var(--shadow-color),
+        calc(-1px * var(--cortex-interaction-scale, 1)) calc(1px * var(--cortex-interaction-scale, 1)) 0 var(--shadow-color),
+        0 calc(2px * var(--cortex-interaction-scale, 1)) calc(2px * var(--cortex-interaction-scale, 1)) var(--shadow-color);
 }
 
 .cortex-interaction-key,
-.cortex-world-interaction-key {
+.cortex-target-marker,
+.cortex-world-interaction-key,
+.cortex-world-access-key {
+    position: relative;
     display: flex;
     flex: 0 0 auto;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    background: #e5e3df;
-    color: #201f20;
+    background: transparent;
     font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
     font-weight: 900;
     line-height: 1;
@@ -1781,18 +1963,70 @@ body {
 }
 
 .cortex-interaction-key {
-    width: calc(38px * var(--cortex-interaction-scale, 1));
-    height: calc(38px * var(--cortex-interaction-scale, 1));
-    border: calc(3px * var(--cortex-interaction-scale, 1)) solid rgba(43, 42, 42, 0.86);
-    box-shadow:
-        0 calc(1px * var(--cortex-interaction-scale, 1)) calc(3px * var(--cortex-interaction-scale, 1)) rgba(0, 0, 0, 0.7),
-        inset 0 0 0 calc(2px * var(--cortex-interaction-scale, 1)) rgba(255, 255, 255, 0.5);
+    width: calc(46px * var(--cortex-interaction-scale, 1));
+    height: calc(46px * var(--cortex-interaction-scale, 1));
     font-size: calc(13px * var(--cortex-interaction-scale, 1));
 }
 
 .cortex-interaction-key.is-wide {
     font-size: calc(8px * var(--cortex-interaction-scale, 1));
     letter-spacing: calc(-0.2px * var(--cortex-interaction-scale, 1));
+}
+
+.cortex-interaction-key-ring {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    filter: drop-shadow(0 1px 1px var(--shadow-color));
+    pointer-events: none;
+}
+
+.cortex-interaction-key-ring-track,
+.cortex-interaction-key-ring-progress {
+    fill: none;
+    stroke: var(--hud-interaction);
+    stroke-width: 3;
+}
+
+.cortex-interaction-key-ring-track {
+    transition: opacity 0.12s ease-out;
+}
+
+.cortex-interaction-key-ring-progress {
+    stroke: var(--state-focus);
+    stroke-width: 3.4;
+    stroke-linecap: round;
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    transform: rotate(-90deg);
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: cortex-interaction-hold var(--cortex-interaction-hold-duration, 1000ms) linear forwards;
+}
+
+.is-holding > .cortex-interaction-key-ring > .cortex-interaction-key-ring-track {
+    opacity: 0.28;
+}
+
+.cortex-interaction-key-value {
+    position: absolute;
+    inset: 16%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--text-primary);
+    box-shadow: 0 1px 2px var(--shadow-color);
+    color: var(--text-inverse);
+    font: inherit;
+    line-height: 1;
+}
+
+@keyframes cortex-interaction-hold {
+    from { stroke-dashoffset: 100; }
+    to { stroke-dashoffset: 0; }
 }
 
 .cortex-world-interactions {
@@ -1807,8 +2041,8 @@ body {
     position: fixed;
     top: 0;
     left: 0;
-    width: calc(42px * var(--cortex-ui-scale));
-    height: calc(42px * var(--cortex-ui-scale));
+    width: calc(54px * var(--cortex-ui-scale));
+    height: calc(54px * var(--cortex-ui-scale));
     transform: translate3d(var(--cortex-world-x, 50vw), var(--cortex-world-y, 50vh), 0)
         translate3d(-50%, -50%, 0) scale(var(--cortex-world-scale, 1));
     transform-origin: center;
@@ -1818,39 +2052,25 @@ body {
 .cortex-world-interaction-label {
     position: absolute;
     top: 50%;
-    right: calc(52px * var(--cortex-ui-scale));
+    right: calc(64px * var(--cortex-ui-scale));
     max-width: min(34vw, calc(320px * var(--cortex-ui-scale)));
     font-size: calc(23px * var(--cortex-ui-scale));
     letter-spacing: calc(0.5px * var(--cortex-ui-scale));
     padding: calc(2px * var(--cortex-ui-scale));
     transform: translateY(-50%);
-    -webkit-text-stroke: calc(1.15px * var(--cortex-ui-scale)) rgba(20, 19, 20, 0.98);
+    -webkit-text-stroke: calc(1.15px * var(--cortex-ui-scale)) var(--cortex-black);
     text-shadow:
-        calc(1px * var(--cortex-ui-scale)) calc(1px * var(--cortex-ui-scale)) 0 rgba(12, 11, 12, 0.96),
-        calc(-1px * var(--cortex-ui-scale)) calc(1px * var(--cortex-ui-scale)) 0 rgba(12, 11, 12, 0.96),
-        0 calc(2px * var(--cortex-ui-scale)) calc(2px * var(--cortex-ui-scale)) rgba(0, 0, 0, 0.88);
+        calc(1px * var(--cortex-ui-scale)) calc(1px * var(--cortex-ui-scale)) 0 var(--shadow-color),
+        calc(-1px * var(--cortex-ui-scale)) calc(1px * var(--cortex-ui-scale)) 0 var(--shadow-color),
+        0 calc(2px * var(--cortex-ui-scale)) calc(2px * var(--cortex-ui-scale)) var(--shadow-color);
     animation: cortex-world-label-enter 0.18s cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 .cortex-world-interaction-key {
-    position: relative;
-    width: calc(42px * var(--cortex-ui-scale));
-    height: calc(42px * var(--cortex-ui-scale));
-    border: calc(3px * var(--cortex-ui-scale)) solid rgba(36, 35, 35, 0.9);
-    box-shadow:
-        0 calc(2px * var(--cortex-ui-scale)) calc(4px * var(--cortex-ui-scale)) rgba(0, 0, 0, 0.72),
-        inset 0 0 0 calc(2px * var(--cortex-ui-scale)) rgba(255, 255, 255, 0.52);
+    width: calc(54px * var(--cortex-ui-scale));
+    height: calc(54px * var(--cortex-ui-scale));
     font-size: calc(14px * var(--cortex-ui-scale));
     animation: cortex-world-key-enter 0.18s cubic-bezier(0.2, 0, 0, 1) both;
-}
-
-.cortex-world-interaction-key::before {
-    position: absolute;
-    inset: calc(-6px * var(--cortex-ui-scale));
-    border: calc(1px * var(--cortex-ui-scale)) solid rgba(232, 229, 223, 0.86);
-    border-radius: 50%;
-    content: '';
-    filter: drop-shadow(0 calc(1px * var(--cortex-ui-scale)) calc(1px * var(--cortex-ui-scale)) rgba(0, 0, 0, 0.82));
 }
 
 .cortex-world-interaction-key.is-wide {
@@ -1877,39 +2097,28 @@ body {
 .cortex-world-access-row {
     display: grid;
     grid-template-columns:
-        calc(42px * var(--cortex-ui-scale))
+        calc(54px * var(--cortex-ui-scale))
         calc(20px * var(--cortex-ui-scale))
         minmax(0, auto);
     align-items: center;
     column-gap: calc(20px * var(--cortex-ui-scale));
-    min-height: calc(42px * var(--cortex-ui-scale));
+    min-height: calc(54px * var(--cortex-ui-scale));
     animation: cortex-world-access-enter 0.18s cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 .cortex-world-access-key {
-    display: flex;
-    width: calc(42px * var(--cortex-ui-scale));
-    height: calc(42px * var(--cortex-ui-scale));
-    align-items: center;
-    justify-content: center;
-    border: calc(1px * var(--cortex-ui-scale)) solid rgba(245, 237, 239, 0.24);
-    border-radius: 50%;
-    background: rgba(226, 218, 220, 0.97);
-    box-shadow:
-        0 calc(2px * var(--cortex-ui-scale)) calc(5px * var(--cortex-ui-scale)) rgba(0, 0, 0, 0.52),
-        inset 0 0 0 calc(1px * var(--cortex-ui-scale)) rgba(255, 255, 255, 0.14);
-    color: rgba(34, 30, 31, 0.94);
-    font-family: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+    width: calc(54px * var(--cortex-ui-scale));
+    height: calc(54px * var(--cortex-ui-scale));
     font-size: calc(13px * var(--cortex-ui-scale));
-    font-weight: 800;
-    line-height: 1;
-    text-shadow: 0 calc(1px * var(--cortex-ui-scale)) 0 rgba(255, 255, 255, 0.32);
 }
 
-.cortex-world-access-row.is-clone-key .cortex-world-access-key {
-    border-color: rgba(224, 217, 219, 0.16);
-    background: rgba(158, 153, 156, 0.9);
-    color: rgba(31, 28, 29, 0.86);
+.cortex-world-access-row.is-clone-key .cortex-interaction-key-value {
+    background: var(--cortex-grey);
+    color: var(--text-inverse);
+}
+
+.cortex-world-access-row.is-clone-key .cortex-interaction-key-ring-track {
+    stroke: var(--text-secondary);
 }
 
 .cortex-world-access-key.is-wide {
@@ -1923,8 +2132,8 @@ body {
     height: calc(20px * var(--cortex-ui-scale));
     align-items: center;
     justify-content: center;
-    color: rgba(211, 62, 91, 0.88);
-    filter: drop-shadow(0 calc(1px * var(--cortex-ui-scale)) calc(2px * var(--cortex-ui-scale)) rgba(0, 0, 0, 0.72));
+    color: var(--hud-health);
+    filter: drop-shadow(0 calc(1px * var(--cortex-ui-scale)) calc(2px * var(--cortex-ui-scale)) var(--shadow-color));
 }
 
 .cortex-world-access-icon svg {
@@ -1948,7 +2157,7 @@ body {
     overflow: hidden;
     max-width: min(54vw, calc(270px * var(--cortex-ui-scale)));
     padding: calc(2px * var(--cortex-ui-scale));
-    color: rgba(232, 225, 227, 0.96);
+    color: var(--text-primary);
     font-family: 'Barlow Condensed', Impact, sans-serif;
     font-size: calc(29px * var(--cortex-ui-scale));
     font-weight: 800;
@@ -1959,15 +2168,15 @@ body {
     text-overflow: ellipsis;
     text-transform: uppercase;
     white-space: nowrap;
-    -webkit-text-stroke: calc(1.05px * var(--cortex-ui-scale)) rgba(22, 18, 20, 0.96);
+    -webkit-text-stroke: calc(1.05px * var(--cortex-ui-scale)) var(--cortex-black);
     text-shadow:
-        calc(1px * var(--cortex-ui-scale)) calc(1px * var(--cortex-ui-scale)) 0 rgba(12, 10, 11, 0.92),
-        calc(-1px * var(--cortex-ui-scale)) calc(1px * var(--cortex-ui-scale)) 0 rgba(12, 10, 11, 0.92),
-        0 calc(2px * var(--cortex-ui-scale)) calc(3px * var(--cortex-ui-scale)) rgba(0, 0, 0, 0.88);
+        calc(1px * var(--cortex-ui-scale)) calc(1px * var(--cortex-ui-scale)) 0 var(--shadow-color),
+        calc(-1px * var(--cortex-ui-scale)) calc(1px * var(--cortex-ui-scale)) 0 var(--shadow-color),
+        0 calc(2px * var(--cortex-ui-scale)) calc(3px * var(--cortex-ui-scale)) var(--shadow-color);
 }
 
 .cortex-world-access-row.is-clone-key .cortex-world-access-label {
-    color: rgba(174, 169, 171, 0.88);
+    color: var(--text-secondary);
 }
 
 @keyframes cortex-world-label-enter {
@@ -1996,15 +2205,15 @@ body {
 }
 
 .cortex-radial-sector-bg {
-    fill: rgba(12, 12, 12, 0.92);
-    stroke: rgba(255, 255, 255, 0.08);
+    fill: var(--surface-hud);
+    stroke: var(--border-subtle);
     stroke-width: 1;
     transition: fill 0.1s ease, stroke 0.1s ease;
 }
 
 .cortex-radial-sector.hover .cortex-radial-sector-bg {
-    fill: rgba(16, 185, 129, 0.25);
-    stroke: var(--cortex-success);
+    fill: var(--state-selection-surface-hover);
+    stroke: var(--state-selection);
     stroke-width: 2;
 }
 
@@ -2016,7 +2225,7 @@ body {
 }
 
 .cortex-radial-sector.hover .cortex-radial-sector-icon {
-    fill: var(--cortex-success);
+    fill: var(--state-selection);
 }
 
 .cortex-radial-sector-label {
@@ -2036,16 +2245,16 @@ body {
 
 /* Center circle */
 .cortex-radial-center-bg {
-    fill: rgba(8, 8, 8, 0.95);
-    stroke: rgba(255, 255, 255, 0.15);
+    fill: var(--surface-hud);
+    stroke: var(--border-default);
     stroke-width: 2;
     cursor: pointer;
     transition: fill 0.1s ease, stroke 0.1s ease;
 }
 
 .cortex-radial-center-bg:hover {
-    fill: rgba(16, 16, 16, 0.98);
-    stroke: rgba(255, 255, 255, 0.25);
+    fill: var(--surface-panel-solid);
+    stroke: var(--border-strong);
 }
 
 .cortex-radial-center-icon {
@@ -2081,17 +2290,17 @@ body {
 .cortex-radial-svg--compact-control {
     width: calc(297.5px * var(--cortex-ui-scale));
     height: calc(297.5px * var(--cortex-ui-scale));
-    filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.42));
+    filter: drop-shadow(0 8px 16px var(--shadow-color-soft));
 }
 
 .cortex-radial-svg--compact-control .cortex-radial-sector-bg {
-    fill: rgba(11, 13, 14, 0.96);
-    stroke: rgba(220, 226, 228, 0.16);
+    fill: var(--surface-panel-solid);
+    stroke: var(--border-default);
 }
 
 .cortex-radial-svg--compact-control .cortex-radial-sector.hover .cortex-radial-sector-bg {
-    fill: rgba(44, 39, 24, 0.98);
-    stroke: var(--cortex-warning);
+    fill: var(--state-warning-surface-hover);
+    stroke: var(--state-warning);
 }
 
 .cortex-radial-svg--compact-control .cortex-radial-sector-icon {
@@ -2099,7 +2308,7 @@ body {
 }
 
 .cortex-radial-svg--compact-control .cortex-radial-sector.hover .cortex-radial-sector-icon {
-    fill: var(--cortex-warning);
+    fill: var(--state-warning);
 }
 
 .cortex-radial-svg--compact-control .cortex-radial-sector-label {
@@ -2107,19 +2316,27 @@ body {
 }
 
 .cortex-radial-svg--compact-control .cortex-radial-center-bg {
-    fill: rgba(7, 9, 10, 0.99);
-    stroke: rgba(220, 226, 228, 0.24);
+    fill: var(--surface-hud);
+    stroke: var(--border-strong);
     stroke-width: 1.5;
 }
 
 .cortex-radial-svg--compact-control .cortex-radial-center-bg:hover {
-    fill: rgba(20, 22, 23, 0.99);
-    stroke: rgba(255, 170, 0, 0.62);
+    fill: var(--surface-panel-solid);
+    stroke: var(--state-warning);
 }
 
 @media (prefers-reduced-motion: reduce) {
     .cortex-radial-overlay {
         transition: none;
+    }
+
+    .cortex-target-panel {
+        animation: none;
+    }
+
+    .cortex-interaction-key-ring-progress {
+        animation-timing-function: steps(20, end);
     }
 
     .cortex-world-access-row {
@@ -2146,18 +2363,18 @@ body {
     align-items: center;
     justify-content: center;
     pointer-events: auto;
-    background: rgba(0, 0, 0, 0.35);
+    background: var(--surface-scrim);
 }
 
 .cortex-context-dialog {
     width: calc(420px * var(--cortex-ui-scale));
     min-width: calc(320px * var(--cortex-ui-scale));
     max-width: 92vw;
-    background: rgba(18, 18, 18, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--surface-panel-solid);
+    border: 1px solid var(--border-default);
     border-radius: calc(8px * var(--cortex-ui-scale));
     padding: calc(20px * var(--cortex-ui-scale));
-    filter: drop-shadow(0 12px 26px rgba(0, 0, 0, 0.5));
+    filter: drop-shadow(0 12px 26px var(--shadow-color-soft));
     display: flex;
     flex-direction: column;
     gap: calc(16px * var(--cortex-ui-scale));
@@ -2171,7 +2388,7 @@ body {
     color: var(--hud-color);
     text-align: center;
     padding-bottom: calc(8px * var(--cortex-ui-scale));
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--border-subtle);
 }
 
 .cortex-context-body {
@@ -2189,12 +2406,12 @@ body {
 .cortex-context-label {
     font-size: calc(12px * var(--cortex-ui-scale));
     font-weight: 700;
-    color: rgba(240, 240, 240, 0.9);
+    color: var(--text-primary);
     letter-spacing: 0.5px;
 }
 
 .cortex-context-label .required {
-    color: #ef4444;
+    color: var(--state-error);
     margin-left: calc(2px * var(--cortex-ui-scale));
 }
 
@@ -2215,8 +2432,8 @@ body {
     width: calc(22px * var(--cortex-ui-scale));
     height: calc(22px * var(--cortex-ui-scale));
     border-radius: calc(5px * var(--cortex-ui-scale));
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: var(--surface-control);
+    border: 1px solid var(--border-default);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2225,14 +2442,14 @@ body {
 }
 
 .cortex-context-checkbox-box.checked {
-    background: #3b82f6;
-    border-color: #60a5fa;
+    background: var(--state-focus);
+    border-color: var(--cortex-aqua-raised);
 }
 
 .cortex-context-checkbox-box svg {
     width: calc(14px * var(--cortex-ui-scale));
     height: calc(14px * var(--cortex-ui-scale));
-    stroke: #ffffff;
+    stroke: var(--text-inverse);
     stroke-width: 2.5;
     fill: none;
     opacity: 0;
@@ -2259,16 +2476,16 @@ body {
     justify-content: space-between;
     gap: calc(10px * var(--cortex-ui-scale));
     padding: calc(10px * var(--cortex-ui-scale)) calc(12px * var(--cortex-ui-scale));
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--surface-control);
+    border: 1px solid var(--border-default);
     border-radius: calc(6px * var(--cortex-ui-scale));
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
 }
 
 .cortex-context-select-trigger:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--surface-control-hover);
+    border-color: var(--border-strong);
 }
 
 .cortex-context-select-icon {
@@ -2297,8 +2514,8 @@ body {
     left: 0;
     right: 0;
     margin-top: calc(4px * var(--cortex-ui-scale));
-    background: rgba(18, 18, 18, 0.98);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: var(--surface-panel-solid);
+    border: 1px solid var(--border-default);
     border-radius: calc(6px * var(--cortex-ui-scale));
     overflow: hidden;
     z-index: 10;
@@ -2315,18 +2532,18 @@ body {
 }
 
 .cortex-context-select-option:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--surface-control-hover);
 }
 
 .cortex-context-select-option.selected {
-    background: rgba(59, 130, 246, 0.25);
-    color: #60a5fa;
+    background: var(--state-selection-surface);
+    color: var(--state-selection);
 }
 
 .cortex-context-input {
     padding: calc(10px * var(--cortex-ui-scale)) calc(12px * var(--cortex-ui-scale));
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: var(--surface-control);
+    border: 1px solid var(--border-default);
     border-radius: calc(6px * var(--cortex-ui-scale));
     font-family: var(--font-hud);
     font-size: calc(13px * var(--cortex-ui-scale));
@@ -2335,8 +2552,7 @@ body {
 }
 
 .cortex-context-input:focus {
-    outline: none;
-    border-color: #3b82f6;
+    border-color: var(--state-focus);
 }
 
 .cortex-context-input::placeholder {
@@ -2348,14 +2564,14 @@ body {
     justify-content: flex-end;
     gap: calc(10px * var(--cortex-ui-scale));
     padding-top: calc(8px * var(--cortex-ui-scale));
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid var(--border-subtle);
 }
 
 .cortex-context-btn {
     pointer-events: auto;
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--surface-control);
     color: var(--hud-color);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid var(--border-default);
     border-radius: calc(6px * var(--cortex-ui-scale));
     padding: calc(10px * var(--cortex-ui-scale)) calc(20px * var(--cortex-ui-scale));
     font-family: var(--font-hud);
@@ -2368,30 +2584,30 @@ body {
 }
 
 .cortex-context-btn:hover {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.2);
+    background: var(--surface-control-hover);
+    border-color: var(--border-strong);
 }
 
 .cortex-context-btn.cancel {
-    background: rgba(239, 68, 68, 0.2);
-    border-color: rgba(239, 68, 68, 0.35);
-    color: #ffffff;
+    background: var(--state-error-surface);
+    border-color: var(--state-error);
+    color: var(--text-primary);
 }
 
 .cortex-context-btn.cancel:hover {
-    background: rgba(239, 68, 68, 0.3);
-    border-color: rgba(239, 68, 68, 0.45);
+    background: var(--state-error-surface-hover);
+    border-color: var(--state-error);
 }
 
 .cortex-context-btn.confirm {
-    background: rgba(59, 130, 246, 0.45);
-    border-color: rgba(59, 130, 246, 0.55);
-    color: #ffffff;
+    background: var(--state-focus-surface);
+    border-color: var(--state-focus);
+    color: var(--text-primary);
 }
 
 .cortex-context-btn.confirm:hover {
-    background: rgba(59, 130, 246, 0.6);
-    border-color: rgba(59, 130, 246, 0.7);
+    background: var(--state-focus-surface-hover);
+    border-color: var(--state-focus);
 }
 
 /* ============================================================================
@@ -2406,19 +2622,19 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.5);
+    background: var(--surface-scrim);
     pointer-events: auto;
 }
 
 .cortex-settings-panel {
     width: min(calc(620px * var(--cortex-settings-scale)), calc(100vw - 24px));
     height: min(calc(640px * var(--cortex-settings-scale)), calc(100vh - 24px));
-    background: rgba(14, 14, 14, 0.97);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--surface-panel-solid);
+    border: 1px solid var(--border-default);
     border-radius: calc(4px * var(--cortex-ui-scale));
     display: flex;
     flex-direction: column;
-    filter: drop-shadow(0 12px 40px rgba(0, 0, 0, 0.7));
+    filter: drop-shadow(0 12px 40px var(--shadow-color));
     pointer-events: auto;
     overflow: hidden;
 }
@@ -2429,7 +2645,7 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: calc(14px * var(--cortex-ui-scale)) calc(20px * var(--cortex-ui-scale));
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--border-subtle);
     flex-shrink: 0;
 }
 
@@ -2442,12 +2658,12 @@ body {
 }
 
 .cortex-settings-accent {
-    color: var(--cortex-success);
+    color: var(--state-focus);
 }
 
 .cortex-settings-close {
     background: none;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid var(--border-default);
     border-radius: calc(2px * var(--cortex-ui-scale));
     color: var(--hud-dim);
     font-size: calc(16px * var(--cortex-ui-scale));
@@ -2464,16 +2680,16 @@ body {
 }
 
 .cortex-settings-close:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--surface-control-hover);
     color: var(--hud-color);
-    border-color: rgba(255, 255, 255, 0.22);
+    border-color: var(--border-strong);
 }
 
 /* Tabs */
 .cortex-settings-tabs {
     display: flex;
     gap: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--border-subtle);
     flex-shrink: 0;
     overflow-x: auto;
     scrollbar-width: none;
@@ -2504,8 +2720,8 @@ body {
 }
 
 .cortex-settings-tab.active {
-    color: var(--cortex-success);
-    border-bottom-color: var(--cortex-success);
+    color: var(--state-selection);
+    border-bottom-color: var(--state-selection);
 }
 
 /* Content */
@@ -2514,7 +2730,7 @@ body {
     overflow-y: auto;
     padding: calc(8px * var(--cortex-ui-scale)) 0 calc(4px * var(--cortex-ui-scale));
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    scrollbar-color: var(--border-default) transparent;
 }
 
 .cortex-settings-content::-webkit-scrollbar {
@@ -2526,7 +2742,7 @@ body {
 }
 
 .cortex-settings-content::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--border-default);
     border-radius: 2px;
 }
 
@@ -2536,7 +2752,7 @@ body {
     font-size: calc(9px * var(--cortex-ui-scale));
     font-weight: 900;
     letter-spacing: 2px;
-    color: var(--cortex-success);
+    color: var(--state-info);
     text-transform: uppercase;
 }
 
@@ -2546,7 +2762,7 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: calc(10px * var(--cortex-ui-scale)) calc(20px * var(--cortex-ui-scale));
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--border-subtle);
     min-height: calc(52px * var(--cortex-ui-scale));
     gap: calc(16px * var(--cortex-ui-scale));
 }
@@ -2603,7 +2819,7 @@ body {
     max-height: calc(240px * var(--cortex-ui-scale));
     overflow-y: auto;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+    scrollbar-color: var(--border-default) transparent;
 }
 
 .cortex-settings-soundlist::-webkit-scrollbar {
@@ -2615,7 +2831,7 @@ body {
 }
 
 .cortex-settings-soundlist::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--border-default);
     border-radius: 2px;
 }
 
@@ -2626,13 +2842,13 @@ body {
     gap: calc(8px * var(--cortex-ui-scale));
     padding: calc(6px * var(--cortex-ui-scale)) calc(8px * var(--cortex-ui-scale));
     border-radius: calc(3px * var(--cortex-ui-scale));
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--surface-control);
+    border: 1px solid var(--border-subtle);
 }
 
 .cortex-settings-sound-item.selected {
-    border-color: rgba(0, 200, 120, 0.45);
-    background: rgba(0, 200, 120, 0.08);
+    border-color: var(--state-selection);
+    background: var(--state-selection-surface);
 }
 
 .cortex-settings-sound-select {
@@ -2654,14 +2870,14 @@ body {
     width: calc(10px * var(--cortex-ui-scale));
     height: calc(10px * var(--cortex-ui-scale));
     border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.35);
+    border: 2px solid var(--border-strong);
     flex-shrink: 0;
 }
 
 .cortex-settings-sound-item.selected .cortex-settings-sound-radio {
-    border-color: var(--cortex-success);
-    background: var(--cortex-success);
-    box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.35);
+    border-color: var(--state-focus);
+    background: var(--state-focus);
+    box-shadow: inset 0 0 0 2px var(--shadow-color-soft);
 }
 
 .cortex-settings-sound-label {
@@ -2676,8 +2892,8 @@ body {
     width: calc(32px * var(--cortex-ui-scale));
     height: calc(28px * var(--cortex-ui-scale));
     border-radius: calc(3px * var(--cortex-ui-scale));
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-default);
+    background: var(--surface-control);
     color: var(--hud-color);
     cursor: pointer;
     font-size: calc(12px * var(--cortex-ui-scale));
@@ -2686,7 +2902,7 @@ body {
 }
 
 .cortex-settings-sound-preview:hover {
-    background: rgba(255, 255, 255, 0.14);
+    background: var(--surface-control-hover);
 }
 
 /* Toggle */
@@ -2694,8 +2910,8 @@ body {
     width: calc(44px * var(--cortex-ui-scale));
     height: calc(24px * var(--cortex-ui-scale));
     border-radius: calc(12px * var(--cortex-ui-scale));
-    background: rgba(255, 255, 255, 0.12);
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: var(--surface-control-active);
+    border: 1px solid var(--border-default);
     cursor: pointer;
     position: relative;
     transition: background 0.2s, border-color 0.2s;
@@ -2703,8 +2919,8 @@ body {
 }
 
 .cortex-settings-toggle.on {
-    background: var(--cortex-success);
-    border-color: var(--cortex-success);
+    background: var(--state-focus);
+    border-color: var(--state-focus);
 }
 
 .cortex-settings-toggle-knob {
@@ -2714,14 +2930,14 @@ body {
     width: calc(16px * var(--cortex-ui-scale));
     height: calc(16px * var(--cortex-ui-scale));
     border-radius: 50%;
-    background: rgba(180, 180, 180, 0.9);
+    background: var(--cortex-grey);
     transition: left 0.2s, background 0.2s;
     pointer-events: none;
 }
 
 .cortex-settings-toggle.on .cortex-settings-toggle-knob {
     left: calc(23px * var(--cortex-ui-scale));
-    background: #ffffff;
+    background: var(--text-primary);
 }
 
 /* Select / Color */
@@ -2732,50 +2948,145 @@ body {
 }
 
 .cortex-settings-select {
-    appearance: none;
-    -webkit-appearance: none;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: calc(16px * var(--cortex-ui-scale));
+    background: var(--surface-control);
+    border: 1px solid var(--border-default);
     border-radius: calc(3px * var(--cortex-ui-scale));
     color: var(--hud-color);
     font-family: var(--font-hud);
     font-size: calc(11px * var(--cortex-ui-scale));
     font-weight: 700;
     letter-spacing: 0.5px;
-    padding: calc(6px * var(--cortex-ui-scale)) calc(30px * var(--cortex-ui-scale)) calc(6px * var(--cortex-ui-scale)) calc(10px * var(--cortex-ui-scale));
+    padding: calc(7px * var(--cortex-ui-scale)) calc(9px * var(--cortex-ui-scale)) calc(7px * var(--cortex-ui-scale)) calc(11px * var(--cortex-ui-scale));
     cursor: pointer;
-    min-width: calc(120px * var(--cortex-ui-scale));
+    min-width: calc(148px * var(--cortex-ui-scale));
+    max-width: calc(230px * var(--cortex-ui-scale));
     text-transform: uppercase;
-    outline: none;
-    transition: border-color 0.15s, background 0.15s;
+    text-align: left;
+    text-shadow: var(--text-shadow);
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
 
 .cortex-settings-select:hover,
-.cortex-settings-select:focus {
-    border-color: rgba(255, 255, 255, 0.28);
-    background: rgba(255, 255, 255, 0.09);
+.cortex-settings-select.is-open {
+    border-color: var(--state-focus);
+    background: var(--surface-control-hover);
 }
 
-.cortex-settings-select option {
-    background: #1a1a1a;
-    color: var(--hud-color);
-    font-family: var(--font-hud);
+.cortex-settings-select-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .cortex-settings-select-arrow {
-    position: absolute;
-    right: calc(8px * var(--cortex-ui-scale));
-    font-size: calc(9px * var(--cortex-ui-scale));
-    color: var(--hud-dim);
+    flex: 0 0 auto;
+    color: var(--state-focus);
+    font-size: calc(13px * var(--cortex-ui-scale));
+    line-height: 0.75;
     pointer-events: none;
+    transform: translateY(calc(-1px * var(--cortex-ui-scale)));
+    transition: transform 0.15s ease-out, color 0.15s;
+}
+
+.cortex-settings-select.is-open .cortex-settings-select-arrow {
+    color: var(--cortex-aqua-raised);
+    transform: translateY(calc(1px * var(--cortex-ui-scale))) rotate(180deg);
+}
+
+.cortex-settings-select-menu {
+    position: fixed;
+    z-index: 10050;
+    display: flex;
+    flex-direction: column;
+    gap: calc(2px * var(--cortex-ui-scale));
+    padding: calc(4px * var(--cortex-ui-scale));
+    background: var(--cortex-surface-raised);
+    border: 1px solid var(--state-focus);
+    border-radius: calc(4px * var(--cortex-ui-scale));
+    box-shadow: 0 calc(12px * var(--cortex-ui-scale)) calc(28px * var(--cortex-ui-scale)) var(--shadow-color);
+    overflow-x: hidden;
+    overflow-y: auto;
+    pointer-events: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+    animation: cortex-settings-select-in 0.12s ease-out;
+}
+
+.cortex-settings-select-menu::-webkit-scrollbar {
+    width: calc(4px * var(--cortex-ui-scale));
+}
+
+.cortex-settings-select-menu::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: calc(2px * var(--cortex-ui-scale));
+}
+
+.cortex-settings-select-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: calc(12px * var(--cortex-ui-scale));
+    width: 100%;
+    min-height: calc(30px * var(--cortex-ui-scale));
+    padding: calc(7px * var(--cortex-ui-scale)) calc(9px * var(--cortex-ui-scale));
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: calc(2px * var(--cortex-ui-scale));
+    color: var(--text-secondary);
+    font-family: var(--font-hud);
+    font-size: calc(11px * var(--cortex-ui-scale));
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-align: left;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.cortex-settings-select-option:hover,
+.cortex-settings-select-option.active {
+    background: var(--surface-control-hover);
+    border-color: var(--border-default);
+    color: var(--text-primary);
+}
+
+.cortex-settings-select-option.selected {
+    background: var(--state-selection-surface);
+    border-color: var(--state-selection);
+    color: var(--cortex-lavender);
+}
+
+.cortex-settings-select-check {
+    color: var(--state-focus);
+    font-size: calc(12px * var(--cortex-ui-scale));
+}
+
+@keyframes cortex-settings-select-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cortex-settings-select-menu {
+        animation: none;
+    }
+
+    .cortex-settings-select-arrow {
+        transition: none;
+    }
 }
 
 /* Text / hex input */
 .cortex-settings-input {
     appearance: none;
     -webkit-appearance: none;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: var(--surface-control);
+    border: 1px solid var(--border-default);
     border-radius: calc(3px * var(--cortex-ui-scale));
     color: var(--hud-color);
     font-family: var(--font-hud);
@@ -2785,15 +3096,14 @@ body {
     padding: calc(6px * var(--cortex-ui-scale)) calc(10px * var(--cortex-ui-scale));
     min-width: calc(140px * var(--cortex-ui-scale));
     max-width: calc(220px * var(--cortex-ui-scale));
-    outline: none;
     text-transform: uppercase;
     transition: border-color 0.15s, background 0.15s;
 }
 
 .cortex-settings-input:hover,
 .cortex-settings-input:focus {
-    border-color: rgba(255, 255, 255, 0.28);
-    background: rgba(255, 255, 255, 0.09);
+    border-color: var(--state-focus);
+    background: var(--surface-control-hover);
 }
 
 .cortex-settings-input::placeholder {
@@ -2815,8 +3125,7 @@ body {
     width: calc(160px * var(--cortex-ui-scale));
     height: calc(4px * var(--cortex-ui-scale));
     border-radius: calc(2px * var(--cortex-ui-scale));
-    background: rgba(255, 255, 255, 0.15);
-    outline: none;
+    background: var(--border-strong);
     cursor: pointer;
 }
 
@@ -2826,19 +3135,19 @@ body {
     width: calc(14px * var(--cortex-ui-scale));
     height: calc(14px * var(--cortex-ui-scale));
     border-radius: 50%;
-    background: var(--cortex-success);
+    background: var(--state-focus);
     cursor: pointer;
-    box-shadow: 0 0 4px rgba(16, 185, 129, 0.5);
+    box-shadow: 0 0 0 1px var(--shadow-color-soft);
 }
 
 .cortex-settings-slider::-moz-range-thumb {
     width: calc(14px * var(--cortex-ui-scale));
     height: calc(14px * var(--cortex-ui-scale));
     border-radius: 50%;
-    background: var(--cortex-success);
+    background: var(--state-focus);
     cursor: pointer;
     border: none;
-    box-shadow: 0 0 4px rgba(16, 185, 129, 0.5);
+    box-shadow: 0 0 0 1px var(--shadow-color-soft);
 }
 
 .cortex-settings-slider-val {
@@ -2856,8 +3165,8 @@ body {
 }
 
 .cortex-settings-action-btn {
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: var(--surface-control);
+    border: 1px solid var(--border-default);
     border-radius: calc(3px * var(--cortex-ui-scale));
     color: var(--hud-color);
     font-family: var(--font-hud);
@@ -2871,8 +3180,8 @@ body {
 }
 
 .cortex-settings-action-btn:hover {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.25);
+    background: var(--surface-control-hover);
+    border-color: var(--border-strong);
 }
 
 /* Footer */
@@ -2881,7 +3190,7 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: calc(12px * var(--cortex-ui-scale)) calc(20px * var(--cortex-ui-scale));
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid var(--border-subtle);
     flex-shrink: 0;
 }
 
@@ -2906,7 +3215,7 @@ body {
 }
 
 .cortex-settings-live-note.error {
-    color: #f87171;
+    color: var(--state-error);
 }
 
 @media (max-width: 560px) {
@@ -2926,8 +3235,8 @@ body {
 }
 
 .cortex-settings-btn {
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: var(--surface-control);
+    border: 1px solid var(--border-default);
     border-radius: calc(3px * var(--cortex-ui-scale));
     color: var(--hud-color);
     font-family: var(--font-hud);
@@ -2942,33 +3251,33 @@ body {
 }
 
 .cortex-settings-btn:hover {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.22);
+    background: var(--surface-control-hover);
+    border-color: var(--border-strong);
 }
 
 .cortex-settings-btn.reset {
-    background: rgba(239, 68, 68, 0.22);
-    border-color: rgba(239, 68, 68, 0.38);
-    color: #ffffff;
+    background: var(--state-error-surface);
+    border-color: var(--state-error);
+    color: var(--text-primary);
 }
 
 .cortex-settings-btn.reset:hover {
-    background: rgba(239, 68, 68, 0.32);
-    border-color: rgba(239, 68, 68, 0.5);
+    background: var(--state-error-surface-hover);
+    border-color: var(--state-error);
 }
 
 .cortex-settings-btn.cancel {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.12);
+    background: var(--surface-control);
+    border-color: var(--border-default);
 }
 
 .cortex-settings-btn.save {
-    background: rgba(16, 185, 129, 0.35);
-    border-color: rgba(16, 185, 129, 0.5);
-    color: #ffffff;
+    background: var(--state-focus-surface);
+    border-color: var(--state-focus);
+    color: var(--text-primary);
 }
 
 .cortex-settings-btn.save:hover {
-    background: rgba(16, 185, 129, 0.5);
-    border-color: rgba(16, 185, 129, 0.65);
+    background: var(--state-focus-surface-hover);
+    border-color: var(--state-focus);
 }

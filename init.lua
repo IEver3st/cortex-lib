@@ -27,29 +27,58 @@ if context == 'client' then
             rawset(self, key, value)
         end,
     })
-    
+
+    local GetPedInVehicleSeat = GetPedInVehicleSeat
+    local GetVehicleMaxNumberOfPassengers = GetVehicleMaxNumberOfPassengers
+    local GetVehiclePedIsIn = GetVehiclePedIsIn
+    local PlayerId = PlayerId
+    local PlayerPedId = PlayerPedId
+
+    local function findPedSeat(vehicle, ped)
+        local passengerCount = math.max(0, math.floor(tonumber(GetVehicleMaxNumberOfPassengers(vehicle)) or 0))
+
+        for seat = -1, passengerCount - 1 do
+            if GetPedInVehicleSeat(vehicle, seat) == ped then
+                return seat
+            end
+        end
+
+        return -1
+    end
+
+    cache.playerId = PlayerId()
+    cache.serverId = GetPlayerServerId(cache.playerId)
+
     CreateThread(function()
         while true do
-            cache.playerId = PlayerId()
-            cache.ped = PlayerPedId()
-            cache.serverId = GetPlayerServerId(cache.playerId)
-            
-            local vehicle = GetVehiclePedIsIn(cache.ped, false)
-            if vehicle ~= cache.vehicle then
-                cache.vehicle = vehicle
+            local playerId = PlayerId()
+            if playerId ~= cache.playerId then
+                cache.playerId = playerId
+                cache.serverId = GetPlayerServerId(playerId)
             end
-            
-            if vehicle > 0 then
-                for i = -1, 16 do
-                    if GetPedInVehicleSeat(vehicle, i) == cache.ped then
-                        cache.seat = i
-                        break
+
+            local ped = PlayerPedId()
+            cache.ped = ped
+
+            if ped ~= 0 then
+                local vehicle = GetVehiclePedIsIn(ped, false)
+                if vehicle > 0 then
+                    local vehicleChanged = vehicle ~= cache.vehicle
+                    cache.vehicle = vehicle
+                    local seat = cache.seat
+
+                    if vehicleChanged or type(seat) ~= 'number' or GetPedInVehicleSeat(vehicle, seat) ~= ped then
+                        cache.seat = findPedSeat(vehicle, ped)
                     end
+                else
+                    cache.vehicle = 0
+                    cache.seat = -1
                 end
             else
+                cache.vehicle = 0
                 cache.seat = -1
             end
-            
+
             Wait(100)
         end
     end)
@@ -159,8 +188,16 @@ if context == 'client' then
         return exports[libResourceName]:clearInteractions()
     end
 
+    function lib.getInteractionState(id)
+        return exports[libResourceName]:getInteractionState(id)
+    end
+
     function lib.isInteractionActive(id)
         return exports[libResourceName]:isInteractionActive(id)
+    end
+
+    function lib.isInteractionVisible(id)
+        return exports[libResourceName]:isInteractionVisible(id)
     end
 
     function lib.startInteractionHold(id)

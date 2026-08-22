@@ -8,6 +8,7 @@ local points = {}
 local pointId = 0
 local nearbyPoints = {}
 local closestPoint = nil
+local nearbyThreadActive = false
 
 local CPoint = {}
 CPoint.__index = CPoint
@@ -76,6 +77,26 @@ local function getClosestPoint()
     return closestPoint
 end
 
+local function startNearbyThread()
+    if nearbyThreadActive or #nearbyPoints == 0 then return end
+
+    nearbyThreadActive = true
+    CreateThread(function()
+        while #nearbyPoints > 0 do
+            for i = 1, #nearbyPoints do
+                local point = nearbyPoints[i]
+                if point and point.nearby then
+                    point:nearby()
+                end
+            end
+
+            Wait(0)
+        end
+
+        nearbyThreadActive = false
+    end)
+end
+
 CreateThread(function()
     while true do
         local ped = PlayerPedId()
@@ -129,21 +150,9 @@ CreateThread(function()
         if closestPoint then
             closestPoint.isClosest = true
         end
-        
-        Wait(100)
-    end
-end)
 
-CreateThread(function()
-    while true do
-        for i = 1, #nearbyPoints do
-            local point = nearbyPoints[i]
-            if point and point.nearby then
-                point:nearby()
-            end
-        end
-        
-        Wait(0)
+        startNearbyThread()
+        Wait(100)
     end
 end)
 

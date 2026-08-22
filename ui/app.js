@@ -416,7 +416,7 @@ function normalizeZone(zone) {
 function EditorToolbar({ onSave, onClose, onCalibrate, onZoomIn, onZoomOut, status }) {
     return React.createElement('div', { className: 'cortex-editor-toolbar' },
         React.createElement('div', { className: 'cortex-editor-title' },
-            React.createElement('span', { style: { color: 'var(--cortex-warning)' } }, 'CORTEX'),
+            React.createElement('span', { style: { color: 'var(--cortex-accent)' } }, 'CORTEX'),
             ' WEATHER'
         ),
         React.createElement('div', { className: 'cortex-editor-spacer' }),
@@ -2206,6 +2206,227 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
 // SETTINGS PANEL
 // ============================================================================
 
+let settingsSelectIdCounter = 0;
+
+function SettingsSelect({ field, value, onChange }) {
+    const triggerRef = useRef(null);
+    const menuRef = useRef(null);
+    const optionRefs = useRef([]);
+    const selectIdRef = useRef(null);
+    const [open, setOpen] = useState(false);
+    const [activeIndex, setActiveIndex] = useState(0);
+    const [menuStyle, setMenuStyle] = useState({});
+
+    if (selectIdRef.current === null) {
+        settingsSelectIdCounter += 1;
+        selectIdRef.current = `cortex-settings-select-${settingsSelectIdCounter}`;
+    }
+
+    const options = Array.isArray(field.options)
+        ? field.options.filter((option) => option && option.value !== undefined)
+        : [];
+    const selectedIndex = options.findIndex((option) => (
+        Object.is(option.value, value) || String(option.value) === String(value ?? '')
+    ));
+    const resolvedSelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+    const selectedOption = options[selectedIndex] || null;
+    const selectedLabel = selectedOption?.label ?? selectedOption?.value ?? value ?? 'Select';
+    const menuId = `${selectIdRef.current}-menu`;
+
+    const updateMenuPosition = useCallback(() => {
+        const trigger = triggerRef.current;
+        if (!trigger) return;
+
+        const rect = trigger.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const viewportPadding = 12;
+        const gap = 6;
+        const menuWidth = Math.min(
+            Math.max(rect.width, 160),
+            Math.max(160, viewportWidth - (viewportPadding * 2))
+        );
+        const availableBelow = viewportHeight - rect.bottom - viewportPadding;
+        const availableAbove = rect.top - viewportPadding;
+        const opensAbove = availableBelow < 150 && availableAbove > availableBelow;
+        const availableHeight = opensAbove ? availableAbove : availableBelow;
+        const left = Math.min(
+            Math.max(viewportPadding, rect.left),
+            Math.max(viewportPadding, viewportWidth - viewportPadding - menuWidth)
+        );
+
+        setMenuStyle(opensAbove ? {
+            left: `${left}px`,
+            bottom: `${Math.max(viewportPadding, viewportHeight - rect.top + gap)}px`,
+            width: `${menuWidth}px`,
+            maxHeight: `${Math.max(96, Math.min(260, availableHeight - gap))}px`
+        } : {
+            left: `${left}px`,
+            top: `${Math.min(viewportHeight - viewportPadding, rect.bottom + gap)}px`,
+            width: `${menuWidth}px`,
+            maxHeight: `${Math.max(96, Math.min(260, availableHeight - gap))}px`
+        });
+    }, []);
+
+    const closeMenu = useCallback((restoreFocus = false) => {
+        setOpen(false);
+        if (restoreFocus) {
+            window.requestAnimationFrame(() => triggerRef.current?.focus());
+        }
+    }, []);
+
+    const focusAdjacentControl = useCallback((reverse) => {
+        const trigger = triggerRef.current;
+        const panel = trigger?.closest('.cortex-settings-panel');
+        if (!trigger || !panel) return;
+
+        const controls = Array.from(panel.querySelectorAll(
+            'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )).filter((element) => element.offsetParent !== null);
+        const currentIndex = controls.indexOf(trigger);
+        const nextIndex = currentIndex + (reverse ? -1 : 1);
+        controls[nextIndex]?.focus();
+    }, []);
+
+    const chooseOption = useCallback((index) => {
+        const option = options[index];
+        if (!option) return;
+        onChange(option.value);
+        closeMenu(true);
+    }, [options, onChange, closeMenu]);
+
+    useEffect(() => {
+        if (!open) return;
+
+        updateMenuPosition();
+        optionRefs.current = optionRefs.current.slice(0, options.length);
+        window.requestAnimationFrame(() => optionRefs.current[activeIndex]?.focus());
+
+        const handlePointerDown = (event) => {
+            if (triggerRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
+            closeMenu(false);
+        };
+        const handleViewportChange = () => updateMenuPosition();
+
+        document.addEventListener('mousedown', handlePointerDown);
+        window.addEventListener('resize', handleViewportChange);
+        window.addEventListener('scroll', handleViewportChange, true);
+
+        return () => {
+            document.removeEventListener('mousedown', handlePointerDown);
+            window.removeEventListener('resize', handleViewportChange);
+            window.removeEventListener('scroll', handleViewportChange, true);
+        };
+    }, [open, activeIndex, options.length, updateMenuPosition, closeMenu]);
+
+    const openMenu = (index = resolvedSelectedIndex) => {
+        if (options.length === 0) return;
+        setActiveIndex(Math.max(0, Math.min(options.length - 1, index)));
+        setOpen(true);
+    };
+
+    const moveActiveOption = (nextIndex) => {
+        const boundedIndex = Math.max(0, Math.min(options.length - 1, nextIndex));
+        setActiveIndex(boundedIndex);
+        window.requestAnimationFrame(() => optionRefs.current[boundedIndex]?.focus());
+    };
+
+    const handleTriggerKeyDown = (event) => {
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            openMenu(Math.min(options.length - 1, resolvedSelectedIndex + 1));
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            openMenu(Math.max(0, resolvedSelectedIndex - 1));
+        }
+    };
+
+    const handleMenuKeyDown = (event) => {
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            moveActiveOption((activeIndex + 1) % options.length);
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            moveActiveOption((activeIndex - 1 + options.length) % options.length);
+        } else if (event.key === 'Home') {
+            event.preventDefault();
+            moveActiveOption(0);
+        } else if (event.key === 'End') {
+            event.preventDefault();
+            moveActiveOption(options.length - 1);
+        } else if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            chooseOption(activeIndex);
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            closeMenu(true);
+        } else if (event.key === 'Tab') {
+            event.preventDefault();
+            closeMenu(false);
+            window.requestAnimationFrame(() => focusAdjacentControl(event.shiftKey));
+        }
+    };
+
+    const menu = open
+        ? ReactDOM.createPortal(
+            React.createElement('div', {
+                ref: menuRef,
+                id: menuId,
+                className: 'cortex-settings-select-menu',
+                style: menuStyle,
+                role: 'listbox',
+                'aria-label': field.label,
+                onKeyDown: handleMenuKeyDown
+            }, options.map((option, index) => {
+                const selected = index === selectedIndex;
+                const active = index === activeIndex;
+                return React.createElement('button', {
+                    ref: (element) => { optionRefs.current[index] = element; },
+                    key: `${String(option.value)}-${index}`,
+                    type: 'button',
+                    role: 'option',
+                    tabIndex: active ? 0 : -1,
+                    'aria-selected': selected,
+                    className: `cortex-settings-select-option${selected ? ' selected' : ''}${active ? ' active' : ''}`,
+                    onMouseMove: () => setActiveIndex(index),
+                    onClick: () => chooseOption(index)
+                },
+                    React.createElement('span', null, option.label ?? String(option.value)),
+                    selected ? React.createElement('span', {
+                        className: 'cortex-settings-select-check',
+                        'aria-hidden': 'true'
+                    }, '✓') : null
+                );
+            })),
+            document.body
+        )
+        : null;
+
+    return React.createElement('div', { className: 'cortex-settings-select-wrap' },
+        React.createElement('button', {
+            ref: triggerRef,
+            type: 'button',
+            className: `cortex-settings-select${open ? ' is-open' : ''}`,
+            role: 'combobox',
+            'aria-label': field.label,
+            'aria-haspopup': 'listbox',
+            'aria-expanded': open,
+            'aria-controls': menuId,
+            disabled: options.length === 0,
+            onClick: () => open ? closeMenu(false) : openMenu(),
+            onKeyDown: handleTriggerKeyDown
+        },
+            React.createElement('span', { className: 'cortex-settings-select-text' }, selectedLabel),
+            React.createElement('span', {
+                className: 'cortex-settings-select-arrow',
+                'aria-hidden': 'true'
+            }, '⌄')
+        ),
+        menu
+    );
+}
+
 function SettingsField({ field, value, tabId, onChange, onAction }) {
     if (!field || typeof field !== 'object') return null;
     if (!field.type || !field.key) return null;
@@ -2226,18 +2447,11 @@ function SettingsField({ field, value, tabId, onChange, onAction }) {
 
             case 'select':
             case 'color':
-                return React.createElement('div', { className: 'cortex-settings-select-wrap' },
-                    React.createElement('select', {
-                        className: 'cortex-settings-select',
-                        value: value || '',
-                        onChange: (e) => onChange(tabId, field.key, e.target.value)
-                    },
-                        (field.options || []).map(opt =>
-                            React.createElement('option', { key: opt.value, value: opt.value }, opt.label)
-                        )
-                    ),
-                    React.createElement('span', { className: 'cortex-settings-select-arrow' }, '▼')
-                );
+                return React.createElement(SettingsSelect, {
+                    field,
+                    value,
+                    onChange: (nextValue) => onChange(tabId, field.key, nextValue)
+                });
 
             case 'slider': {
                 const sliderVal = value !== undefined && value !== null ? value : (field.min || 0);
@@ -2505,6 +2719,100 @@ function clampInteractionNumber(value, minimum, maximum) {
     return Math.max(minimum, Math.min(maximum, Number(value) || 0));
 }
 
+function getInteractionHoldDuration(value) {
+    const duration = Number(value);
+    if (!Number.isFinite(duration) || duration < 100 || duration > 600000) return null;
+    return Math.floor(duration);
+}
+
+function getInteractionPanelKey(item) {
+    if (item?.panelVariant !== 'target' || !item.panelId || !item.panelLabel) return null;
+    return `${item.owner}\u0000${item.panelId}\u0000${item.panelVariant}\u0000${item.panelLabel}`;
+}
+
+function buildInteractionBlocks(items) {
+    const blocks = [];
+    const panelBlocks = new Map();
+
+    for (const item of items) {
+        const panelKey = getInteractionPanelKey(item);
+        if (!panelKey) {
+            blocks.push({ type: 'item', key: `${item.owner}:${item.id}`, item });
+            continue;
+        }
+
+        const existing = panelBlocks.get(panelKey);
+        if (existing) {
+            existing.items.push(item);
+            continue;
+        }
+
+        const block = {
+            type: 'panel',
+            key: panelKey,
+            panel: {
+                id: item.panelId,
+                label: item.panelLabel,
+                variant: item.panelVariant
+            },
+            items: [item]
+        };
+        panelBlocks.set(panelKey, block);
+        blocks.push(block);
+    }
+
+    return blocks;
+}
+
+function InteractionKey({ item, className, ariaLabel, decorative = false }) {
+    const holdDuration = getInteractionHoldDuration(item.holdDuration);
+    const isHolding = holdDuration !== null && item.holdActive === true;
+    const classes = [
+        className,
+        item.key.length > 3 ? 'is-wide' : '',
+        holdDuration !== null ? 'has-hold' : '',
+        isHolding ? 'is-holding' : ''
+    ].filter(Boolean).join(' ');
+    const style = isHolding
+        ? { '--cortex-interaction-hold-duration': `${holdDuration}ms` }
+        : undefined;
+
+    return React.createElement('span', {
+        className: classes,
+        style,
+        role: decorative ? undefined : 'img',
+        'aria-label': decorative ? undefined : ariaLabel,
+        'aria-hidden': decorative ? 'true' : undefined
+    },
+        React.createElement('svg', {
+            className: 'cortex-interaction-key-ring',
+            viewBox: '0 0 48 48',
+            focusable: 'false',
+            'aria-hidden': 'true'
+        },
+            React.createElement('circle', {
+                className: 'cortex-interaction-key-ring-track',
+                cx: '24',
+                cy: '24',
+                r: '21.5',
+                pathLength: '100'
+            }),
+            isHolding ? React.createElement('circle', {
+                className: 'cortex-interaction-key-ring-progress',
+                key: `hold-${item.holdRevision || 0}`,
+                cx: '24',
+                cy: '24',
+                r: '21.5',
+                pathLength: '100'
+            }) : null
+        ),
+        React.createElement('span', {
+            className: 'cortex-interaction-key-value',
+            'aria-hidden': 'true'
+        }, item.key)
+    );
+}
+
 function getVehicleAccessPresentation(item) {
     if (item?.owner !== 'cortex-hud') return null;
     return VEHICLE_ACCESS_ACTIONS[item.id] || null;
@@ -2539,6 +2847,47 @@ function VehicleAccessIcon({ type }) {
     );
 }
 
+function TargetInteractionPanel({ panel, items }) {
+    return React.createElement('section', {
+        className: 'cortex-target-panel',
+        role: 'listitem',
+        'aria-label': `${panel.label} actions`
+    },
+        React.createElement('div', {
+            className: 'cortex-target-actions',
+            role: 'list'
+        }, items.map((item) => React.createElement('div', {
+            className: 'cortex-target-action',
+            key: `${item.owner}:${item.id}`,
+            role: 'listitem'
+        },
+            React.createElement('span', {
+                className: 'cortex-target-action-label'
+            }, item.label),
+            React.createElement('span', {
+                className: 'cortex-target-action-dot',
+                role: 'img',
+                'aria-label': `Press ${item.key} to ${item.label.toLowerCase()}`,
+                'data-key': item.key
+            }, item.key)
+        ))),
+        React.createElement('span', {
+            className: 'cortex-target-divider',
+            'aria-hidden': 'true'
+        }),
+        React.createElement('div', { className: 'cortex-target-context' },
+            React.createElement('span', {
+                className: 'cortex-target-context-label'
+            }, panel.label),
+            React.createElement(InteractionKey, {
+                item: { key: '' },
+                className: 'cortex-target-marker',
+                decorative: true
+            })
+        )
+    );
+}
+
 function InteractionPrompts({ items, layout }) {
     if (!Array.isArray(items) || items.length === 0) return null;
 
@@ -2552,22 +2901,33 @@ function InteractionPrompts({ items, layout }) {
         '--cortex-interaction-scale': scale
     };
 
+    const blocks = buildInteractionBlocks(items);
+
     return React.createElement('div', {
         className: 'cortex-interactions',
         style,
         role: 'list',
         'aria-label': 'Available actions'
-    }, items.map((item) => React.createElement('div', {
-        className: 'cortex-interaction',
-        key: `${item.owner}:${item.id}`,
-        role: 'listitem'
-    },
-        React.createElement('span', { className: 'cortex-interaction-label' }, item.label),
-        React.createElement('span', {
-            className: `cortex-interaction-key${item.key.length > 3 ? ' is-wide' : ''}`,
-            'aria-label': `Press ${item.key}`
-        }, item.key)
-    )));
+    }, blocks.map((block) => block.type === 'panel'
+        ? React.createElement(TargetInteractionPanel, {
+            key: block.key,
+            panel: block.panel,
+            items: block.items
+        })
+        : React.createElement('div', {
+            className: 'cortex-interaction',
+            key: block.key,
+            role: 'listitem'
+        },
+            React.createElement('span', {
+                className: 'cortex-interaction-label'
+            }, block.item.label),
+            React.createElement(InteractionKey, {
+                item: block.item,
+                className: 'cortex-interaction-key',
+                ariaLabel: `Press ${block.item.key} to ${block.item.label.toLowerCase()}`
+            })
+        )));
 }
 
 function WorldInteractionPrompts({ items }) {
@@ -2595,10 +2955,13 @@ function WorldInteractionPrompts({ items }) {
             role: 'listitem'
         },
             React.createElement('span', { className: 'cortex-world-interaction-label' }, item.label),
-            React.createElement('span', {
-                className: `cortex-world-interaction-key${item.key.length > 3 ? ' is-wide' : ''}`,
-                'aria-label': `Use the action button to ${item.label.toLowerCase()}`
-            }, item.key)
+            React.createElement(InteractionKey, {
+                item,
+                className: 'cortex-world-interaction-key',
+                ariaLabel: item.holdDuration
+                    ? `Hold ${item.key} to ${item.label.toLowerCase()}`
+                    : `Press ${item.key} to ${item.label.toLowerCase()}`
+            })
         );
     });
 
@@ -2633,10 +2996,13 @@ function WorldInteractionPrompts({ items }) {
                 key: `${item.owner}:${item.id}`,
                 role: 'listitem'
             },
-                React.createElement('span', {
-                    className: `cortex-world-access-key${item.key.length > 3 ? ' is-wide' : ''}`,
-                    'aria-label': `Press ${item.key} to ${actionName}`
-                }, item.key),
+                React.createElement(InteractionKey, {
+                    item,
+                    className: 'cortex-world-access-key',
+                    ariaLabel: item.holdDuration
+                        ? `Hold ${item.key} to ${actionName}`
+                        : `Press ${item.key} to ${actionName}`
+                }),
                 React.createElement('span', {
                     className: 'cortex-world-access-icon',
                     'aria-hidden': 'true'
@@ -2651,6 +3017,232 @@ function WorldInteractionPrompts({ items }) {
         role: 'list',
         'aria-label': 'Nearby world actions'
     }, prompts);
+}
+
+const INTERACTION_BASE_FIELDS = Object.freeze([
+    'id',
+    'owner',
+    'label',
+    'key',
+    'holdDuration',
+    'holdActive',
+    'holdRevision',
+    'panelId',
+    'panelLabel',
+    'panelVariant'
+]);
+const INTERACTION_WORLD_FIELDS = Object.freeze([
+    ...INTERACTION_BASE_FIELDS,
+    'x',
+    'y',
+    'distance'
+]);
+
+function normalizeInteractionPanel(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+
+    const id = typeof value.id === 'string' ? value.id.trim().slice(0, 64) : '';
+    const label = typeof value.label === 'string' ? value.label.trim().slice(0, 96) : '';
+    const variant = value.variant === undefined ? 'target' : value.variant;
+    if (!id || !label || variant !== 'target') return null;
+
+    return {
+        panelId: id,
+        panelLabel: label,
+        panelVariant: variant
+    };
+}
+
+function normalizeInteractionItems(items, world) {
+    if (!Array.isArray(items)) return [];
+
+    const limit = world ? 4 : 8;
+    const normalized = [];
+
+    for (let index = 0; index < items.length && normalized.length < limit; index += 1) {
+        const item = items[index];
+        if (!item || typeof item.label !== 'string' || typeof item.key !== 'string') continue;
+        if (world && (!Number.isFinite(Number(item.x)) || !Number.isFinite(Number(item.y)))) continue;
+
+        const normalizedIndex = normalized.length;
+        const nextItem = {
+            id: typeof item.id === 'string' ? item.id : `${world ? 'world' : 'screen'}-${normalizedIndex}`,
+            owner: typeof item.owner === 'string' ? item.owner : 'unknown',
+            label: item.label.trim().slice(0, 96),
+            key: item.key.trim().slice(0, 16),
+            holdDuration: world ? getInteractionHoldDuration(item.holdDuration) : null,
+            holdActive: world && item.holdActive === true,
+            holdRevision: world ? clampInteractionNumber(item.holdRevision, 0, 1000000000) : 0
+        };
+        const panel = normalizeInteractionPanel(item.panel);
+        if (panel) Object.assign(nextItem, panel);
+
+        if (world) {
+            nextItem.x = clampInteractionNumber(item.x, 0, 1);
+            nextItem.y = clampInteractionNumber(item.y, 0, 1);
+            nextItem.distance = clampInteractionNumber(item.distance, 0, 25);
+        }
+
+        normalized.push(nextItem);
+    }
+
+    return normalized;
+}
+
+function interactionItemsEqual(left, right, world) {
+    if (left === right) return true;
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+
+    const fields = world ? INTERACTION_WORLD_FIELDS : INTERACTION_BASE_FIELDS;
+    for (let index = 0; index < left.length; index += 1) {
+        for (let fieldIndex = 0; fieldIndex < fields.length; fieldIndex += 1) {
+            const field = fields[fieldIndex];
+            if (!Object.is(left[index][field], right[index][field])) return false;
+        }
+    }
+
+    return true;
+}
+
+function interactionLayoutsEqual(left, right) {
+    return Object.is(left.insetRight, right.insetRight)
+        && Object.is(left.insetBottom, right.insetBottom)
+        && Object.is(left.screenWidth, right.screenWidth)
+        && Object.is(left.screenHeight, right.screenHeight)
+        && Object.is(left.safezone, right.safezone);
+}
+
+function InteractionSurface({ hidden }) {
+    const [interactionItems, setInteractionItems] = useState([]);
+    const [, setWorldInteractionItems] = useState([]);
+    const [interactionLayout, setInteractionLayout] = useState({
+        insetRight: 0,
+        insetBottom: 0,
+        screenWidth: 1920,
+        screenHeight: 1080,
+        safezone: 1
+    });
+    const pendingWorldItemsRef = useRef(null);
+    const latestWorldItemsRef = useRef([]);
+    const worldFrameRef = useRef(0);
+    const hiddenRef = useRef(hidden);
+    hiddenRef.current = hidden;
+
+    useEffect(() => {
+        if (hidden) return;
+
+        const nextItems = latestWorldItemsRef.current;
+        setWorldInteractionItems((currentItems) => (
+            interactionItemsEqual(currentItems, nextItems, true) ? currentItems : nextItems
+        ));
+    }, [hidden]);
+
+    useEffect(() => {
+        if (typeof GetParentResourceName !== 'function') return;
+
+        let cancelled = false;
+        let retryTimer = 0;
+        let activeController = null;
+
+        const announceInteractionReady = async (attempt = 0) => {
+            activeController = new AbortController();
+            const timeout = window.setTimeout(() => activeController?.abort(), 1500);
+
+            try {
+                const response = await fetch(`https://${GetParentResourceName()}/interactionReady`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+                    body: '{}',
+                    signal: activeController.signal
+                });
+                const payload = response.ok ? await response.json().catch(() => null) : null;
+                if (payload?.ok === true || cancelled) return;
+            } catch (_) {
+                if (cancelled) return;
+            } finally {
+                window.clearTimeout(timeout);
+                activeController = null;
+            }
+
+            const retryDelay = Math.min(2000, 250 + (attempt * 175));
+            retryTimer = window.setTimeout(() => announceInteractionReady(attempt + 1), retryDelay);
+        };
+
+        announceInteractionReady();
+
+        return () => {
+            cancelled = true;
+            window.clearTimeout(retryTimer);
+            activeController?.abort();
+        };
+    }, []);
+
+    useEffect(() => {
+        const commitWorldItems = () => {
+            worldFrameRef.current = 0;
+            const nextItems = pendingWorldItemsRef.current;
+            pendingWorldItemsRef.current = null;
+            if (!nextItems || hiddenRef.current) return;
+
+            setWorldInteractionItems((currentItems) => (
+                interactionItemsEqual(currentItems, nextItems, true) ? currentItems : nextItems
+            ));
+        };
+
+        const handleInteractionMessage = (event) => {
+            const message = event.data;
+            if (!message || typeof message !== 'object') return;
+
+            const data = message.data;
+            switch (message.action) {
+                case 'interaction:update': {
+                    const nextItems = normalizeInteractionItems(data?.items, false);
+                    setInteractionItems((currentItems) => (
+                        interactionItemsEqual(currentItems, nextItems, false) ? currentItems : nextItems
+                    ));
+                    break;
+                }
+                case 'interaction:world': {
+                    const nextItems = normalizeInteractionItems(data?.items, true);
+                    latestWorldItemsRef.current = nextItems;
+                    if (hiddenRef.current) break;
+
+                    pendingWorldItemsRef.current = nextItems;
+                    if (!worldFrameRef.current) {
+                        worldFrameRef.current = window.requestAnimationFrame(commitWorldItems);
+                    }
+                    break;
+                }
+                case 'interaction:layout':
+                    setInteractionLayout((currentLayout) => {
+                        const nextLayout = {
+                            ...currentLayout,
+                            ...(data && typeof data === 'object' ? data : {})
+                        };
+                        return interactionLayoutsEqual(currentLayout, nextLayout) ? currentLayout : nextLayout;
+                    });
+                    break;
+            }
+        };
+
+        window.addEventListener('message', handleInteractionMessage);
+        return () => {
+            window.removeEventListener('message', handleInteractionMessage);
+            pendingWorldItemsRef.current = null;
+            latestWorldItemsRef.current = [];
+            if (worldFrameRef.current) {
+                window.cancelAnimationFrame(worldFrameRef.current);
+                worldFrameRef.current = 0;
+            }
+        };
+    }, []);
+
+    if (hidden) return null;
+
+    return React.createElement(React.Fragment, null,
+        React.createElement(InteractionPrompts, { items: interactionItems, layout: interactionLayout }),
+        React.createElement(WorldInteractionPrompts, { items: latestWorldItemsRef.current })
+    );
 }
 
 function App() {
@@ -2732,25 +3324,6 @@ function App() {
     const [uiApps, setUiApps] = useState({});
 
     const [settingsPanel, setSettingsPanel] = useState({ open: false, tabs: [] });
-
-    const [interactionItems, setInteractionItems] = useState([]);
-    const [worldInteractionItems, setWorldInteractionItems] = useState([]);
-    const [interactionLayout, setInteractionLayout] = useState({
-        insetRight: 0,
-        insetBottom: 0,
-        screenWidth: 1920,
-        screenHeight: 1080
-    });
-
-    useEffect(() => {
-        if (typeof GetParentResourceName !== 'function') return;
-
-        fetch(`https://${GetParentResourceName()}/interactionReady`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-            body: '{}'
-        }).catch(() => {});
-    }, []);
 
     const closeSettingsPanelLocal = useCallback(() => {
         setSettingsPanel(prev => ({ ...prev, open: false }));
@@ -3136,31 +3709,6 @@ function App() {
                 case 'notifySetPosition':
                     if (data?.position) setNotifyPosition(data.position);
                     break;
-                case 'interaction:update':
-                    setInteractionItems(Array.isArray(data?.items) ? data.items.slice(0, 8) : []);
-                    break;
-                case 'interaction:world':
-                    setWorldInteractionItems(Array.isArray(data?.items)
-                        ? data.items.filter((item) => item
-                            && typeof item.label === 'string'
-                            && typeof item.key === 'string'
-                            && Number.isFinite(Number(item.x))
-                            && Number.isFinite(Number(item.y)))
-                            .slice(0, 4)
-                            .map((item, index) => ({
-                                id: typeof item.id === 'string' ? item.id : `world-${index}`,
-                                owner: typeof item.owner === 'string' ? item.owner : 'unknown',
-                                label: item.label.trim().slice(0, 96),
-                                key: item.key.trim().slice(0, 16),
-                                x: clampInteractionNumber(item.x, 0, 1),
-                                y: clampInteractionNumber(item.y, 0, 1),
-                                distance: clampInteractionNumber(item.distance, 0, 25)
-                            }))
-                        : []);
-                    break;
-                case 'interaction:layout':
-                    setInteractionLayout(prev => ({ ...prev, ...(data || {}) }));
-                    break;
             }
         };
 
@@ -3184,8 +3732,7 @@ function App() {
         React.createElement(WeatherZoneEditorApp, { appState: uiApps[WEATHER_EDITOR_APP_ID], setUiApps }),
         React.createElement(Menu, { ...menu, setMenu }),
         React.createElement(SettingsPanel, { ...settingsPanel, onClose: closeSettingsPanelLocal }),
-        settingsPanel.open ? null : React.createElement(InteractionPrompts, { items: interactionItems, layout: interactionLayout }),
-        settingsPanel.open ? null : React.createElement(WorldInteractionPrompts, { items: worldInteractionItems })
+        React.createElement(InteractionSurface, { hidden: settingsPanel.open })
     );
 }
 

@@ -2,6 +2,13 @@ local exported = {}
 local handlers = {}
 local invokingResource = 'resource-low'
 local revisionEvents = 0
+local sortCalls = 0
+local originalSort = table.sort
+
+table.sort = function(items, comparator)
+    sortCalls = sortCalls + 1
+    return originalSort(items, comparator)
+end
 
 lib = {
     isInternalResource = function()
@@ -37,6 +44,11 @@ local ok = exported.showInteraction({
     label = 'SIT',
     key = 'E',
     priority = 20,
+    panel = {
+        id = 'social-target',
+        label = 'STRANGER',
+        variant = 'target',
+    },
 })
 assert(ok == true)
 
@@ -46,6 +58,7 @@ ok = exported.showInteraction({
     label = 'OPEN',
     key = 'E',
     priority = 100,
+    holdDuration = 1200,
     anchor = {
         type = 'entity-bone',
         entity = 501,
@@ -62,12 +75,102 @@ assert(snapshot[1].owner == 'resource-high')
 assert(snapshot[1].active == true)
 assert(snapshot[1].anchor.type == 'entity-bone')
 assert(snapshot[1].anchor.entity == 501)
+assert(snapshot[1].holdDuration == 1200)
+assert(snapshot[1].holdActive == false)
+assert(snapshot[1].visible == false and snapshot[1].distance == nil)
 assert(snapshot[2].owner == 'resource-low')
 assert(snapshot[2].active == false)
+assert(snapshot[2].panel.id == 'social-target')
+assert(snapshot[2].panel.label == 'STRANGER')
+assert(snapshot[2].panel.variant == 'target')
 
-assert(exported.isInteractionActive('door') == true)
+invokingResource = 'resource-low'
+assert(exported.showInteraction({
+    id = 'low',
+    label = 'SIT',
+    key = 'E',
+    priority = 20,
+    panel = {
+        id = 'social-target',
+        label = 'STRANGER',
+        variant = 'target',
+    },
+}) == true)
+assert(revisionEvents == 2, 'identical target-panel definitions must be a no-op')
+invokingResource = 'resource-high'
+
+local arbitrationSorts = sortCalls
+for _ = 1, 1000 do
+    assert(exported.isInteractionActive('door') == true)
+end
+assert(sortCalls == arbitrationSorts, 'active checks must use mutation-time arbitration without sorting')
+
+local repeatedDefinition = {
+    id = 'door',
+    label = 'OPEN',
+    key = 'E',
+    priority = 100,
+    holdDuration = 1200,
+    anchor = {
+        type = 'entity-bone',
+        entity = 501,
+        bone = 'door_dside_f',
+        offset = { z = 0.08 },
+        maxDistance = 2.0,
+    },
+}
+for _ = 1, 1000 do
+    assert(exported.showInteraction(repeatedDefinition) == true)
+end
+assert(revisionEvents == 2, 'identical show calls must not publish registry changes')
+assert(sortCalls == arbitrationSorts, 'identical show calls must not re-arbitrate the registry')
+
+for _ = 1, 1000 do
+    assert(exported.setInteractions({ repeatedDefinition }) == true)
+end
+assert(revisionEvents == 2, 'identical set calls must not publish registry changes')
+assert(sortCalls == arbitrationSorts, 'identical set calls must not re-arbitrate the registry')
+
+snapshot[1].label = 'MUTATED'
+snapshot[1].anchor.offset.z = 99.0
+snapshot[2].panel.label = 'MUTATED'
+local protectedSnapshot = exported.getInteractions()
+assert(protectedSnapshot[1].label == 'OPEN', 'snapshot mutation leaked into the registry')
+assert(protectedSnapshot[1].anchor.offset.z == 0.08, 'nested snapshot mutation leaked into the registry')
+assert(protectedSnapshot[2].panel.label == 'STRANGER', 'panel snapshot mutation leaked into the registry')
+
+ok = exported.startInteractionHold('door')
+assert(ok == true)
+snapshot = exported.getInteractions()
+assert(snapshot[1].holdActive == true)
+assert(snapshot[1].holdRevision == 1)
+assert(revisionEvents == 3)
+
+ok = exported.startInteractionHold('door')
+assert(ok == true)
+assert(revisionEvents == 3, 'repeated hold start must be idempotent')
+
+invokingResource = 'resource-low'
+local ownerOk, ownerError = exported.startInteractionHold('door')
+assert(ownerOk == false)
+assert(ownerError == 'interaction not found')
+
+invokingResource = 'resource-high'
+ok = exported.cancelInteractionHold('door')
+assert(ok == true)
+snapshot = exported.getInteractions()
+assert(snapshot[1].holdActive == false)
+assert(snapshot[1].holdRevision == 2)
+
+ok = exported.cancelInteractionHold('door')
+assert(ok == true)
+assert(revisionEvents == 4, 'repeated hold cancel must be idempotent')
+
 invokingResource = 'resource-low'
 assert(exported.isInteractionActive('low') == false)
+local holdOk, holdError = exported.startInteractionHold('low')
+assert(holdOk == false)
+assert(holdError == 'screen interactions are press-only')
 
 invokingResource = 'resource-invalid'
 local invalid, errorMessage = exported.showInteraction({
@@ -82,6 +185,43 @@ local invalid, errorMessage = exported.showInteraction({
 })
 assert(invalid == false)
 assert(type(errorMessage) == 'string')
+
+invalid, errorMessage = exported.showInteraction({
+    id = 'bad-hold',
+    label = 'BAD',
+    key = 'F',
+    holdDuration = 99,
+})
+assert(invalid == false)
+assert(type(errorMessage) == 'string')
+
+invalid, errorMessage = exported.showInteraction({
+    id = 'screen-hold',
+    label = 'BAD',
+    key = 'F',
+    holdDuration = 1200,
+})
+assert(invalid == false)
+assert(errorMessage == 'holdDuration is only supported for world interactions')
+
+invalid, errorMessage = exported.showInteraction({
+    id = 'bad-panel-variant',
+    label = 'BAD',
+    key = 'F',
+    panel = { id = 'bad', label = 'BAD', variant = 'dialog' },
+})
+assert(invalid == false)
+assert(errorMessage == 'panel.variant must be target')
+
+invalid, errorMessage = exported.showInteraction({
+    id = 'anchored-panel',
+    label = 'BAD',
+    key = 'F',
+    anchor = { type = 'world', x = 1.0, y = 2.0, z = 3.0 },
+    panel = { id = 'bad', label = 'BAD', variant = 'target' },
+})
+assert(invalid == false)
+assert(errorMessage == 'panel is only supported for screen interactions')
 
 invalid = exported.showInteraction({
     id = 'bad-entity',
@@ -104,6 +244,79 @@ snapshot = exported.getInteractions()
 assert(#snapshot == 1)
 assert(snapshot[1].owner == 'resource-low')
 assert(snapshot[1].active == true)
-assert(revisionEvents == 3)
+assert(revisionEvents == 5)
+
+invokingResource = 'resource-entity'
+assert(exported.showInteraction({
+    id = 'wallet',
+    label = 'PICK UP WALLET',
+    key = 'E',
+    priority = 80,
+    holdDuration = 350,
+    anchor = {
+        type = 'entity',
+        entity = 777,
+        model = -123456,
+        offset = { z = 0.08 },
+        maxDistance = 2.0,
+    },
+}) == true)
+
+local entityState = exported.getInteractionState('wallet')
+assert(entityState.anchor.type == 'entity' and entityState.anchor.entity == 777)
+assert(entityState.anchor.model == -123456 and entityState.anchor.bone == nil)
+assert(entityState.active == true and entityState.visible == false)
+assert(exported.isInteractionVisible('wallet') == false)
+assert(lib._setInteractionPresentationState('resource-entity', 'wallet', true, 1.25) == true)
+
+entityState = exported.getInteractionState('wallet')
+assert(entityState.visible == true and entityState.distance == 1.25)
+assert(exported.isInteractionVisible('wallet') == true)
+entityState.anchor.offset.z = 99.0
+assert(exported.getInteractionState('wallet').anchor.offset.z == 0.08, 'state snapshots must protect nested anchors')
+
+invokingResource = 'resource-low'
+local missingState, missingStateError = exported.getInteractionState('wallet')
+assert(missingState == nil and missingStateError == 'interaction not found')
+assert(exported.isInteractionVisible('wallet') == false, 'visibility queries must remain owner-scoped')
+
+handlers.onClientResourceStop('resource-entity')
+
+local cappedItems = {}
+for index = 1, 8 do
+    cappedItems[index] = {
+        id = ('cap-%d'):format(index),
+        label = ('CAP %d'):format(index),
+        key = ('F%d'):format(index),
+    }
+end
+
+invokingResource = 'resource-cap'
+ok = exported.setInteractions(cappedItems)
+assert(ok == true)
+local limitOk, limitError = exported.showInteraction({ id = 'cap-9', label = 'CAP 9', key = 'F9' })
+assert(limitOk == false and limitError == 'resource interaction limit reached (8)')
+
+local fillItems = {}
+for index = 1, 7 do
+    fillItems[index] = {
+        id = ('fill-%d'):format(index),
+        label = ('FILL %d'):format(index),
+        key = ('NUM%d'):format(index),
+    }
+end
+
+invokingResource = 'resource-fill'
+assert(exported.setInteractions(fillItems) == true)
+snapshot = exported.getInteractions()
+assert(#snapshot == 16, 'the registry must retain its documented global capacity')
+
+invokingResource = 'resource-overflow'
+limitOk, limitError = exported.showInteraction({ id = 'overflow', label = 'OVERFLOW', key = 'HOME' })
+assert(limitOk == false and limitError == 'global interaction limit reached (16)')
+
+handlers.onClientResourceStop('resource-cap')
+assert(#exported.getInteractions() == 8, 'owner cleanup must update registry capacity counters')
+assert(exported.showInteraction({ id = 'recovered', label = 'RECOVERED', key = 'HOME' }) == true)
 
 print('interaction registry tests passed')

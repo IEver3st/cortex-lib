@@ -57,8 +57,13 @@ assert.match(saveCallback[1], /commitPreviewValues\(/, 'Save must persist previe
 assert.match(uiSource, /response\?\.ok === true/, 'the panel must stay open when Save or Cancel fails')
 assert.match(
   uiSource,
-  /settingsPanel\.open \? null : React\.createElement\(InteractionPrompts/,
+  /React\.createElement\(InteractionSurface, \{ hidden: settingsPanel\.open \}\)/,
   'interaction prompts must not render over the modal settings surface',
+)
+assert.match(
+  uiSource,
+  /function InteractionSurface\([\s\S]*?if \(hidden\) return null;/,
+  'the isolated interaction surface must honor the settings modal visibility gate',
 )
 
 const panelBlock = cssSource.match(/\.cortex-settings-panel \{([\s\S]*?)\n\}/)
