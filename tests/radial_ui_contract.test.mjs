@@ -119,8 +119,8 @@ assert.match(
 );
 assert.match(
     clientSource,
-    /appearance = data\.appearance == 'compact-control' and 'compact-control' or nil/,
-    'the Lua boundary must allowlist the compact-control appearance'
+    /if data\.appearance ~= nil and data\.appearance ~= 'compact-control' then[\s\S]*?return false, 'invalid_appearance'[\s\S]*?appearance = data\.appearance/,
+    'the Lua boundary must reject unsupported appearances before storing compact-control'
 );
 assert.ok(
     (clientSource.match(/appearance = currentAppearance\(\)/g) || []).length >= 4,

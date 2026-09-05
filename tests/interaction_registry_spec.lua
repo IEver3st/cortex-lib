@@ -202,7 +202,30 @@ invalid, errorMessage = exported.showInteraction({
     holdDuration = 1200,
 })
 assert(invalid == false)
-assert(errorMessage == 'holdDuration is only supported for world interactions')
+assert(errorMessage == 'holdDuration is only supported for anchored interactions')
+
+invalid, errorMessage = exported.showInteraction({
+    id = false,
+    label = 'BAD',
+    key = 'F',
+})
+assert(invalid == false and errorMessage == 'id must be a string', 'false ids must not alias the default interaction')
+
+invalid, errorMessage = exported.showInteraction({
+    id = 'bad-defaults',
+    label = 'BAD',
+    key = 'F',
+    priority = false,
+})
+assert(invalid == false and errorMessage == 'priority must be a finite number', 'false priority must not alias zero')
+
+invalid, errorMessage = exported.showInteraction({
+    id = 'bad-offset-default',
+    label = 'BAD',
+    key = 'F',
+    anchor = { type = 'world', x = 1, y = 2, z = 3, offset = { x = false } },
+})
+assert(invalid == false and errorMessage:find('anchor.offset.x', 1, true), 'false offsets must not alias zero')
 
 invalid, errorMessage = exported.showInteraction({
     id = 'bad-panel-variant',
@@ -281,6 +304,53 @@ assert(missingState == nil and missingStateError == 'interaction not found')
 assert(exported.isInteractionVisible('wallet') == false, 'visibility queries must remain owner-scoped')
 
 handlers.onClientResourceStop('resource-entity')
+
+invokingResource = 'resource-hold'
+assert(exported.showInteraction({
+    id = 'held',
+    label = 'HOLD',
+    key = 'Z',
+    priority = 10,
+    holdDuration = 1000,
+    anchor = { type = 'world', x = 1.0, y = 2.0, z = 3.0 },
+}) == true)
+assert(exported.startInteractionHold('held') == true)
+
+invokingResource = 'resource-preempt'
+assert(exported.showInteraction({
+    id = 'preempt',
+    label = 'PREEMPT',
+    key = 'Z',
+    priority = 20,
+}) == true)
+
+snapshot = exported.getInteractions()
+local heldState
+for index = 1, #snapshot do
+    if snapshot[index].owner == 'resource-hold' and snapshot[index].id == 'held' then
+        heldState = snapshot[index]
+        break
+    end
+end
+assert(heldState ~= nil)
+assert(heldState.active == false and heldState.holdActive == false)
+assert(heldState.holdRevision == 2, 'losing arbitration must cancel an active hold exactly once')
+
+assert(exported.hideInteraction('preempt') == true)
+snapshot = exported.getInteractions()
+for index = 1, #snapshot do
+    if snapshot[index].owner == 'resource-hold' and snapshot[index].id == 'held' then
+        heldState = snapshot[index]
+        break
+    end
+end
+assert(heldState.active == true and heldState.holdActive == false)
+assert(heldState.holdRevision == 2, 'regaining arbitration must not resurrect or recancel a stale hold')
+
+invokingResource = 'resource-hold'
+assert(exported.startInteractionHold('held') == true)
+assert(exported.getInteractionState('held').holdRevision == 3, 'a fresh hold must remain possible after preemption')
+handlers.onClientResourceStop('resource-hold')
 
 local cappedItems = {}
 for index = 1, 8 do

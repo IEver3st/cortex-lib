@@ -27,14 +27,23 @@ assert.equal(evaluateSettingsScale({ innerHeight: 2160 }), 2, '4K reaches the 2x
 assert.equal(evaluateSettingsScale({ innerHeight: 4320 }), 2, 'settings scale remains bounded above 4K')
 
 const handleChangeMatch = uiSource.match(
-  /const handleChange = useCallback\(\(tabId, key, value\) => \{([\s\S]*?)\n    \}, \[\]\)/,
+  /const handleChange = useCallback\(\(tabId, key, value\) => \{([\s\S]*?)\n    \}, \[[^\]]*session[^\]]*\]\)/,
 )
 assert.ok(handleChangeMatch, 'SettingsPanel handleChange must remain discoverable')
 assert.match(
   handleChangeMatch[1],
-  /nuiPost\('settingsPreview', \{ tabId, key, value \}\)/,
+  /nuiPost\('settingsPreview', \{ tabId, key, value, session \}\)/,
   'every field edit must cross the NUI boundary immediately',
 )
+assert.match(handleChangeMatch[1], /response\?\.ok === true[\s\S]*?sessionRef\.current !== normalizeSession\(session\)/)
+assert.match(handleChangeMatch[1], /Object\.is\(currentTabValues\[key\], value\)[\s\S]*?rollbackTabValues/)
+assert.match(
+  uiSource,
+  /const handleReset = useCallback[\s\S]*?prev\[tab\.id\] === nextValues[\s\S]*?PREVIEW FAILED/,
+  'a rejected reset preview must roll back only the still-current optimistic reset',
+)
+assert.match(uiSource, /settingsAction'[\s\S]*?ACTION FAILED/)
+assert.match(uiSource, /settingsPreviewSound'[\s\S]*?PREVIEW FAILED/)
 
 const previewCallback = luaSource.match(
   /RegisterNUICallback\('settingsPreview', function\(data, cb\)([\s\S]*?)\nend\)/,
@@ -44,9 +53,10 @@ assert.match(previewCallback[1], /cb\(\{ ok =/, 'settingsPreview must acknowledg
 assert.match(previewCallback[1], /previewTabValue\(tabId, key, value\)/)
 
 const cancelCallback = luaSource.match(
-  /RegisterNUICallback\('settingsCancel', function\(_, cb\)([\s\S]*?)\nend\)/,
+  /RegisterNUICallback\('settingsCancel', function\(data, cb\)([\s\S]*?)\nend\)/,
 )
 assert.ok(cancelCallback, 'settingsCancel must remain registered')
+assert.match(cancelCallback[1], /matchesSettingsModal\(data\)/, 'Cancel must reject a stale session')
 assert.match(cancelCallback[1], /rollbackPreviewValues\(\)/, 'Cancel must restore the pre-open values')
 
 const saveCallback = luaSource.match(

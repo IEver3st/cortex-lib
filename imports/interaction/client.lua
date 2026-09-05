@@ -73,7 +73,8 @@ local function validateText(value, field, maxBytes)
 end
 
 local function validateId(value)
-    local id, err = validateText(value or 'default', 'id', MAX_ID_BYTES)
+    if value == nil then value = 'default' end
+    local id, err = validateText(value, 'id', MAX_ID_BYTES)
     if not id then
         return nil, err
     end
@@ -101,15 +102,21 @@ local function normalizePanel(value)
     local label, labelError = validateText(value.label, 'panel.label', MAX_PANEL_LABEL_BYTES)
     if not label then return nil, labelError end
 
-    local variant = value.variant or 'target'
+    local variant = value.variant == nil and 'target' or value.variant
     if variant ~= 'target' then
         return nil, 'panel.variant must be target'
+    end
+
+    local marker = value.marker == nil and '?' or value.marker
+    if type(marker) ~= 'string' or not marker:match('^[%w?]$') then
+        return nil, 'panel.marker must be one letter, digit, or question mark'
     end
 
     return {
         id = id,
         label = label,
         variant = variant,
+        marker = marker,
     }
 end
 
@@ -118,6 +125,7 @@ local function panelsEqual(left, right)
     return left.id == right.id
         and left.label == right.label
         and left.variant == right.variant
+        and left.marker == right.marker
 end
 
 local function copyPanel(panel)
@@ -126,6 +134,7 @@ local function copyPanel(panel)
         id = panel.id,
         label = panel.label,
         variant = panel.variant,
+        marker = panel.marker,
     }
 end
 
@@ -152,13 +161,16 @@ local function normalizeOffset(value)
         return nil, 'anchor.offset must be a table'
     end
 
-    local x, xError = validateFiniteNumber(value.x or 0.0, 'anchor.offset.x', -MAX_ANCHOR_OFFSET, MAX_ANCHOR_OFFSET)
+    local xValue = value.x == nil and 0.0 or value.x
+    local x, xError = validateFiniteNumber(xValue, 'anchor.offset.x', -MAX_ANCHOR_OFFSET, MAX_ANCHOR_OFFSET)
     if not x then return nil, xError end
 
-    local y, yError = validateFiniteNumber(value.y or 0.0, 'anchor.offset.y', -MAX_ANCHOR_OFFSET, MAX_ANCHOR_OFFSET)
+    local yValue = value.y == nil and 0.0 or value.y
+    local y, yError = validateFiniteNumber(yValue, 'anchor.offset.y', -MAX_ANCHOR_OFFSET, MAX_ANCHOR_OFFSET)
     if not y then return nil, yError end
 
-    local z, zError = validateFiniteNumber(value.z or 0.0, 'anchor.offset.z', -MAX_ANCHOR_OFFSET, MAX_ANCHOR_OFFSET)
+    local zValue = value.z == nil and 0.0 or value.z
+    local z, zError = validateFiniteNumber(zValue, 'anchor.offset.z', -MAX_ANCHOR_OFFSET, MAX_ANCHOR_OFFSET)
     if not z then return nil, zError end
 
     return { x = x, y = y, z = z }
@@ -177,7 +189,7 @@ local function normalizeAnchor(value)
     end
 
     local maxDistance, distanceError = validateFiniteNumber(
-        value.maxDistance or 3.0,
+        value.maxDistance == nil and 3.0 or value.maxDistance,
         'anchor.maxDistance',
         0.5,
         25.0
@@ -348,10 +360,16 @@ local function rebuildSortedEntries()
     for index = 1, #nextSortedEntries do
         local entry = nextSortedEntries[index]
         local key = entry.key:upper()
+        local wasActive = entry.active == true
         entry.active = claimedKeys[key] == nil
         if not entry.active then
             entry.visible = false
             entry.distance = nil
+
+            if wasActive and entry.holdActive then
+                entry.holdActive = false
+                entry.holdRevision = (entry.holdRevision or 0) + 1
+            end
         end
         claimedKeys[key] = true
     end
@@ -440,7 +458,10 @@ local function normalize(data)
         return nil, keyError
     end
 
-    local priority = tonumber(data.priority) or 0
+    local priority = data.priority == nil and 0 or tonumber(data.priority)
+    if priority == nil then
+        return nil, 'priority must be a finite number'
+    end
     if priority ~= priority or priority == math.huge or priority == -math.huge then
         return nil, 'priority must be a finite number'
     end
@@ -469,7 +490,7 @@ local function normalize(data)
     end
 
     if holdDuration and not anchor then
-        return nil, 'holdDuration is only supported for world interactions'
+        return nil, 'holdDuration is only supported for anchored interactions'
     end
 
     local panel, panelError = normalizePanel(data.panel)
@@ -514,7 +535,7 @@ local function finiteNumber(value)
 end
 
 local function defaultNumber(value, fallback)
-    if value == nil or value == false then return fallback end
+    if value == nil then return fallback end
     return finiteNumber(value)
 end
 
@@ -570,7 +591,8 @@ local function rawPanelMatches(current, value)
 
     return value.id == current.id
         and value.label == current.label
-        and (value.variant or 'target') == current.variant
+        and (value.variant == nil and 'target' or value.variant) == current.variant
+        and (value.marker == nil and '?' or value.marker) == current.marker
 end
 
 
@@ -580,7 +602,7 @@ end
 local function rawDefinitionMatches(current, data)
     if type(data) ~= 'table' then return false end
 
-    local id = data.id or 'default'
+    local id = data.id == nil and 'default' or data.id
     if id ~= current.id or data.label ~= current.label or data.key ~= current.key then return false end
 
     local priority = data.priority == nil and 0 or finiteNumber(data.priority)

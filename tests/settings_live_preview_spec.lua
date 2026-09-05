@@ -1,5 +1,4 @@
-local scriptPath = arg[1]
-assert(type(scriptPath) == 'string' and scriptPath ~= '', 'settings client path is required')
+local scriptPath = arg[1] or 'imports/settings/client.lua'
 
 local kvp = {}
 local nuiCallbacks = {}
@@ -8,6 +7,9 @@ local sentMessages = {}
 local emittedChanges = {}
 local registeredExports = {}
 local focusState = false
+local timeouts = {}
+local failWriteAt = nil
+local writeAttempts = 0
 
 function GetNumResources() return 0 end
 function GetResourceByFindIndex() return nil end
@@ -15,7 +17,16 @@ function GetResourceState() return 'missing' end
 function GetCurrentResourceName() return 'cortex-lib' end
 function GetInvokingResource() return nil end
 function GetResourceKvpString(key) return kvp[key] end
-function SetResourceKvp(key, value) kvp[key] = value end
+function SetResourceKvp(key, value)
+    writeAttempts = writeAttempts + 1
+    if failWriteAt and writeAttempts == failWriteAt then
+        failWriteAt = nil
+        error('simulated KVP write failure')
+    end
+    kvp[key] = value
+end
+function DeleteResourceKvp(key) kvp[key] = nil end
+function SetTimeout(delay, callback) timeouts[#timeouts + 1] = { delay = delay, callback = callback } end
 function SetNuiFocus(hasFocus) focusState = hasFocus == true end
 function SendNUIMessage(message) sentMessages[#sentMessages + 1] = message end
 function RegisterNUICallback(name, callback) nuiCallbacks[name] = callback end
@@ -63,6 +74,7 @@ end
 api.openSettings()
 assert(sentMessages[#sentMessages].action == 'settingsOpen', 'open must send settingsOpen')
 assert(#sentMessages[#sentMessages].data.tabs == 2, 'open must include library and HUD tabs')
+assert(callNui('settingsReady').ok == true and focusState, 'settingsReady must focus the exact active session')
 
 local previewReply = callNui('settingsPreview', {
     tabId = 'hud',
@@ -95,6 +107,7 @@ assert(kvp['cortex:hud_enabled'] == nil, 'Cancel must not write preview values')
 assert(focusState == false, 'Cancel must release NUI focus')
 
 api.openSettings()
+assert(callNui('settingsReady').ok == true)
 callNui('settingsPreview', { tabId = 'hud', key = 'hud_enabled', value = false })
 local batchReply = callNui('settingsPreview', {
     tabId = 'hud',
@@ -104,6 +117,46 @@ assert(batchReply.ok == true and api.getSetting('hud_strength') == 75, 'Reset-st
 local invalidReply = callNui('settingsPreview', { tabId = 'hud', key = 'hud_strength', value = 101 })
 assert(invalidReply.ok == false, 'out-of-range slider previews must be rejected')
 assert(api.getSetting('hud_strength') == 75, 'invalid previews must not mutate runtime state')
+
+local invalidSaveReply = callNui('settingsSave', {
+    tabs = { hud = { hud_enabled = 'forged' }, unknown = { value = true } },
+})
+assert(invalidSaveReply.ok == false and invalidSaveReply.error == 'invalid_settings',
+    'Save must reject an invalid batch atomically')
+assert(api.getSetting('hud_enabled') == false and kvp['cortex:hud:hud_enabled'] == nil,
+    'invalid Save must retain preview state without partially persisting')
+
+kvp['cortex:hud:hud_enabled'] = 'true'
+kvp['cortex:hud:hud_strength'] = '50'
+writeAttempts = 0
+failWriteAt = 2
+local messagesBeforeFailedSave = #sentMessages
+local failedSaveReply = callNui('settingsSave', {
+    tabs = { hud = { hud_enabled = false, hud_strength = 25 } },
+})
+assert(failedSaveReply.ok == false and failedSaveReply.error == 'commit_failed'
+    and failedSaveReply.persistedRestored == true,
+    'a mid-commit KVP failure must report failure only after restoring persisted originals')
+assert(kvp['cortex:hud:hud_enabled'] == 'true' and kvp['cortex:hud:hud_strength'] == '50',
+    'a partial KVP commit must restore every original persisted value')
+assert(api.getSetting('hud_enabled') == true and api.getSetting('hud_strength') == 50,
+    'a failed commit must roll runtime preview values back to the opening snapshot')
+assert(focusState == true and #sentMessages == messagesBeforeFailedSave,
+    'a failed commit must keep focus and must not force-close the active settings session')
+local retryPreviewReply = callNui('settingsPreview', {
+    tabId = 'hud',
+    key = 'hud_enabled',
+    value = false,
+})
+assert(retryPreviewReply.ok == true and api.getSetting('hud_enabled') == false,
+    'a failed commit must leave a fresh preview snapshot so the active panel can retry')
+assert(callNui('settingsCancel').ok == true and focusState == false,
+    'the retained settings session must still cancel and release focus cleanly')
+
+api.openSettings()
+assert(callNui('settingsReady').ok == true)
+callNui('settingsPreview', { tabId = 'hud', key = 'hud_enabled', value = false })
+callNui('settingsPreview', { tabId = 'hud', key = 'hud_strength', value = 75 })
 
 local saveReply = callNui('settingsSave', {
     tabs = {
@@ -117,8 +170,9 @@ assert(saveReply.ok == true, 'Save must succeed')
 assert(saveReply.committed == 2, 'Save must report committed values')
 assert(api.getSetting('hud_enabled') == false, 'Save must keep the previewed runtime value')
 assert(api.getSetting('hud_strength') == 25, 'Save must apply the final submitted slider value')
-assert(kvp['cortex:hud_enabled'] == 'false', 'Save must persist boolean values')
-assert(kvp['cortex:hud_strength'] == '25', 'Save must persist numeric values')
+assert(kvp['cortex:hud:hud_enabled'] == 'false', 'Save must persist boolean values in the tab namespace')
+assert(kvp['cortex:hud:hud_strength'] == '25', 'Save must persist numeric values in the tab namespace')
+assert(kvp['cortex:hud_enabled'] == nil, 'Save must not mirror consumer values into the legacy global namespace')
 assert(focusState == false, 'Save must release NUI focus')
 
 assert(type(eventHandlers.onResourceStop) == 'function', 'resource-stop cleanup must be registered')
@@ -126,5 +180,13 @@ eventHandlers.onResourceStop('hud')
 api.openSettings()
 assert(#sentMessages[#sentMessages].data.tabs == 1, 'stopped resources must be removed from the settings tabs')
 callNui('settingsCancel')
+
+api.openSettings()
+local watchdog = timeouts[#timeouts]
+assert(watchdog and watchdog.delay == 10000, 'settings open must arm a bounded settingsReady watchdog')
+watchdog.callback()
+assert(sentMessages[#sentMessages].action == 'settingsClose'
+    and sentMessages[#sentMessages].data.reason == 'settings_ready_timeout',
+    'a missing settingsReady acknowledgement must close and release the modal session')
 
 print('settings live preview runtime: PASS')

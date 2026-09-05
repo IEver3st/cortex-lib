@@ -122,7 +122,7 @@ for (const className of [
 }
 assert.match(
     targetPanel[0],
-    /className: 'cortex-target-action-dot'[\s\S]*?}, item\.key\)/,
+    /className: 'cortex-target-action-dot'[\s\S]*?React\.createElement\(TargetInteractionKeyLabel, \{ value: item\.key \}\)/,
     'the caller-provided interaction key must be visible inside each action disc'
 );
 
@@ -148,8 +148,8 @@ assert.match(
 );
 assert.match(
     targetPanel[0],
-    /React\.createElement\(InteractionKey,\s*\{[\s\S]*?className:\s*'cortex-target-marker',[\s\S]*?decorative:\s*true/,
-    'the STRANGER marker must reuse the shared radial key geometry'
+    /React\.createElement\(InteractionKey,\s*\{[\s\S]*?item:\s*\{\s*key:\s*panel\.marker \|\| '\?'\s*\},[\s\S]*?className:\s*'cortex-target-marker',[\s\S]*?decorative:\s*true/,
+    'the STRANGER marker must render a question mark through the shared radial key geometry'
 );
 assert.match(
     styles,
@@ -158,8 +158,8 @@ assert.match(
 );
 assert.match(
     styles,
-    /\.cortex-target-marker\s*\{[\s\S]*?width:\s*var\(--cortex-target-marker-size\);[\s\S]*?height:\s*var\(--cortex-target-marker-size\);/,
-    'the STRANGER marker must consume the reserved world-scaled footprint'
+    /\.cortex-target-marker\s*\{[\s\S]*?width:\s*var\(--cortex-target-marker-size\);[\s\S]*?height:\s*var\(--cortex-target-marker-size\);[\s\S]*?font-size:\s*calc\(26px \* var\(--cortex-interaction-scale, 1\)\);/,
+    'the STRANGER marker must consume the reserved footprint and size its question mark explicitly'
 );
 assert.match(
     styles,
@@ -214,7 +214,7 @@ for (const source of [registry, renderer, uiSource]) {
     assert.match(source, /holdActive/, 'hold state must cross every registry-renderer-NUI boundary');
 }
 assert.match(registry, /panel is only supported for screen interactions/);
-assert.match(registry, /holdDuration is only supported for world interactions/);
+assert.match(registry, /holdDuration is only supported for anchored interactions/);
 assert.match(registry, /screen interactions are press-only/);
 assert.match(renderer, /panel = type\(panel\) == ['"]table['"]/);
 assert.match(renderer, /frameItem = copyPresentationItem\(item, true\)/);

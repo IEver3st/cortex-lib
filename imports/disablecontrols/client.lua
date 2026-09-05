@@ -1,7 +1,6 @@
 local DisableControlAction = DisableControlAction
 local DisablePlayerFiring = DisablePlayerFiring
 local DisableAllControlActions = DisableAllControlActions
-local PlayerPedId = PlayerPedId
 local PlayerId = PlayerId
 local Wait = Wait
 
@@ -39,23 +38,53 @@ local CONTROL_MAP = {
 local DisableControls = {}
 DisableControls.__index = DisableControls
 
-local function disableControls(options)
-    options = options or {}
-    
-    local self = setmetatable({
-        _active = true,
-        _controls = {},
-        _disableMovement = options.disableMovement or options.move or false,
-        _disableCarMovement = options.disableCarMovement or options.car or false,
-        _disableCombat = options.disableCombat or options.combat or false,
-        _disableMouse = options.disableMouse or options.mouse or false,
-        _disableAll = options.disableAll or false
-    }, DisableControls)
-    
+local function readBooleanOption(options, primary, alias)
+    local primaryValue = options[primary]
+    local aliasValue = alias and options[alias] or nil
+
+    if primaryValue ~= nil and type(primaryValue) ~= 'boolean' then
+        error(('lib.disableControls option %s must be a boolean'):format(primary), 3)
+    end
+
+    if aliasValue ~= nil and type(aliasValue) ~= 'boolean' then
+        error(('lib.disableControls option %s must be a boolean'):format(alias), 3)
+    end
+
+    return primaryValue == true or aliasValue == true
+end
+
+local function normalizeControl(control)
+    if type(control) == 'string' then
+        control = CONTROL_MAP[control]
+    end
+
+    if type(control) ~= 'number' or control ~= control or
+       control <= -math.huge or control >= math.huge or
+       control % 1 ~= 0 or control < 0 or control > 360 then
+        return nil
+    end
+
+    return control
+end
+
+
+local function hasWork(self)
+    return self._active and (
+        self._disableAll or
+        self._disableMovement or
+        self._disableCarMovement or
+        self._disableCombat or
+        self._disableMouse or
+        next(self._controls) ~= nil
+    )
+end
+
+local function startThread(self)
+    if self._threadActive or not hasWork(self) then return end
+
+    self._threadActive = true
     CreateThread(function()
-        while self._active do
-            local playerId = PlayerId()
-            
+        while hasWork(self) do
             if self._disableAll then
                 DisableAllControlActions(0)
             else
@@ -64,59 +93,75 @@ local function disableControls(options)
                         DisableControlAction(0, control, true)
                     end
                 end
-                
+
                 if self._disableCarMovement then
                     for _, control in ipairs(CONTROL_GROUPS.carMovement) do
                         DisableControlAction(0, control, true)
                     end
                 end
-                
+
                 if self._disableCombat then
                     for _, control in ipairs(CONTROL_GROUPS.combat) do
                         DisableControlAction(0, control, true)
                     end
-                    DisablePlayerFiring(playerId, true)
+                    DisablePlayerFiring(PlayerId(), true)
                 end
-                
+
                 if self._disableMouse then
                     for _, control in ipairs(CONTROL_GROUPS.mouse) do
                         DisableControlAction(0, control, true)
                     end
                 end
-                
-                for control, _ in pairs(self._controls) do
+
+                for control in pairs(self._controls) do
                     DisableControlAction(0, control, true)
                 end
             end
-            
+
             Wait(0)
         end
+
+        self._threadActive = false
     end)
-    
+end
+
+local function disableControls(options)
+    options = options or {}
+    if type(options) ~= 'table' then
+        error('lib.disableControls options must be a table', 2)
+    end
+
+    local self = setmetatable({
+        _active = true,
+        _threadActive = false,
+        _controls = {},
+        _disableMovement = readBooleanOption(options, 'disableMovement', 'move'),
+        _disableCarMovement = readBooleanOption(options, 'disableCarMovement', 'car'),
+        _disableCombat = readBooleanOption(options, 'disableCombat', 'combat'),
+        _disableMouse = readBooleanOption(options, 'disableMouse', 'mouse'),
+        _disableAll = readBooleanOption(options, 'disableAll')
+    }, DisableControls)
+
+    startThread(self)
     return self
 end
 
 function DisableControls:Add(control)
-    if type(control) == 'string' then
-        control = CONTROL_MAP[control] or control
-    end
-    
-    if type(control) == 'number' then
+    control = normalizeControl(control)
+    if control then
         self._controls[control] = true
+        startThread(self)
     end
-    
+
     return self
 end
 
 function DisableControls:Remove(control)
-    if type(control) == 'string' then
-        control = CONTROL_MAP[control] or control
-    end
-    
-    if type(control) == 'number' then
+    control = normalizeControl(control)
+    if control then
         self._controls[control] = nil
     end
-    
+
     return self
 end
 

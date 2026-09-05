@@ -7,16 +7,59 @@ on:
       - master
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  validate:
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Install Lua 5.4
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends lua5.4
+
+      - name: Validate source
+        shell: pwsh
+        run: ./scripts/validate-resource.ps1 -Path .
+
+      - name: Check NUI JavaScript
+        run: node --check ui/app.js
+
+      - name: Run Node contract tests
+        run: node --test tests/*.test.mjs
+
+      - name: Run Lua specs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for spec in tests/*_spec.lua; do
+            lua5.4 "$spec"
+          done
+
+      - name: Check patch whitespace
+        run: git show --check --format= "$GITHUB_SHA"
+
+  release:
+    needs: validate
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Extract release metadata
         id: meta
@@ -40,83 +83,93 @@ jobs:
 
       - name: Skip if release already exists
         id: check
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const tag = '${{ steps.meta.outputs.tag }}';
-            try {
-              await github.rest.git.getRef({
-                ...context.repo,
-                ref: `tags/${tag}`
-              });
-              console.log(`Release tag ${tag} already exists. Skipping.`);
-              core.setOutput('exists', 'true');
-            } catch (error) {
-              if (error.status === 404) {
-                core.setOutput('exists', 'false');
-              } else {
-                throw error;
-              }
-            }
+        shell: bash
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          if git show-ref --verify --quiet "refs/tags/${TAG}"; then
+            echo "Release tag ${TAG} already exists. Skipping."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Setup Bun
-        if: steps.check.outputs.exists == 'false' && hashFiles('**/package.json') != ''
-        uses: oven-sh/setup-bun@v2
-
-      - name: Build web assets
-        if: steps.check.outputs.exists == 'false' && hashFiles('**/package.json') != ''
+      - name: Install Lua 5.4
+        if: steps.check.outputs.exists == 'false'
         shell: bash
         run: |
-          for dir in . web-src web; do
-            if [ -f "${dir}/package.json" ]; then
-              has_build=$(node -e "process.exit(require('./${dir}/package.json').scripts?.build ? 0 : 1)" 2>/dev/null && echo true || echo false)
-              if [ "$has_build" = "true" ]; then
-                echo "Building ${dir}..."
-                (cd "${dir}" && bun install && bun run build)
-              fi
-            fi
-          done
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends lua5.4
 
       - name: Create release archive
         if: steps.check.outputs.exists == 'false'
         shell: bash
+        env:
+          RELEASE_NAME: ${{ steps.meta.outputs.name }}
+          RELEASE_ASSET: ${{ steps.meta.outputs.asset }}
         run: |
-          name="${{ steps.meta.outputs.name }}"
-          asset="${{ steps.meta.outputs.asset }}"
-          mkdir -p "../staging/${name}" "../release"
-          find . -type f \
-            -not -path './.git/*' \
-            -not -path './.git' \
-            -not -path './.github/*' \
-            -not -path './.github' \
-            -not -name '.gitignore' \
-            -not -path '*node_modules*' \
-            -not -path './.cortex/*' \
-            -not -path './.cortex' \
-            -not -path './.agents/*' \
-            -not -path './.agents' \
-            -not -path './.copilot/*' \
-            -not -path './.copilot' \
-            -not -path './.cursor/*' \
-            -not -path './.cursor' \
-            -not -path './.claude/*' \
-            -not -path './.claude' \
-            -not -path './.memories/*' \
-            -not -path './.memories' \
-            -not -path './releases/*' \
-            -not -path './releases' \
-            -not -name '.env*' \
-            -not -name '*.log' \
-            -not -name '*.tmp' \
-            -not -name '.tmp' \
-            -exec cp --parents {} "../staging/${name}/" \;
-          (cd ../staging && zip -r "../release/${asset}" "${name}")
+          set -euo pipefail
+
+          mkdir -p ../release
+          mapfile -d '' tracked_files < <(git ls-files -z -- . \
+            ':(exclude).github/**' \
+            ':(exclude).gitignore' \
+            ':(exclude).gitattributes' \
+            ':(exclude)tests/release_workflow_contract.test.mjs')
+
+          if [ "${#tracked_files[@]}" -eq 0 ]; then
+            echo "::error::No tracked release files were selected"
+            exit 1
+          fi
+
+          git archive \
+            --format=zip \
+            --prefix="${RELEASE_NAME}/" \
+            --output="../release/${RELEASE_ASSET}" \
+            HEAD \
+            -- "${tracked_files[@]}"
+
+          (
+            cd ../release
+            sha256sum "${RELEASE_ASSET}" > "${RELEASE_ASSET}.sha256"
+          )
+
+      - name: Validate exact release archive
+        if: steps.check.outputs.exists == 'false'
+        shell: bash
+        env:
+          RELEASE_NAME: ${{ steps.meta.outputs.name }}
+          RELEASE_ASSET: ${{ steps.meta.outputs.asset }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p ../verify
+          unzip -q "../release/${RELEASE_ASSET}" -d ../verify
+
+          cd "../verify/${RELEASE_NAME}"
+          pwsh -File "$GITHUB_WORKSPACE/scripts/validate-resource.ps1" -Path .
+          node --check ui/app.js
+          node --test tests/*.test.mjs
+
+          for spec in tests/*_spec.lua; do
+            lua5.4 "$spec"
+          done
 
       - name: Create GitHub release
         if: steps.check.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.meta.outputs.tag }}
-          name: ${{ steps.meta.outputs.display_name }} ${{ steps.meta.outputs.tag }}
-          files: ../release/${{ steps.meta.outputs.asset }}
-          generate_release_notes: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          RELEASE_TITLE: ${{ steps.meta.outputs.display_name }} ${{ steps.meta.outputs.tag }}
+          RELEASE_ASSET: ${{ steps.meta.outputs.asset }}
+        run: |
+          set -euo pipefail
+
+          gh release create "$RELEASE_TAG" \
+            "../release/${RELEASE_ASSET}" \
+            "../release/${RELEASE_ASSET}.sha256" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "$RELEASE_TITLE" \
+            --generate-notes

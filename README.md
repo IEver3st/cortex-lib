@@ -1,7 +1,7 @@
 # cortex-lib
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.2.0-blue?style=flat-square" alt="Version 2.2.0" />
+  <img src="https://img.shields.io/badge/version-2.2.1-blue?style=flat-square" alt="Version 2.2.1" />
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License MIT" />
   <img src="https://img.shields.io/badge/FiveM-cerulean-0ea5e9?style=flat-square" alt="FiveM cerulean" />
   <img src="https://img.shields.io/badge/Lua-5.4-2C2D72?style=flat-square&logo=lua&logoColor=white" alt="Lua 5.4" />
@@ -24,6 +24,8 @@
 **cortex-lib** is the shared foundation for Cortex resources. It lazy-loads only what you use, exposes a consistent `lib` API on both client and server, and ships a vendored React 18 NUI bundle so your UI never depends on a CDN.
 
 Use it for notifications, progress bars, menus, radial menus, zones, callbacks, interactions, settings, and common game utilities without reimplementing the same helpers in every resource.
+
+The `cortex-lib` resource is the sole owner of shared NUI rendering and focus. The external loader proxies UI-backed calls into that running resource; consumer-local helpers such as zones and points still execute in the consumer so their callbacks and lifecycle remain correctly owned.
 
 ```lua
 -- any resource that includes @cortex-lib/init.lua
@@ -129,6 +131,8 @@ TriggerClientEvent('cortex-lib:notify', source, {
 ```lua
 -- server
 lib.callback.register('myResource:getData', function(source, key)
+  -- Treat source/key as hostile input. Revalidate permissions, session state,
+  -- ownership and gameplay prerequisites on the server before any mutation.
   return { source = source, key = key }
 end)
 
@@ -162,22 +166,33 @@ lib.points.new({
 ### Menus & Radial
 
 ```lua
-lib.menu.open({
+lib.registerMenu({
+  id = 'actions',
   title = 'Actions',
   options = {
-    { label = 'Repair', icon = 'wrench', onSelect = function() print('repair') end },
-    { label = 'Clean',  onSelect = function() print('clean') end },
+    { label = 'Repair', icon = 'wrench', args = { action = 'repair' } },
+    { label = 'Clean', args = { action = 'clean' } },
+  }
+}, function(selected, _, args)
+  print(('selected %d: %s'):format(selected, args.action))
+end)
+lib.showMenu('actions')
+
+lib.registerRadial({
+  id = 'doors',
+  items = {
+    { id = 'door_fl', label = 'Front Left', onSelect = function() print('front left') end },
   }
 })
 
-lib.radial.open({
+lib.registerRadial({
+  id = 'vehicle',
   items = {
-    { id = 'engine', label = 'Engine', icon = 'engine' },
-    { id = 'doors',  label = 'Doors',  submenu = {
-        { id = 'door_fl', label = 'Front Left' },
-    }},
+    { id = 'engine', label = 'Engine', icon = 'engine', onSelect = function() print('engine') end },
+    { id = 'doors', label = 'Doors', menu = 'doors' },
   }
 })
+lib.showRadial('vehicle')
 ```
 
 ---
@@ -229,7 +244,11 @@ contradict the one-press screen UI.
 
 `panel` is optional and screen-only. The supported `target` variant shows each
 caller-supplied key label inside its white action disc and uses an outer ring with a
-filled center for the context marker. `id` and `label` are bounded and sanitized
+filled center for the context marker. Optional `panel.marker` accepts one letter,
+digit, or `?` and defaults to `?`; for example, equipment can supply `marker = 'A'`.
+Numpad action discs stack a small `NUM` caption over the digit or Enter arrow,
+while the original key string remains the arbitration and accessible identity.
+`id` and `label` are bounded and sanitized
 at the registry boundary; panel data is copied in public snapshots so callers
 cannot mutate live renderer state.
 
@@ -367,18 +386,30 @@ local settings = lib('settings')
 local soundOn = settings.getSetting('notifySound')
 
 -- from another resource via exports
-exports['cortex-lib']:registerSettings({
-  id = 'myResource',
-  label = 'My Resource',
-  options = { ... }
-})
+exports['cortex-lib']:registerSettings(
+  'myResource',
+  'My Resource',
+  'myResource:',
+  {
+    { key = 'enabled', type = 'toggle', label = 'Enabled', default = true },
+  },
+  { enabled = true }
+)
 ```
+
+The third argument is either the legacy icon value or a validated KVP namespace ending in `:`. Built-in Cortex settings keep their existing `cortex:` keys; consumer tabs should use a stable resource-specific namespace such as `myResource:`. Duplicate tab IDs, field keys, and cross-resource registrations are rejected instead of silently overwriting another owner. Registration also rejects any concrete KVP key that would overlap a built-in field or a field owned by another registered tab; a prefix may be shared only when the resulting field keys remain distinct.
+
+### Shared UI Applications
+
+`registerUiApp`, `openUiApp`, `updateUiApp`, and `closeUiApp` let a consumer drive a renderer hosted by cortex-lib without adding another React root. Registrations are owner-scoped and are removed when the consumer stops; NUI events are accepted only for the active owner/session.
+
+The bundled `weatherzonesEditor` renderer is optional and exists for the external `es_weatherzones` integration. It is inert until that resource explicitly registers and opens the app; cortex-lib does not treat `es_weatherzones` as a dependency.
 
 ---
 
 ## How It Works
 
-**Lazy loading** — `lib` is a metatable with `__index` / `__call`. Accessing `lib.notify`, `lib.zones`, etc. loads `imports/<module>/<context>.lua` on first use. Shared files (`shared.lua`) are prepended automatically.
+**Lazy loading** — `lib` is a metatable with `__index` / `__call`. Consumer-local modules are loaded from `imports/<module>/<context>.lua` once and cached; shared files (`shared.lua`) are prepended automatically. UI-backed modules and direct client utilities resolve to cortex-lib exports so callbacks, NUI messages, focus and owner cleanup stay in the resource that owns the shared UI.
 
 ```
 fxmanifest.lua          →  cerulean, gta5, lua54
@@ -390,12 +421,13 @@ ui/                     →  React 18 NUI bundle (index.html, app.js, style.css)
 tests/                  →  in-game /cortex test menu and specs
 ```
 
-All functionality is available through the global `lib` and via exports:
+Public functions are available through the global `lib`. Cortex-owned functions are also exported for explicit cross-resource use:
 
 ```lua
 -- inside a dependent resource
 lib.notify({ type = 'success', description = 'Hello!' })
-lib('notify').notify({ type = 'success', description = 'Hello!' })
+local notify = lib('notify')
+notify({ type = 'success', description = 'Hello!' })
 
 -- cross-resource
 exports['cortex-lib']:notify({ type = 'success', description = 'Hello!' })
@@ -432,6 +464,18 @@ Node contract tests:
 ```bash
 node --test tests/*.test.mjs
 ```
+
+Full static gates (with a Lua 5.4 executable installed):
+
+```powershell
+node --check ui/app.js
+node --test tests/*.test.mjs
+Get-ChildItem tests\*_spec.lua | ForEach-Object { lua $_.FullName }
+.\scripts\validate-resource.ps1 -Path .
+git diff --check
+```
+
+The release workflow runs the same checks before packaging, builds the ZIP from tracked files only, writes a SHA-256 checksum, extracts the exact archive, and repeats the manifest, JavaScript, Node, and Lua gates before publishing.
 
 For an interaction performance comparison, restart `cortex-lib`, let each state settle for 10-15 seconds, and record the same route and camera movement before and after the change:
 

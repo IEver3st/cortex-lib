@@ -8,6 +8,11 @@ local entityModel = 1001
 local projectedX = 0.55
 local walletModel = 2001
 local presentationStates = {}
+local presentationTransitions = {}
+local playerPed = 1
+local playerPedExists = true
+local panelMarker = '?'
+local playerCoords = { x = 0.0, y = 0.0, z = 0.0 }
 
 lib = {
     cache = { ped = 1 },
@@ -26,6 +31,7 @@ lib = {
                     id = 'social-target',
                     label = 'STRANGER',
                     variant = 'target',
+                    marker = panelMarker,
                 },
             },
             {
@@ -78,6 +84,11 @@ lib = {
     end,
     _setInteractionPresentationState = function(owner, id, visible, distance)
         presentationStates[owner .. ':' .. id] = { visible = visible, distance = distance }
+        presentationTransitions[#presentationTransitions + 1] = {
+            key = owner .. ':' .. id,
+            visible = visible,
+            distance = distance,
+        }
     end,
 }
 
@@ -102,14 +113,15 @@ function GetActiveScreenResolution()
     return 1920, 1080
 end
 function PlayerPedId()
-    return 1
+    return playerPed
 end
 function DoesEntityExist(entity)
-    return entity == 1 or entity == 501 or entity == 777
+    return (entity == 1 and playerPedExists) or entity == 501 or entity == 777
 end
 function GetEntityCoords(entity)
     assert(entity == 1 or entity == 501 or entity == 777)
     if entity == 777 then return { x = 0.8, y = 0.0, z = 0.1 } end
+    if entity == 1 then return playerCoords end
     return { x = 0.0, y = 0.0, z = 0.0 }
 end
 function GetEntityBoneIndexByName(entity, bone)
@@ -179,6 +191,10 @@ handlers['cortex-lib:interaction:changed']()
 local refreshedScreenFrame = messages[#messages]
 assert(refreshedScreenFrame.action == 'interaction:update')
 assert(refreshedScreenFrame.data.items[1].panel.label == 'STRANGER', 'renderer reused mutable panel payloads')
+panelMarker = 'A'
+handlers['cortex-lib:interaction:changed']()
+assert(messages[#messages].action == 'interaction:update'
+    and messages[#messages].data.items[1].panel.marker == 'A', 'badge-only changes must reach NUI')
 
 local ok, err = pcall(threads[2])
 assert(not ok and tostring(err):find('__frame_complete__', 1, true), tostring(err))
@@ -218,6 +234,47 @@ local function countWorldMessages()
 end
 
 local worldMessages = countWorldMessages()
+
+playerPedExists = false
+lib.cache.ped = 0
+playerPed = 0
+ok, err = pcall(threads[2])
+assert(not ok and tostring(err):find('__frame_complete__', 1, true), tostring(err))
+assert(countWorldMessages() == worldMessages + 1, 'an invalid player ped must hide the visible world frame')
+assert(messages[#messages].action == 'interaction:world' and #messages[#messages].data.items == 0)
+assert(presentationStates['cortex-hud:vehicle-door'].visible == false)
+assert(presentationStates['cortex-subtleadditions:wallet'].visible == false)
+
+local transitionsAfterInvalidPed = #presentationTransitions
+ok, err = pcall(threads[2])
+assert(not ok and tostring(err):find('__frame_complete__', 1, true), tostring(err))
+assert(countWorldMessages() == worldMessages + 1, 'a repeated invalid player frame must not resend the NUI hide')
+assert(#presentationTransitions == transitionsAfterInvalidPed, 'a repeated invalid player frame must not republish false state')
+
+playerPed = 1
+playerPedExists = true
+lib.cache.ped = 1
+ok, err = pcall(threads[2])
+assert(not ok and tostring(err):find('__frame_complete__', 1, true), tostring(err))
+assert(presentationStates['cortex-hud:vehicle-door'].visible == true)
+assert(presentationStates['cortex-subtleadditions:wallet'].visible == true)
+worldMessages = countWorldMessages()
+
+playerCoords = nil
+ok, err = pcall(threads[2])
+assert(not ok and tostring(err):find('__frame_complete__', 1, true), tostring(err))
+assert(countWorldMessages() == worldMessages + 1, 'invalid player coordinates must hide the visible world frame')
+assert(messages[#messages].action == 'interaction:world' and #messages[#messages].data.items == 0)
+assert(presentationStates['cortex-hud:vehicle-door'].visible == false)
+assert(presentationStates['cortex-subtleadditions:wallet'].visible == false)
+
+playerCoords = { x = 0.0, y = 0.0, z = 0.0 }
+ok, err = pcall(threads[2])
+assert(not ok and tostring(err):find('__frame_complete__', 1, true), tostring(err))
+assert(presentationStates['cortex-hud:vehicle-door'].visible == true)
+assert(presentationStates['cortex-subtleadditions:wallet'].visible == true)
+worldMessages = countWorldMessages()
+
 ok, err = pcall(threads[2])
 assert(not ok and tostring(err):find('__frame_complete__', 1, true), tostring(err))
 assert(countWorldMessages() == worldMessages, 'an unchanged projected frame should not be resent to NUI')

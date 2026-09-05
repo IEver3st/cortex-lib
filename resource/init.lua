@@ -75,7 +75,64 @@ if context == 'client' then
     end)
 end
 
+local memberModules = {
+    safeJsonDecode = 'utils',
+    safeJsonEncode = 'utils',
+    kvpGet = 'utils',
+    kvpSet = 'utils',
+    kvpGetJson = 'utils',
+    kvpSetJson = 'utils',
+    kvpDelete = 'utils',
+    distanceSquared = 'utils',
+    distanceSquaredVec = 'utils',
+    distance = 'utils',
+    isWithinDistance = 'utils',
+    isWithinDistanceVec = 'utils',
+    shallowCopy = 'utils',
+    mergeDefaults = 'utils',
+    parseNumber = 'utils',
+    clamp = 'utils',
+    round = 'utils',
+}
+
+if context == 'client' then
+    memberModules.getClosestPlayer = 'getters'
+    memberModules.getClosestVehicle = 'getters'
+    memberModules.getClosestPed = 'getters'
+    memberModules.getClosestObject = 'getters'
+    memberModules.getNearbyPlayers = 'getters'
+    memberModules.getNearbyVehicles = 'getters'
+    memberModules.getNearbyPeds = 'getters'
+    memberModules.getNearbyObjects = 'getters'
+    memberModules.disableControls = 'disablecontrols'
+end
+
 local function loadModule(self, moduleName)
+    if type(moduleName) ~= 'string' or moduleName == '' then
+        error('module name must be a non-empty string', 2)
+    end
+
+    local cached = rawget(self, moduleName)
+    if cached ~= nil then
+        return cached
+    end
+
+    local memberModule = memberModules[moduleName]
+    if memberModule then
+        local loadedModule = loadModule(self, memberModule)
+        local member = rawget(self, moduleName)
+
+        if member == nil and type(loadedModule) == 'table' then
+            member = loadedModule[moduleName]
+        end
+
+        if member ~= nil then
+            rawset(self, moduleName, member)
+        end
+
+        return member
+    end
+
     local dir = ('imports/%s'):format(moduleName)
     
     local chunk = LoadResourceFile(libResourceName, ('%s/%s.lua'):format(dir, context))

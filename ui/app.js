@@ -5,6 +5,498 @@
 
 const { useState, useEffect, useCallback, useRef } = React;
 
+const NUI_POST_TIMEOUT_MS = 5000;
+const NUI_MAX_TEXT_LENGTH = 4096;
+const NUI_MAX_CLIPBOARD_LENGTH = 32768;
+const NUI_MAX_MENU_OPTIONS = 128;
+const NUI_MAX_CONTEXT_FIELDS = 32;
+const NUI_MAX_HELP_ITEMS = 16;
+const NUI_MAX_NOTIFICATIONS = 12;
+
+function isRecord(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function boundedText(value, fallback = '', maxLength = NUI_MAX_TEXT_LENGTH) {
+    if (typeof value === 'string') return value.slice(0, maxLength);
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value).slice(0, maxLength);
+    return fallback;
+}
+
+function normalizeSession(value) {
+    if (typeof value === 'string') return value.slice(0, 128);
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    return null;
+}
+
+function normalizeRevision(value) {
+    return Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+function isSafeObjectKey(value) {
+    return typeof value === 'string'
+        && value.length > 0
+        && value !== '__proto__'
+        && value !== 'prototype'
+        && value !== 'constructor';
+}
+
+function normalizeScalarValue(value, fallback = '') {
+    if (typeof value === 'string' || typeof value === 'boolean') return value;
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    return fallback;
+}
+
+function normalizeNuiMessage(event) {
+    const message = event && isRecord(event.data) ? event.data : null;
+    if (!message || typeof message.action !== 'string' || message.action.length === 0 || message.action.length > 64) {
+        return null;
+    }
+
+    return {
+        action: message.action,
+        data: isRecord(message.data) ? message.data : {}
+    };
+}
+
+function normalizeContextOption(option) {
+    if (isRecord(option)) {
+        const value = typeof option.value === 'string' || typeof option.value === 'number' || typeof option.value === 'boolean'
+            ? option.value
+            : '';
+        return { value, label: boundedText(option.label, boundedText(value), 160) };
+    }
+    if (typeof option === 'string' || typeof option === 'number' || typeof option === 'boolean') return option;
+    return null;
+}
+
+function normalizeContextField(field) {
+    if (!isRecord(field)) return null;
+    const type = ['checkbox', 'select', 'input', 'text'].includes(field.type) ? field.type : null;
+    const name = boundedText(field.name, '', 96);
+    if (!type || !isSafeObjectKey(name)) return null;
+
+    return {
+        type,
+        name,
+        label: boundedText(field.label, name, 160),
+        description: boundedText(field.description, '', 512),
+        placeholder: boundedText(field.placeholder, '', 256),
+        inputType: ['text', 'number', 'email', 'password', 'search', 'url'].includes(field.inputType) ? field.inputType : 'text',
+        required: field.required === true,
+        icon: boundedText(field.icon, '', 32),
+        options: Array.isArray(field.options)
+            ? field.options.slice(0, 64).map(normalizeContextOption).filter(option => option !== null)
+            : []
+    };
+}
+
+function normalizeHelpItems(items) {
+    if (!Array.isArray(items)) return [];
+    return items.slice(0, NUI_MAX_HELP_ITEMS).map(item => {
+        if (!isRecord(item)) return null;
+        const value = boundedText(item.value, '', 128);
+        if (!value) return null;
+        return { label: boundedText(item.label, '', 160), value };
+    }).filter(Boolean);
+}
+
+function normalizeIconColor(value) {
+    const color = boundedText(value, '', 64).trim();
+    return /^(?:var\(--[a-z0-9-]+\)|#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8}))$/i.test(color)
+        ? color
+        : null;
+}
+
+function normalizeRadialItems(items) {
+    if (!Array.isArray(items)) return [];
+    return items.slice(0, NUI_MAX_MENU_OPTIONS).map((item, index) => {
+        if (!isRecord(item)) return null;
+        return {
+            id: boundedText(item.id, `item-${index + 1}`, 96),
+            label: boundedText(item.label, '', 160),
+            icon: boundedText(item.icon, '•', 32),
+            iconColor: normalizeIconColor(item.iconColor)
+        };
+    }).filter(Boolean);
+}
+
+function normalizeNotificationData(data) {
+    if (!isRecord(data)) return null;
+    const allowedTypes = new Set(['info', 'inform', 'success', 'warning', 'error']);
+    const allowedPositions = new Set(['top', 'top-right', 'top-left', 'bottom', 'bottom-right', 'bottom-left']);
+    const rawDuration = Number(data.duration);
+    const duration = Number.isFinite(rawDuration) ? Math.max(0, Math.min(rawDuration, 600000)) : 3000;
+    const id = boundedText(data.id, '', 128) || null;
+    return {
+        id,
+        explicitId: id !== null && data.explicitId !== false,
+        owner: boundedText(data.owner, 'cortex-lib', 96) || 'cortex-lib',
+        title: boundedText(data.title, '', 256),
+        description: boundedText(data.description, '', 2048),
+        duration,
+        position: allowedPositions.has(data.position) ? data.position : null,
+        type: allowedTypes.has(data.type) ? data.type : 'info',
+        showDuration: data.showDuration !== false,
+        persistent: data.persistent === true || duration === 0,
+        dedupe: data.dedupe !== false,
+        plain: data.plain === true,
+        hideIcon: data.hideIcon === true || data.icon === false
+    };
+}
+
+function filterNotificationsForClear(notifications, data) {
+    if (!Array.isArray(notifications) || !isRecord(data)) return notifications;
+    if (data.all === true) return [];
+    const owner = boundedText(data.owner, '', 96);
+    if (!owner) return notifications;
+    return notifications.filter(notification => notification.owner !== owner);
+}
+
+function getNotificationDedupeKey(notification) {
+    return `${notification.owner}\u0000${notification.type}\u0000${notification.title}\u0000${notification.description}`;
+}
+
+function mergeNotificationState(notifications, normalized, generatedId) {
+    const previous = Array.isArray(notifications) ? notifications : [];
+    const dedupeKey = getNotificationDedupeKey(normalized);
+    const explicitIndex = normalized.explicitId && normalized.id ? previous.findIndex(item => item.id === normalized.id) : -1;
+    const dedupeIndex = explicitIndex === -1 && !normalized.explicitId && normalized.dedupe ? previous.findIndex(item => !item.explicitId && item.dedupeKey === dedupeKey) : -1;
+    const matchIndex = explicitIndex !== -1 ? explicitIndex : dedupeIndex;
+    const existing = matchIndex === -1 ? null : previous[matchIndex];
+    const notification = {
+        id: existing?.id || normalized.id || generatedId,
+        explicitId: normalized.explicitId,
+        owner: normalized.owner,
+        dedupeKey,
+        type: normalized.type,
+        title: normalized.title,
+        description: normalized.description,
+        duration: normalized.duration,
+        showDuration: normalized.showDuration,
+        persistent: normalized.persistent,
+        plain: normalized.plain,
+        hideIcon: normalized.hideIcon,
+        refreshTick: existing ? (existing.refreshTick || 0) + 1 : 0
+    };
+    const next = matchIndex === -1 ? [...previous, notification] : previous.map((item, index) => index === matchIndex ? notification : item);
+    return next.slice(-NUI_MAX_NOTIFICATIONS);
+}
+
+function normalizeProgressData(data) {
+    if (!isRecord(data)) return null;
+    const rawDuration = Number(data.duration);
+    const position = data.position === 'center' ? 'middle' : data.position;
+    return {
+        duration: Number.isFinite(rawDuration) ? Math.max(0, Math.min(rawDuration, 600000)) : 0,
+        label: boundedText(data.label, '', 256),
+        position: ['top', 'middle', 'bottom'].includes(position) ? position : 'bottom',
+        style: data.style === 'circle' ? 'circle' : 'bar',
+        canCancel: data.canCancel === true
+    };
+}
+
+function normalizeDebugLines(lines) {
+    if (!Array.isArray(lines)) return [];
+    return lines.slice(0, 128).map(line => {
+        if (typeof line === 'string') return line.slice(0, 1024);
+        if (!isRecord(line)) return null;
+        return {
+            label: boundedText(line.label, '', 160),
+            value: isRecord(line.value) || Array.isArray(line.value)
+                ? line.value
+                : boundedText(line.value, '', 2048),
+            color: boundedText(line.color, '', 96) || null
+        };
+    }).filter(Boolean);
+}
+
+function normalizeSettingsChoice(option, index) {
+    if (!isRecord(option)) return null;
+    const value = typeof option.value === 'string' || typeof option.value === 'number' || typeof option.value === 'boolean'
+        ? option.value
+        : `option-${index + 1}`;
+    return {
+        value,
+        label: boundedText(option.label, boundedText(value), 160),
+        name: boundedText(option.name, '', 96),
+        set: boundedText(option.set, '', 128)
+    };
+}
+
+function normalizeSettingsField(field, index) {
+    if (!isRecord(field)) return null;
+    const allowedTypes = new Set(['toggle', 'select', 'color', 'slider', 'buttons', 'text', 'input', 'soundList']);
+    const type = allowedTypes.has(field.type) ? field.type : null;
+    const key = boundedText(field.key, '', 96);
+    if (!type || !isSafeObjectKey(key)) return null;
+    const choices = Array.isArray(field.options)
+        ? field.options.slice(0, 64).map(normalizeSettingsChoice).filter(Boolean)
+        : [];
+    const buttons = Array.isArray(field.buttons)
+        ? field.buttons.slice(0, 32).map((button, buttonIndex) => normalizeSettingsChoice(button, buttonIndex)).filter(Boolean)
+        : [];
+
+    return {
+        ...field,
+        type,
+        key,
+        label: boundedText(field.label, key, 160),
+        description: boundedText(field.description, '', 512),
+        section: boundedText(field.section, '', 160),
+        placeholder: boundedText(field.placeholder, '', 256),
+        suffix: boundedText(field.suffix, '%', 24),
+        inputType: ['text', 'number', 'email', 'password', 'search', 'url'].includes(field.inputType) ? field.inputType : 'text',
+        min: Number.isFinite(field.min) ? field.min : undefined,
+        max: Number.isFinite(field.max) ? field.max : undefined,
+        step: Number.isFinite(field.step) && field.step > 0 ? field.step : undefined,
+        maxLength: Number.isInteger(field.maxLength) ? Math.max(1, Math.min(field.maxLength, NUI_MAX_TEXT_LENGTH)) : undefined,
+        options: choices,
+        buttons,
+        _sourceIndex: index
+    };
+}
+
+function normalizeSettingsTabs(tabs) {
+    if (!Array.isArray(tabs)) return [];
+    return tabs.slice(0, 32).map((tab, index) => {
+        if (!isRecord(tab)) return null;
+        const id = boundedText(tab.id, '', 96);
+        if (!isSafeObjectKey(id)) return null;
+        const fields = Array.isArray(tab.fields)
+            ? tab.fields.slice(0, NUI_MAX_MENU_OPTIONS).map(normalizeSettingsField).filter(Boolean)
+            : [];
+        const values = {};
+        const defaults = {};
+        const sourceValues = isRecord(tab.values) ? tab.values : {};
+        const sourceDefaults = isRecord(tab.defaults) ? tab.defaults : {};
+        for (const field of fields) {
+            if (Object.prototype.hasOwnProperty.call(sourceValues, field.key)) {
+                values[field.key] = normalizeScalarValue(sourceValues[field.key]);
+            }
+            if (Object.prototype.hasOwnProperty.call(sourceDefaults, field.key)) {
+                defaults[field.key] = normalizeScalarValue(sourceDefaults[field.key]);
+            }
+        }
+        return {
+            id,
+            label: boundedText(tab.label, id, 160),
+            fields,
+            values,
+            defaults
+        };
+    }).filter(Boolean);
+}
+
+function normalizeWeatherBounds(bounds) {
+    if (!isRecord(bounds)) return WEATHER_DEFAULT_BOUNDS;
+    const next = {
+        minX: Number(bounds.minX),
+        maxX: Number(bounds.maxX),
+        minY: Number(bounds.minY),
+        maxY: Number(bounds.maxY)
+    };
+    if (!Object.values(next).every(Number.isFinite) || next.maxX <= next.minX || next.maxY <= next.minY) {
+        return WEATHER_DEFAULT_BOUNDS;
+    }
+    return next;
+}
+
+function normalizeAlertStyle(style) {
+    if (!isRecord(style)) return undefined;
+    const normalized = {};
+    const colorValue = String.raw`(?:var\(--[a-z0-9-]+\)|#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8}))`;
+    const colorPattern = new RegExp(`^${colorValue}$`, 'i');
+    const borderPattern = new RegExp(`^(?:[0-3](?:\\.\\d+)?|4(?:\\.0+)?)px\\s+(?:solid|dashed)\\s+${colorValue}$`, 'i');
+
+    for (const key of ['backgroundColor', 'borderColor', 'color']) {
+        const value = boundedText(style[key], '', 96).trim();
+        if (colorPattern.test(value)) normalized[key] = value;
+    }
+
+    const border = boundedText(style.border, '', 128).trim();
+    if (borderPattern.test(border)) normalized.border = border;
+    return Object.keys(normalized).length ? normalized : undefined;
+}
+
+async function copyTextToClipboard(value) {
+    const text = boundedText(value, '', NUI_MAX_CLIPBOARD_LENGTH);
+
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch (_) {
+            // Fall through to the CEF-compatible textarea path.
+        }
+    }
+
+    const textarea = document.createElement('textarea');
+    const previousFocus = document.activeElement;
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.setAttribute('aria-hidden', 'true');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+
+    try {
+        textarea.focus();
+        textarea.select();
+        return typeof document.execCommand === 'function' && document.execCommand('copy') === true;
+    } catch (_) {
+        return false;
+    } finally {
+        textarea.remove();
+        if (previousFocus && typeof previousFocus.focus === 'function') {
+            focusElement(previousFocus);
+        }
+    }
+}
+
+async function nuiPost(name, payload, options = {}) {
+    const route = boundedText(name, '', 96);
+    if (!/^[a-z0-9:_-]+$/i.test(route)) {
+        return { ok: false, error: 'invalid_route' };
+    }
+
+    let timeout = null;
+    let externalSignal = null;
+    let abortFromExternal = null;
+    let externallyAborted = false;
+    let timedOut = false;
+
+    try {
+        const timeoutMs = Number.isFinite(options.timeoutMs)
+            ? Math.max(250, Math.min(options.timeoutMs, 15000))
+            : NUI_POST_TIMEOUT_MS;
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        externalSignal = options.signal;
+        externallyAborted = externalSignal?.aborted === true;
+        const timeoutResult = Symbol('nui-timeout');
+        abortFromExternal = () => {
+            externallyAborted = true;
+            controller?.abort();
+        };
+        if (externalSignal?.aborted) {
+            abortFromExternal();
+            return { ok: false, error: 'aborted' };
+        }
+        externalSignal?.addEventListener?.('abort', abortFromExternal, { once: true });
+        const timeoutPromise = new Promise(resolve => {
+            timeout = window.setTimeout(() => {
+                timedOut = true;
+                controller?.abort();
+                resolve(timeoutResult);
+            }, timeoutMs);
+        });
+
+        const requestPromise = (async () => {
+            const response = await fetch(`https://${GetParentResourceName()}/${route}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+                body: JSON.stringify(isRecord(payload) ? payload : {}),
+                signal: controller?.signal
+            });
+            if (!response.ok) return { type: 'http_error', status: response.status };
+            const result = await response.json().catch(error => {
+                if (timedOut || error?.name === 'AbortError') throw error;
+                return null;
+            });
+            return { type: 'success', result };
+        })();
+        const outcome = await Promise.race([requestPromise, timeoutPromise]);
+        if (outcome === timeoutResult) return { ok: false, error: 'timeout' };
+        if (outcome.type === 'http_error') return { ok: false, error: 'http_error', status: outcome.status };
+        return isRecord(outcome.result) ? outcome.result : { ok: true, result: outcome.result };
+    } catch (error) {
+        uiDebugLog('nui post failed', route, error);
+        if (timedOut) return { ok: false, error: 'timeout' };
+        if (externallyAborted || error?.name === 'AbortError') return { ok: false, error: 'aborted' };
+        return { ok: false, error: 'network_error' };
+    } finally {
+        try { if (timeout !== null) window.clearTimeout(timeout); } catch (_) { /* no-op */ }
+        try { externalSignal?.removeEventListener?.('abort', abortFromExternal); } catch (_) { /* no-op */ }
+    }
+}
+
+function getFocusableElements(container) {
+    if (!container) return [];
+    return Array.from(container.querySelectorAll(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+    )).filter(element => element.getAttribute('aria-hidden') !== 'true');
+}
+
+function focusElement(element) {
+    if (!element || typeof element.focus !== 'function') return false;
+    try {
+        element.focus({ preventScroll: true });
+        return true;
+    } catch (_) {
+        try {
+            element.focus();
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+}
+
+function useModalFocus(open, dialogRef, onEscape, focusKey = null) {
+    const escapeRef = useRef(onEscape);
+    escapeRef.current = onEscape;
+
+    useEffect(() => {
+        if (!open) return;
+
+        const previousFocus = document.activeElement;
+        const focusFrame = window.requestAnimationFrame(() => {
+            const dialog = dialogRef.current;
+            if (!dialog) return;
+            const autofocusTarget = dialog.querySelector('[data-autofocus="true"]');
+            const firstFocusable = getFocusableElements(dialog)[0];
+            focusElement(autofocusTarget || firstFocusable || dialog);
+        });
+
+        const handleKeyDown = (event) => {
+            if (event.key === 'Escape' && typeof escapeRef.current === 'function') {
+                event.preventDefault();
+                escapeRef.current();
+                return;
+            }
+
+            if (event.key !== 'Tab') return;
+            const dialog = dialogRef.current;
+            const focusable = getFocusableElements(dialog);
+            if (focusable.length === 0) {
+                event.preventDefault();
+                focusElement(dialog);
+                return;
+            }
+
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                focusElement(last);
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                focusElement(first);
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.cancelAnimationFrame(focusFrame);
+            document.removeEventListener('keydown', handleKeyDown);
+            if (previousFocus && document.contains(previousFocus) && typeof previousFocus.focus === 'function') {
+                focusElement(previousFocus);
+            }
+        };
+    }, [open, dialogRef, focusKey]);
+}
+
 // ============================================================================
 // WEATHER ZONE EDITOR APP
 // ============================================================================
@@ -22,7 +514,8 @@ const WEATHER_DEFAULT_BOUNDS = {
 
 function WeatherZoneEditorApp({ appState, setUiApps }) {
     const open = appState && appState.open;
-    const payload = appState && appState.payload ? appState.payload : {};
+    const payload = appState && isRecord(appState.payload) ? appState.payload : {};
+    const session = normalizeSession(appState?.session);
 
     const [zones, setZones] = useState([]);
     const [selectedId, setSelectedId] = useState(null);
@@ -32,8 +525,12 @@ function WeatherZoneEditorApp({ appState, setUiApps }) {
 
     const minScaleRef = useRef(1);
     const openedRef = useRef(false);
+    const editorRef = useRef(null);
 
-    const editorMapSize = payload.mapSize || WEATHER_EDITOR_MAP_SIZE;
+    const requestedMapSize = Number(payload.mapSize);
+    const editorMapSize = Number.isFinite(requestedMapSize)
+        ? Math.max(256, Math.min(requestedMapSize, 8192))
+        : WEATHER_EDITOR_MAP_SIZE;
     const [calibration, setCalibration] = useState({
         active: false,
         stage: 'idle',
@@ -51,13 +548,14 @@ function WeatherZoneEditorApp({ appState, setUiApps }) {
 
         if (payload && payload.zones && payload !== lastPayloadRef.current) {
             const incoming = Array.isArray(payload.zones) ? payload.zones : [];
-            setZones(incoming.map(normalizeZone));
-            setSelectedId(incoming[0] && incoming[0].id || null);
+            const normalizedZones = incoming.slice(0, 256).map(normalizeZone).filter(Boolean);
+            setZones(normalizedZones);
+            setSelectedId(normalizedZones[0]?.id || null);
             lastPayloadRef.current = payload;
         }
 
-        if (payload && payload.mapSize && open) {
-            const scale = Math.max(0.1, WEATHER_EDITOR_MAP_SIZE / payload.mapSize);
+        if (open) {
+            const scale = Math.max(0.1, WEATHER_EDITOR_MAP_SIZE / editorMapSize);
             minScaleRef.current = scale;
             setView(prev => ({ ...prev, scale: Math.max(prev.scale, scale) }));
         }
@@ -66,33 +564,27 @@ function WeatherZoneEditorApp({ appState, setUiApps }) {
             openedRef.current = true;
             setView(prev => ({ ...prev, scale: Math.max(prev.scale, minScaleRef.current || 1) }));
         }
-    }, [open, payload]);
+    }, [editorMapSize, open, payload]);
 
-    const closeEditor = useCallback(() => {
-        setUiApps(prev => ({
+    const closeEditor = useCallback(async () => {
+        const response = await nuiPost('cortex:uiEvent', { appId: WEATHER_EDITOR_APP_ID, type: 'close', session });
+        if (response?.ok !== true) return;
+        setUiApps(prev => prev[WEATHER_EDITOR_APP_ID]?.session === normalizeSession(session) ? ({
             ...prev,
-            [WEATHER_EDITOR_APP_ID]: { ...(prev[WEATHER_EDITOR_APP_ID] || {}), open: false }
-        }));
+            [WEATHER_EDITOR_APP_ID]: { ...prev[WEATHER_EDITOR_APP_ID], open: false }
+        }) : prev);
+    }, [session, setUiApps]);
 
-        fetch(`https://${GetParentResourceName()}/cortex:uiEvent`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-            body: JSON.stringify({ appId: WEATHER_EDITOR_APP_ID, type: 'close' })
-        }).catch(() => { });
-    }, [setUiApps]);
+    useModalFocus(Boolean(open), editorRef, null, session);
 
     const sendEvent = useCallback(async (type, eventPayload) => {
-        try {
-            const res = await fetch(`https://${GetParentResourceName()}/cortex:uiEvent`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-                body: JSON.stringify({ appId: WEATHER_EDITOR_APP_ID, type, payload: eventPayload || {} })
-            });
-            return await res.json().catch(() => ({}));
-        } catch (e) {
-            return { ok: false, error: 'network' };
-        }
-    }, []);
+        return nuiPost('cortex:uiEvent', {
+            appId: WEATHER_EDITOR_APP_ID,
+            type: boundedText(type, '', 64),
+            payload: isRecord(eventPayload) ? eventPayload : {},
+            session
+        });
+    }, [session]);
 
     const selectZone = useCallback((zoneId) => {
         setSelectedId(zoneId);
@@ -137,8 +629,8 @@ function WeatherZoneEditorApp({ appState, setUiApps }) {
     }, []);
 
     // Declare bounds and mapSize BEFORE they are used in addZone callback
-    const bounds = payload.bounds || WEATHER_DEFAULT_BOUNDS;
-    const mapSize = payload.mapSize || WEATHER_EDITOR_MAP_SIZE;
+    const bounds = normalizeWeatherBounds(payload.bounds);
+    const mapSize = editorMapSize;
 
     const centerOnZone = useCallback((zone) => {
         if (!zone || !zone.points || zone.points.length === 0) return;
@@ -169,12 +661,15 @@ function WeatherZoneEditorApp({ appState, setUiApps }) {
         const zoneDim = Math.max(zoneWidth, zoneHeight, 100);
 
         // Set scale to fit zone with some padding (aim for zone to be ~40% of viewport)
-        const viewportSize = Math.min(window.innerWidth - 320, window.innerHeight - 48);
+        const mapViewport = document.querySelector('.cortex-editor-map')?.getBoundingClientRect();
+        const viewportWidth = Math.max(1, mapViewport?.width || window.innerWidth);
+        const viewportHeight = Math.max(1, mapViewport?.height || (window.innerHeight - 48));
+        const viewportSize = Math.min(viewportWidth, viewportHeight);
         const targetScale = Math.min(2.5, Math.max(0.5, (viewportSize * 0.4) / zoneDim));
 
         // Center the view
-        const viewportCenterX = (window.innerWidth - 320) / 2;
-        const viewportCenterY = (window.innerHeight - 48) / 2;
+        const viewportCenterX = viewportWidth / 2;
+        const viewportCenterY = viewportHeight / 2;
 
         setView({
             x: viewportCenterX - (mapX * targetScale),
@@ -347,7 +842,14 @@ function WeatherZoneEditorApp({ appState, setUiApps }) {
 
     if (!open) return null;
 
-    return React.createElement('div', { className: 'cortex-editor-root' },
+    return React.createElement('div', {
+        ref: editorRef,
+        className: 'cortex-editor-root',
+        role: 'dialog',
+        'aria-modal': true,
+        'aria-label': 'Cortex weather zone editor',
+        tabIndex: -1
+    },
         React.createElement(EditorToolbar, { onSave: saveZones, onClose: closeEditor, onCalibrate: autoCalibrate, onZoomIn: zoomIn, onZoomOut: zoomOut, status }),
         React.createElement('div', { className: 'cortex-editor-workspace' },
             React.createElement(EditorSidebar, {
@@ -383,9 +885,9 @@ function WeatherZoneEditorApp({ appState, setUiApps }) {
                 view,
                 setView,
                 minScaleRef,
-                bounds: payload.bounds || WEATHER_DEFAULT_BOUNDS,
-                mapUrl: payload.mapUrl,
-                mapSize: payload.mapSize || WEATHER_EDITOR_MAP_SIZE,
+                bounds,
+                mapUrl: boundedText(payload.mapUrl, '', 512) || undefined,
+                mapSize,
                 drawMode
             })
 
@@ -394,19 +896,28 @@ function WeatherZoneEditorApp({ appState, setUiApps }) {
 }
 
 function normalizeZone(zone) {
-    if (!zone) return zone;
-    const points = Array.isArray(zone.points) ? zone.points.map((point) => ({
-        x: typeof point.x === 'number' ? point.x : point[0],
-        y: typeof point.y === 'number' ? point.y : point[1],
-        z: typeof point.z === 'number' ? point.z : point[2]
-    })) : [];
+    if (!isRecord(zone)) return null;
+    const points = Array.isArray(zone.points) ? zone.points.slice(0, 1024).map((point) => {
+        const source = isRecord(point) || Array.isArray(point) ? point : null;
+        if (!source) return null;
+        const x = typeof source.x === 'number' ? source.x : source[0];
+        const y = typeof source.y === 'number' ? source.y : source[1];
+        const z = typeof source.z === 'number' ? source.z : source[2];
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+        return { x, y, z: Number.isFinite(z) ? z : 0 };
+    }).filter(Boolean) : [];
+
+    const id = boundedText(zone.id, '', 96);
+    if (!id) return null;
 
     return {
-        id: zone.id,
-        label: zone.label || zone.id || 'Zone',
-        mode: zone.mode || 'dynamic',
-        weather: zone.weather || 'CLEAR',
-        weathers: Array.isArray(zone.weathers) ? zone.weathers : (zone.weather ? [zone.weather] : []),
+        id,
+        label: boundedText(zone.label, id || 'Zone', 160),
+        mode: zone.mode === 'fixed' ? 'fixed' : 'dynamic',
+        weather: boundedText(zone.weather, 'CLEAR', 64),
+        weathers: Array.isArray(zone.weathers)
+            ? zone.weathers.slice(0, 64).map(value => boundedText(value, '', 64)).filter(Boolean)
+            : (zone.weather ? [boundedText(zone.weather, 'CLEAR', 64)] : []),
         intervalMinutes: zone.intervalMinutes || 10,
         thickness: zone.thickness || 200,
         points
@@ -420,7 +931,7 @@ function EditorToolbar({ onSave, onClose, onCalibrate, onZoomIn, onZoomOut, stat
             ' WEATHER'
         ),
         React.createElement('div', { className: 'cortex-editor-spacer' }),
-        status ? React.createElement('div', { className: 'cortex-editor-status' }, status) : null,
+        status ? React.createElement('div', { className: 'cortex-editor-status', role: 'status', 'aria-live': 'polite' }, status) : null,
         React.createElement('div', { className: 'cortex-editor-actions' },
             React.createElement('button', { className: 'cortex-editor-btn calibrate', onClick: onCalibrate }, 'Auto-Calibrate'),
             React.createElement('button', { className: 'cortex-editor-btn primary', onClick: onSave }, 'Save Changes'),
@@ -429,7 +940,7 @@ function EditorToolbar({ onSave, onClose, onCalibrate, onZoomIn, onZoomOut, stat
                 React.createElement('button', { className: 'cortex-editor-btn icon', onClick: onZoomOut, title: 'Zoom Out' }, '−'),
                 React.createElement('button', { className: 'cortex-editor-btn icon', onClick: onZoomIn, title: 'Zoom In' }, '+')
             ),
-            React.createElement('button', { className: 'cortex-editor-btn ghost icon', onClick: onClose }, '✕')
+            React.createElement('button', { className: 'cortex-editor-btn ghost icon', onClick: onClose, 'aria-label': 'Close weather editor' }, '✕')
         )
     );
 }
@@ -451,15 +962,20 @@ function EditorSidebar({ zones, selectedId, onSelect, onUpdate, onDelete, onCent
         React.createElement('div', { className: 'cortex-zone-list' },
             zones.map(zone => React.createElement('div', {
                 key: zone.id,
-                className: `cortex-zone-item${zone.id === selectedId ? ' active' : ''}`,
-                onClick: () => onSelect(zone.id)
+                className: `cortex-zone-item${zone.id === selectedId ? ' active' : ''}`
             },
-                React.createElement('div', { className: 'cortex-zone-info' },
+                React.createElement('button', {
+                    type: 'button',
+                    className: 'cortex-zone-info cortex-zone-select',
+                    'aria-pressed': zone.id === selectedId,
+                    onClick: () => onSelect(zone.id)
+                },
                     React.createElement('span', { className: 'cortex-zone-name' }, zone.label || zone.id),
                     React.createElement('span', { className: 'cortex-zone-meta' }, zone.mode === 'fixed' ? zone.weather : `${zone.weathers.length} weathers`)
                 ),
                 React.createElement('button', {
                     className: 'cortex-zone-delete',
+                    'aria-label': `Delete ${boundedText(zone.label, zone.id, 96)}`,
                     onClick: (e) => {
                         e.stopPropagation();
                         // eslint-disable-next-line no-restricted-globals
@@ -494,12 +1010,32 @@ function EditorSidebar({ zones, selectedId, onSelect, onUpdate, onDelete, onCent
                     }, 'CLEAR')
                 )
             ),
-            React.createElement('div', { className: 'cortex-panel-tabs' },
-                React.createElement('button', { className: `cortex-tab ${tab === 'config' ? 'active' : ''}`, onClick: () => setTab('config') }, 'CONFIG'),
-                React.createElement('button', { className: `cortex-tab ${tab === 'points' ? 'active' : ''}`, onClick: () => setTab('points') }, 'POINTS'),
-                React.createElement('button', { className: `cortex-tab ${tab === 'debug' ? 'active' : ''}`, onClick: () => setTab('debug') }, 'DEBUG')
+            React.createElement('div', { className: 'cortex-panel-tabs', role: 'tablist', 'aria-label': 'Zone editor sections' },
+                ['config', 'points', 'debug'].map((tabId, index, tabIds) => React.createElement('button', {
+                    key: tabId,
+                    id: `cortex-zone-tab-${tabId}`,
+                    className: `cortex-tab ${tab === tabId ? 'active' : ''}`,
+                    role: 'tab',
+                    'aria-selected': tab === tabId,
+                    'aria-controls': 'cortex-zone-tabpanel',
+                    tabIndex: tab === tabId ? 0 : -1,
+                    onClick: () => setTab(tabId),
+                    onKeyDown: event => {
+                        const direction = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+                        if (!direction) return;
+                        event.preventDefault();
+                        const nextTab = tabIds[(index + direction + tabIds.length) % tabIds.length];
+                        setTab(nextTab);
+                        window.requestAnimationFrame(() => document.getElementById(`cortex-zone-tab-${nextTab}`)?.focus());
+                    }
+                }, tabId.toUpperCase()))
             ),
-            React.createElement('div', { className: 'cortex-panel-content' },
+            React.createElement('div', {
+                id: 'cortex-zone-tabpanel',
+                className: 'cortex-panel-content',
+                role: 'tabpanel',
+                'aria-labelledby': `cortex-zone-tab-${tab}`
+            },
                 tab === 'config'
                     ? React.createElement(ZoneConfigForm, { selected, onUpdate })
                     : tab === 'points'
@@ -652,10 +1188,14 @@ function ZonePointsList({ selected }) {
     );
 }
 
+let editorFieldIdCounter = 0;
+
 function EditorField({ label, value, onChange, readOnly }) {
+    const inputIdRef = useRef(`cortex-editor-field-${++editorFieldIdCounter}`);
     return React.createElement('div', { className: 'cortex-editor-group' },
-        React.createElement('div', { className: 'cortex-editor-label' }, label),
+        React.createElement('label', { className: 'cortex-editor-label', htmlFor: inputIdRef.current }, label),
         React.createElement('input', {
+            id: inputIdRef.current,
             className: 'cortex-editor-input',
             value: value,
             readOnly: !!readOnly,
@@ -665,12 +1205,14 @@ function EditorField({ label, value, onChange, readOnly }) {
 }
 
 function EditorSelect({ label, value, options, onChange }) {
+    const labelIdRef = useRef(`cortex-editor-select-${++editorFieldIdCounter}`);
     return React.createElement('div', { className: 'cortex-editor-group' },
-        React.createElement('div', { className: 'cortex-editor-label' }, label),
-        React.createElement('div', { className: 'cortex-editor-select' },
+        React.createElement('div', { id: labelIdRef.current, className: 'cortex-editor-label' }, label),
+        React.createElement('div', { className: 'cortex-editor-select', role: 'group', 'aria-labelledby': labelIdRef.current },
             options.map(option => React.createElement('button', {
                 key: option,
                 className: `cortex-editor-pill${option === value ? ' active' : ''}`,
+                'aria-pressed': option === value,
                 onClick: () => onChange(option)
             }, option))
         )
@@ -837,12 +1379,61 @@ function EditorMap({ zones, selectedId, onSelect, onUpdate, onAddPoint, onRemove
         };
     }, [handleWheel]);
 
+    const handleMapKeyDown = useCallback((event) => {
+        const panStep = event.shiftKey ? 80 : 24;
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+            event.preventDefault();
+            setView(prev => ({
+                ...prev,
+                x: prev.x + (event.key === 'ArrowLeft' ? panStep : event.key === 'ArrowRight' ? -panStep : 0),
+                y: prev.y + (event.key === 'ArrowUp' ? panStep : event.key === 'ArrowDown' ? -panStep : 0)
+            }));
+            return;
+        }
+
+        if (event.key === '+' || event.key === '=' || event.key === '-') {
+            event.preventDefault();
+            const minScale = minScaleRef?.current || 0.1;
+            const direction = event.key === '-' ? -0.1 : 0.1;
+            setView(prev => ({ ...prev, scale: Math.max(minScale, Math.min(3, prev.scale + direction)) }));
+            return;
+        }
+
+        if (event.key === 'Escape' && calibration?.active) {
+            event.preventDefault();
+            onCancelCalibration();
+            return;
+        }
+
+        if (event.key !== 'Enter') return;
+        const container = containerRef.current;
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        const mapX = Math.max(0, Math.min(mapSize, ((rect.width / 2) - view.x) / view.scale));
+        const mapY = Math.max(0, Math.min(mapSize, ((rect.height / 2) - view.y) / view.scale));
+        if (calibration?.active) {
+            event.preventDefault();
+            if (calibration.stage === 'pickAnchor') onCalibrateAnchor({ x: mapX, y: mapY });
+            else if (calibration.stage === 'pickPoint') onCalibratePoint({ x: mapX, y: mapY });
+        } else if (selectedId && drawMode) {
+            event.preventDefault();
+            const world = toWorldCoords(mapX, mapY);
+            onAddPoint(selectedId, { x: world.x, y: world.y, z: 0 });
+        }
+    }, [calibration, drawMode, mapSize, minScaleRef, onAddPoint, onCalibrateAnchor, onCalibratePoint, onCancelCalibration, selectedId, setView, toWorldCoords, view.scale, view.x, view.y]);
+
     return React.createElement('div', {
         ref: containerRef,
         className: `cortex-editor-map${calibration && calibration.active ? ' calibrating' : ''}${drawMode ? ' drawing' : ''}`,
+        role: 'application',
+        tabIndex: 0,
+        'aria-label': 'Weather zone map',
+        'aria-describedby': 'cortex-editor-map-help',
+        onKeyDown: handleMapKeyDown,
         onPointerDown: handleMapPointerDown,
         onContextMenu: (event) => event.preventDefault()
     },
+        React.createElement('div', { id: 'cortex-editor-map-help', className: 'cortex-sr-only' }, 'Use arrow keys to pan, plus or minus to zoom, and Enter to place the current point at the map center.'),
         drawMode && React.createElement('div', { className: 'cortex-draw-indicator' }, 'DRAW MODE ACTIVE'),
         React.createElement('div', {
             className: 'cortex-map-transform-layer',
@@ -856,6 +1447,8 @@ function EditorMap({ zones, selectedId, onSelect, onUpdate, onAddPoint, onRemove
             React.createElement('img', {
                 src: imageUrl,
                 className: 'cortex-map-image',
+                alt: '',
+                'aria-hidden': 'true',
                 draggable: false,
                 width: mapSize,
                 height: mapSize
@@ -983,7 +1576,27 @@ function uiDebugLog(...args) {
 
 function safeJson(value) {
     try {
-        return JSON.stringify(value);
+        const seen = new WeakSet();
+        let nodes = 0;
+        const normalize = (current, depth) => {
+            if (current === null) return null;
+            if (typeof current === 'string') return current.slice(0, 2048);
+            if (typeof current === 'number') return Number.isFinite(current) ? current : String(current);
+            if (typeof current === 'boolean') return current;
+            if (typeof current !== 'object') return boundedText(String(current), '', 256);
+            if (depth >= 6 || nodes >= 512) return '[truncated]';
+            if (seen.has(current)) return '[circular]';
+            seen.add(current);
+            nodes += 1;
+            if (Array.isArray(current)) return current.slice(0, 64).map(item => normalize(item, depth + 1));
+            const result = {};
+            for (const key of Object.keys(current).slice(0, 64)) {
+                if (!isSafeObjectKey(key)) continue;
+                result[key] = normalize(current[key], depth + 1);
+            }
+            return result;
+        };
+        return JSON.stringify(normalize(value, 0)).slice(0, 16384);
     } catch (e) {
         return '[unserializable]';
     }
@@ -1000,7 +1613,7 @@ if (uiDebugEnabled) {
             window.postMessage({ action: 'notify', data }, '*');
         },
         clear() {
-            window.postMessage({ action: 'clearNotifications' }, '*');
+            window.postMessage({ action: 'clearNotifications', data: { all: true } }, '*');
         },
         hide(id) {
             window.postMessage({ action: 'hideNotify', data: { id } }, '*');
@@ -1080,7 +1693,15 @@ function Notification({ id, type, title, description, duration, showDuration, pe
 
     const className = `notify ${notifyType}${persistent ? ' persistent' : ''}${plain ? ' notify-plain' : ''}${exiting ? ' exiting' : ''}`;
 
-    return React.createElement('div', { className, 'data-id': id },
+    const urgent = notifyType === 'error' || notifyType === 'warning';
+
+    return React.createElement('div', {
+        className,
+        'data-id': id,
+        role: urgent ? 'alert' : 'status',
+        'aria-live': urgent ? 'assertive' : 'polite',
+        'aria-atomic': 'true'
+    },
         showIcon && React.createElement('div', { className: 'notify-icon' }, icon),
         React.createElement('div', { className: 'notify-content' },
             title && React.createElement('div', { className: 'notify-title' }, title),
@@ -1096,6 +1717,7 @@ function Notification({ id, type, title, description, duration, showDuration, pe
         }, '\u00D7'),
         showBar && React.createElement('div', {
             className: 'notify-duration',
+            'aria-hidden': 'true',
             style: { animation: `shrink ${duration}ms linear forwards` }
         })
     );
@@ -1226,8 +1848,15 @@ function ProgressBar({ active, duration, label, position, style, canCancel }) {
     const circleC = 2 * Math.PI * circleR;
     const circleOffset = circleC * (1 - (pctClamped / 100));
 
-    return React.createElement('div', { id: 'progress-container', className: containerClass },
-        React.createElement('div', { className: 'progress-wrapper' },
+    return React.createElement('div', { id: 'progress-container', className: containerClass, 'aria-hidden': !active },
+        React.createElement('div', {
+            className: 'progress-wrapper',
+            role: 'progressbar',
+            'aria-label': label || 'Progress',
+            'aria-valuemin': 0,
+            'aria-valuemax': 100,
+            'aria-valuenow': Math.round(pctClamped)
+        },
             showBar && React.createElement('div', { className: 'progress-track' },
                 React.createElement('div', {
                     id: 'progress-bar',
@@ -1260,12 +1889,12 @@ function ProgressBar({ active, duration, label, position, style, canCancel }) {
                 React.createElement('div', { className: 'progress-circle-center' }),
                 React.createElement('div', { className: 'progress-circle-text' }, pctText)
             ),
-            React.createElement('div', { id: 'progress-label', className: 'progress-label' }, label || ''),
+            React.createElement('div', { id: 'progress-label', className: 'progress-label', role: 'status', 'aria-live': 'polite' }, label || ''),
             React.createElement('div', {
                 id: 'progress-cancel',
                 className: 'progress-cancel',
                 style: { display: canCancel ? 'block' : 'none' }
-            }, 'Right-click to cancel')
+            }, 'Backspace to cancel')
         )
     );
 }
@@ -1311,7 +1940,10 @@ function TextUI({ open, text, position, icon, style, backdrop }) {
     return React.createElement('div', {
         id: 'textui',
         className,
-        style: outerStyle
+        style: outerStyle,
+        role: 'status',
+        'aria-live': 'polite',
+        'aria-atomic': 'true'
     },
         iconEl && React.createElement('div', { className: 'textui-icon' }, iconEl),
         React.createElement('div', { className: 'textui-text' }, text)
@@ -1333,25 +1965,33 @@ const menuKeyMap = {
 };
 
 function normalizeOption(option) {
-    const values = Array.isArray(option.values) ? option.values : null;
+    if (!isRecord(option)) option = {};
+    const values = Array.isArray(option.values) ? option.values.slice(0, 64).map(value => {
+        if (isRecord(value)) {
+            return {
+                label: boundedText(value.label, '', 160),
+                description: boundedText(value.description, '', 512)
+            };
+        }
+        return boundedText(value, '', 160);
+    }) : null;
     const hasValues = Boolean(values && values.length);
     const hasCheck = typeof option.checked === 'boolean';
 
-    const defaultIndex = typeof option.defaultIndex === 'number' ? option.defaultIndex : 1;
+    const defaultIndex = Number.isInteger(option.defaultIndex) ? option.defaultIndex : 1;
     const scrollIndex = hasValues ? Math.max(1, Math.min(defaultIndex, values.length)) : 1;
 
     return {
-        label: option.label || '',
-        description: option.description || '',
-        icon: option.icon || null,
-        iconColor: option.iconColor || null,
-        progress: typeof option.progress === 'number' ? option.progress : null,
+        label: boundedText(option.label, '', 160),
+        description: boundedText(option.description, '', 1024),
+        icon: boundedText(option.icon, '', 128) || null,
+        iconColor: normalizeIconColor(option.iconColor),
+        progress: Number.isFinite(option.progress) ? option.progress : null,
         values,
         hasValues,
         checked: hasCheck ? option.checked : null,
         hasCheck,
-        scrollIndex,
-        close: option.close !== false
+        scrollIndex
     };
 }
 
@@ -1366,24 +2006,19 @@ function getValueDescription(value) {
     return '';
 }
 
-async function nuiPost(name, payload) {
-    try {
-        const res = await fetch(`https://${GetParentResourceName()}/${name}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-            body: JSON.stringify(payload || {})
-        });
-        return await res.json().catch(() => ({}));
-    } catch (e) {
-        uiDebugLog('nui post failed', name, e);
-        return {};
-    }
+function getOptionTooltip(option) {
+    if (!option) return '';
+    const value = option.hasValues ? option.values[(option.scrollIndex || 1) - 1] : null;
+    return getValueDescription(value) || option.description || '';
 }
 
-function Menu({ open, id, title, subtitle, position, canClose, disableInput, options, selected, tooltip, setMenu }) {
+function Menu({ open, id, session, revision, title, subtitle, position, canClose, disableInput, options, selected, tooltip, setMenu }) {
     const bodyRef = useRef(null);
+    const dialogRef = useRef(null);
     const optionsRef = useRef([]);
     const selectedRef = useRef(1);
+
+    useModalFocus(open, dialogRef, null, session);
 
     useEffect(() => {
         optionsRef.current = options;
@@ -1404,25 +2039,46 @@ function Menu({ open, id, title, subtitle, position, canClose, disableInput, opt
         clamped = Math.max(1, Math.min(clamped, opts.length));
         if (clamped === selectedRef.current && secondary == null) return;
 
+        const previousSelected = selectedRef.current;
+        const previousTooltip = getOptionTooltip(opts[previousSelected - 1]);
         const opt = opts[clamped - 1];
         selectedRef.current = clamped;
         setMenu(prev => {
-            const nextTooltip = opt?.description || '';
+            const nextTooltip = getOptionTooltip(opt);
             return { ...prev, selected: clamped, tooltip: nextTooltip };
         });
 
-        nuiPost('cortex_menu_selected', {
+        void nuiPost('cortex_menu_selected', {
             id,
+            session,
+            revision,
             selected: clamped,
             secondary: secondary ?? false
+        }).then(response => {
+            if (response?.ok === true) return;
+            setMenu(prev => {
+                if (prev.id !== id
+                    || prev.session !== normalizeSession(session)
+                    || prev.revision !== normalizeRevision(revision)
+                    || prev.selected !== clamped) return prev;
+                selectedRef.current = previousSelected;
+                return { ...prev, selected: previousSelected, tooltip: previousTooltip };
+            });
+        }).catch(error => {
+            uiDebugLog('menu selection response failed', error);
         });
-    }, [id, setMenu]);
+    }, [id, revision, session, setMenu]);
 
     const closeMenu = useCallback(async (keyPressed) => {
         if (!canClose) return;
-        await nuiPost('cortex_menu_close', { id, keyPressed: keyPressed || null });
-        setMenu(prev => ({ ...prev, open: false, id: null }));
-    }, [id, canClose, setMenu]);
+        const response = await nuiPost('cortex_menu_close', { id, session, revision, keyPressed: keyPressed || null });
+        if (response?.ok !== true) return;
+        setMenu(prev => prev.id === id
+            && prev.session === normalizeSession(session)
+            && prev.revision === normalizeRevision(revision)
+            ? { ...prev, open: false, id: null }
+            : prev);
+    }, [id, revision, session, canClose, setMenu]);
 
     const doSideScroll = useCallback((direction) => {
         const opts = optionsRef.current;
@@ -1445,12 +2101,33 @@ function Menu({ open, id, title, subtitle, position, canClose, disableInput, opt
             tooltip: valueDescription || opt.description || ''
         }));
 
-        nuiPost('cortex_menu_sideScroll', {
+        void nuiPost('cortex_menu_sideScroll', {
             id,
+            session,
+            revision,
             selected: idx + 1,
             scrollIndex: nextIndex
+        }).then(response => {
+            if (response?.ok === true) return;
+            setMenu(prev => {
+                const currentOption = prev.options[idx];
+                if (prev.id !== id
+                    || prev.session !== normalizeSession(session)
+                    || prev.revision !== normalizeRevision(revision)
+                    || currentOption?.scrollIndex !== nextIndex) return prev;
+                const rollbackOptions = prev.options.slice(0);
+                rollbackOptions[idx] = opt;
+                optionsRef.current = rollbackOptions;
+                return {
+                    ...prev,
+                    options: rollbackOptions,
+                    tooltip: getValueDescription(opt.values[currentIndex - 1]) || opt.description || ''
+                };
+            });
+        }).catch(error => {
+            uiDebugLog('menu side scroll response failed', error);
         });
-    }, [id, setMenu]);
+    }, [id, revision, session, setMenu]);
 
     const toggleCheck = useCallback(() => {
         const opts = optionsRef.current;
@@ -1464,29 +2141,53 @@ function Menu({ open, id, title, subtitle, position, canClose, disableInput, opt
 
         setMenu(prev => ({ ...prev, options: opts.slice(0) }));
 
-        nuiPost('cortex_menu_check', {
+        void nuiPost('cortex_menu_check', {
             id,
+            session,
+            revision,
             selected: idx + 1,
             checked: nextChecked
+        }).then(response => {
+            if (response?.ok === true) return;
+            setMenu(prev => {
+                const currentOption = prev.options[idx];
+                if (prev.id !== id
+                    || prev.session !== normalizeSession(session)
+                    || prev.revision !== normalizeRevision(revision)
+                    || currentOption?.checked !== nextChecked) return prev;
+                const rollbackOptions = prev.options.slice(0);
+                rollbackOptions[idx] = opt;
+                optionsRef.current = rollbackOptions;
+                return { ...prev, options: rollbackOptions };
+            });
+        }).catch(error => {
+            uiDebugLog('menu check response failed', error);
         });
-    }, [id, setMenu]);
+    }, [id, revision, session, setMenu]);
 
-    const submit = useCallback(async () => {
+    const submit = useCallback(async (selectedOverride) => {
         const opts = optionsRef.current;
-        const idx = selectedRef.current - 1;
+        const selectedIndex = Number.isInteger(selectedOverride) ? selectedOverride : selectedRef.current;
+        const idx = selectedIndex - 1;
         const opt = opts[idx];
         if (!opt) return;
 
         const res = await nuiPost('cortex_menu_submit', {
             id,
+            session,
+            revision,
             selected: idx + 1,
             scrollIndex: opt.scrollIndex || 1
         });
 
         if (res && res.close) {
-            setMenu(prev => ({ ...prev, open: false, id: null }));
+            setMenu(prev => prev.id === id
+                && prev.session === normalizeSession(session)
+                && prev.revision === normalizeRevision(revision)
+                ? { ...prev, open: false, id: null }
+                : prev);
         }
-    }, [id, setMenu]);
+    }, [id, revision, session, setMenu]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -1551,6 +2252,8 @@ function Menu({ open, id, title, subtitle, position, canClose, disableInput, opt
         const active = body.querySelector('.cortex-menu-option.active');
         if (!active) return;
 
+        if (document.activeElement !== active) active.focus({ preventScroll: true });
+
         const bodyRect = body.getBoundingClientRect();
         const activeRect = active.getBoundingClientRect();
 
@@ -1560,11 +2263,12 @@ function Menu({ open, id, title, subtitle, position, canClose, disableInput, opt
         if (outTop || outBottom) {
             active.scrollIntoView({ block: 'nearest' });
         }
-    }, [open, selected, options.length]);
+    }, [id, open, options.length, selected, session]);
 
     if (!open) return null;
 
     const rootClass = `cortex-menu-root ${position || 'top-left'}${disableInput ? ' input-disabled' : ''}`;
+    const hasIcons = options.some(option => Boolean(option.icon));
 
 
     return React.createElement('div', {
@@ -1575,12 +2279,18 @@ function Menu({ open, id, title, subtitle, position, canClose, disableInput, opt
             }
         }
     },
-        React.createElement('div', { className: 'cortex-menu' },
+        React.createElement('div', {
+            ref: dialogRef,
+            className: 'cortex-menu',
+            role: 'dialog',
+            'aria-modal': true,
+            'aria-labelledby': 'cortex-menu-title'
+        },
             React.createElement('div', { className: 'cortex-menu-header' },
-                React.createElement('div', { className: 'cortex-menu-title' }, title || ''),
+                React.createElement('div', { id: 'cortex-menu-title', className: 'cortex-menu-title' }, title || ''),
                 subtitle ? React.createElement('div', { className: 'cortex-menu-subtitle' }, subtitle) : null
             ),
-            React.createElement('div', { className: 'cortex-menu-body', ref: bodyRef },
+            React.createElement('div', { className: 'cortex-menu-body', ref: bodyRef, role: 'listbox', 'aria-label': title || 'Menu options' },
                 options.map((opt, i) => {
                     const optionIndex = i + 1;
                     const active = optionIndex === selected;
@@ -1591,13 +2301,29 @@ function Menu({ open, id, title, subtitle, position, canClose, disableInput, opt
                         ? (opt.checked ? 'ON' : 'OFF')
                         : (opt.hasValues ? valueLabel : '');
 
-                    return React.createElement('div', {
+                    return React.createElement('button', {
                         key: `${id || 'menu'}:${optionIndex}:${opt.label}`,
+                        type: 'button',
                         className: `cortex-menu-option${active ? ' active' : ''}`,
+                        role: 'option',
+                        'aria-selected': active,
+                        'aria-label': rightBadge ? `${opt.label}, ${rightBadge}` : opt.label,
+                        tabIndex: active ? 0 : -1,
+                        onFocus: () => setSelectedIndex(optionIndex),
                         onMouseEnter: () => setSelectedIndex(optionIndex),
                         onMouseDown: (e) => { e.preventDefault(); e.stopPropagation(); },
-                        onClick: (e) => { e.preventDefault(); e.stopPropagation(); submit(); }
+                        onClick: (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSelectedIndex(optionIndex);
+                            submit(optionIndex);
+                        }
                     },
+                        hasIcons ? React.createElement('span', {
+                            className: 'cortex-menu-option-icon',
+                            style: opt.iconColor ? { '--cortex-menu-icon-color': opt.iconColor } : undefined,
+                            'aria-hidden': 'true'
+                        }, opt.icon || '') : null,
                         React.createElement('div', { className: 'cortex-menu-option-main' },
                             React.createElement('div', { className: 'cortex-menu-option-label' }, opt.label),
                             opt.progress != null ? React.createElement('div', { className: 'cortex-menu-option-progress' },
@@ -1627,25 +2353,14 @@ function Menu({ open, id, title, subtitle, position, canClose, disableInput, opt
 // ALERT DIALOG COMPONENT
 // ============================================================================
 
-function AlertDialog({ open, header, content, centered, cancel, labels, style, onClose }) {
+function AlertDialog({ open, session, header, content, centered, cancel, labels, style, onClose }) {
     const confirmLabel = labels?.confirm || 'CONFIRM';
     const cancelLabel = labels?.cancel || 'CANCEL';
-
-    useEffect(() => {
-        if (!open) return;
-
-        const onKeyDown = (e) => {
-            if (e.key === 'Escape') {
-                onClose('cancel');
-            }
-            if (e.key === 'Enter') {
-                onClose('confirm');
-            }
-        };
-
-        window.addEventListener('keydown', onKeyDown);
-        return () => window.removeEventListener('keydown', onKeyDown);
-    }, [open, onClose]);
+    const dialogRef = useRef(null);
+    const handleCancel = useCallback(() => {
+        if (cancel) onClose('cancel', session);
+    }, [cancel, onClose, session]);
+    useModalFocus(open, dialogRef, cancel ? handleCancel : null, session);
 
     if (!open) return null;
 
@@ -1653,25 +2368,36 @@ function AlertDialog({ open, header, content, centered, cancel, labels, style, o
 
     return React.createElement('div', {
         className: 'alert-overlay',
-        onMouseDown: () => onClose('cancel')
+        onMouseDown: handleCancel
     },
         React.createElement('div', {
+            ref: dialogRef,
             className: dialogClass,
+            role: 'dialog',
+            'aria-modal': true,
+            'aria-labelledby': header ? 'cortex-alert-title' : undefined,
+            'aria-label': header ? undefined : 'Confirmation',
+            'aria-describedby': content ? 'cortex-alert-content' : undefined,
+            tabIndex: -1,
+            style: normalizeAlertStyle(style),
             onMouseDown: (e) => e.stopPropagation(),
             onClick: (e) => e.stopPropagation(),
             onContextMenu: (e) => e.preventDefault()
         },
 
-            header && React.createElement('div', { className: 'alert-header' }, header),
-            content && React.createElement('div', { className: 'alert-content' }, content),
+            header && React.createElement('div', { id: 'cortex-alert-title', className: 'alert-header', role: 'heading', 'aria-level': 2 }, header),
+            content && React.createElement('div', { id: 'cortex-alert-content', className: 'alert-content' }, content),
             React.createElement('div', { className: 'alert-actions' },
                 cancel && React.createElement('button', {
+                    type: 'button',
                     className: 'alert-btn cancel',
-                    onClick: () => onClose('cancel')
+                    onClick: handleCancel
                 }, cancelLabel),
                 React.createElement('button', {
+                    type: 'button',
                     className: 'alert-btn confirm',
-                    onClick: () => onClose('confirm')
+                    'data-autofocus': 'true',
+                    onClick: () => onClose('confirm', session)
                 }, confirmLabel)
             )
         )
@@ -1681,7 +2407,7 @@ function AlertDialog({ open, header, content, centered, cancel, labels, style, o
 function HelpBar({ open, items }) {
     if (!open || !items || !items.length) return null;
 
-    return React.createElement('div', { className: 'cortex-help-bar' },
+    return React.createElement('div', { className: 'cortex-help-bar', role: 'group', 'aria-label': 'Controls' },
         items.map((item, i) => React.createElement('div', { key: i, className: 'cortex-help-item' },
             React.createElement('div', { className: 'cortex-help-label' }, item.label),
             React.createElement('div', { className: 'cortex-help-values' },
@@ -1697,13 +2423,18 @@ function HelpBar({ open, items }) {
 // CONTEXT MENU COMPONENT (Settings-style dialog with form fields)
 // ============================================================================
 
-function ContextMenuCheckbox({ field, value, onChange }) {
+function ContextMenuCheckbox({ field, value, onChange, descriptionId }) {
     const handleClick = useCallback(() => {
         onChange(field.name, !value);
     }, [field.name, value, onChange]);
 
-    return React.createElement('div', {
+    return React.createElement('button', {
+        type: 'button',
         className: 'cortex-context-checkbox',
+        role: 'checkbox',
+        'aria-checked': Boolean(value),
+        'aria-required': field.required === true,
+        'aria-describedby': field.description ? descriptionId : undefined,
         onClick: handleClick
     },
         React.createElement('div', { className: `cortex-context-checkbox-box${value ? ' checked' : ''}` },
@@ -1715,14 +2446,19 @@ function ContextMenuCheckbox({ field, value, onChange }) {
     );
 }
 
-function ContextMenuSelect({ field, value, onChange }) {
-    const [dropdownOpen, setDropdownOpen] = useState(false);
-    const selectRef = useRef(null);
+let contextSelectIdCounter = 0;
 
-    const selectedOption = field.options?.find(opt => 
+function ContextMenuSelect({ field, value, onChange, inputId, descriptionId }) {
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [activeIndex, setActiveIndex] = useState(-1);
+    const selectRef = useRef(null);
+    const menuIdRef = useRef(`cortex-context-select-${++contextSelectIdCounter}`);
+    const options = Array.isArray(field.options) ? field.options : [];
+
+    const selectedOption = options.find(opt =>
         (typeof opt === 'object' ? opt.value : opt) === value
     );
-    const displayValue = selectedOption 
+    const displayValue = selectedOption
         ? (typeof selectedOption === 'object' ? selectedOption.label : selectedOption)
         : (value || 'Select...');
 
@@ -1730,6 +2466,48 @@ function ContextMenuSelect({ field, value, onChange }) {
         onChange(field.name, optValue);
         setDropdownOpen(false);
     }, [field.name, onChange]);
+
+    const openDropdown = useCallback((preferredIndex) => {
+        const selectedIndex = options.findIndex(opt => (typeof opt === 'object' ? opt.value : opt) === value);
+        const nextIndex = Number.isInteger(preferredIndex)
+            ? preferredIndex
+            : Math.max(0, selectedIndex);
+        setActiveIndex(Math.min(Math.max(nextIndex, 0), Math.max(options.length - 1, 0)));
+        setDropdownOpen(options.length > 0);
+    }, [options, value]);
+
+    const handleTriggerKeyDown = useCallback((event) => {
+        if (event.key === 'Escape') {
+            if (dropdownOpen) {
+                event.preventDefault();
+                event.stopPropagation();
+                setDropdownOpen(false);
+            }
+            return;
+        }
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
+            event.preventDefault();
+            if (!dropdownOpen) {
+                openDropdown(event.key === 'End' ? options.length - 1 : undefined);
+                return;
+            }
+            if (event.key === 'Home') setActiveIndex(0);
+            else if (event.key === 'End') setActiveIndex(Math.max(options.length - 1, 0));
+            else setActiveIndex(current => {
+                const direction = event.key === 'ArrowDown' ? 1 : -1;
+                return (Math.max(current, 0) + direction + options.length) % options.length;
+            });
+            return;
+        }
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            if (!dropdownOpen) openDropdown();
+            else if (options[activeIndex] !== undefined) {
+                const option = options[activeIndex];
+                handleSelect(typeof option === 'object' ? option.value : option);
+            }
+        }
+    }, [activeIndex, dropdownOpen, handleSelect, openDropdown, options]);
 
     useEffect(() => {
         if (!dropdownOpen) return;
@@ -1743,9 +2521,20 @@ function ContextMenuSelect({ field, value, onChange }) {
     }, [dropdownOpen]);
 
     return React.createElement('div', { className: 'cortex-context-select', ref: selectRef },
-        React.createElement('div', {
+        React.createElement('button', {
+            type: 'button',
+            id: inputId,
             className: 'cortex-context-select-trigger',
-            onClick: () => setDropdownOpen(!dropdownOpen)
+            role: 'combobox',
+            'aria-label': field.label,
+            'aria-haspopup': 'listbox',
+            'aria-expanded': dropdownOpen,
+            'aria-required': field.required === true,
+            'aria-controls': menuIdRef.current,
+            'aria-describedby': field.description ? descriptionId : undefined,
+            'aria-activedescendant': dropdownOpen && activeIndex >= 0 ? `${menuIdRef.current}-option-${activeIndex}` : undefined,
+            onClick: () => dropdownOpen ? setDropdownOpen(false) : openDropdown(),
+            onKeyDown: handleTriggerKeyDown
         },
             field.icon && React.createElement('div', { className: 'cortex-context-select-icon' }, field.icon),
             React.createElement('span', { className: 'cortex-context-select-value' }, displayValue),
@@ -1753,14 +2542,20 @@ function ContextMenuSelect({ field, value, onChange }) {
                 React.createElement('path', { d: 'M6 9l6 6 6-6' })
             )
         ),
-        dropdownOpen && React.createElement('div', { className: 'cortex-context-select-dropdown' },
-            (field.options || []).map((opt, i) => {
+        dropdownOpen && React.createElement('div', { id: menuIdRef.current, className: 'cortex-context-select-dropdown', role: 'listbox' },
+            options.map((opt, i) => {
                 const optValue = typeof opt === 'object' ? opt.value : opt;
                 const optLabel = typeof opt === 'object' ? opt.label : opt;
                 const isSelected = optValue === value;
-                return React.createElement('div', {
+                return React.createElement('button', {
                     key: i,
-                    className: `cortex-context-select-option${isSelected ? ' selected' : ''}`,
+                    id: `${menuIdRef.current}-option-${i}`,
+                    type: 'button',
+                    role: 'option',
+                    'aria-selected': isSelected,
+                    tabIndex: -1,
+                    className: `cortex-context-select-option${isSelected ? ' selected' : ''}${i === activeIndex ? ' active' : ''}`,
+                    onMouseMove: () => setActiveIndex(i),
                     onClick: () => handleSelect(optValue)
                 }, optLabel);
             })
@@ -1768,53 +2563,69 @@ function ContextMenuSelect({ field, value, onChange }) {
     );
 }
 
-function ContextMenuInput({ field, value, onChange }) {
+function ContextMenuInput({ field, value, onChange, inputId, descriptionId }) {
     const handleChange = useCallback((e) => {
         onChange(field.name, e.target.value);
     }, [field.name, onChange]);
 
     return React.createElement('input', {
         className: 'cortex-context-input',
+        id: inputId,
         type: field.inputType || 'text',
         placeholder: field.placeholder || '',
-        value: value || '',
+        value: value ?? '',
+        required: field.required === true,
+        'aria-describedby': field.description ? descriptionId : undefined,
         onChange: handleChange
     });
 }
 
-function ContextMenu({ open, title, fields, values, labels, onClose }) {
+function ContextMenu({ open, session, title, fields, values, labels, onClose }) {
     const [formValues, setFormValues] = useState({});
+    const dialogRef = useRef(null);
     const confirmLabel = labels?.confirm || 'CONFIRM';
     const cancelLabel = labels?.cancel || 'CANCEL';
 
     useEffect(() => {
-        if (open && values) {
-            setFormValues({ ...values });
+        if (open) {
+            const nextValues = {};
+            const sourceValues = isRecord(values) ? values : {};
+            for (const field of fields || []) {
+                if (!field || !isSafeObjectKey(field.name)) continue;
+                if (Object.prototype.hasOwnProperty.call(sourceValues, field.name)) {
+                    const sourceValue = sourceValues[field.name];
+                    if (field.type === 'checkbox') {
+                        nextValues[field.name] = sourceValue === true;
+                    } else if (field.type === 'select') {
+                        const matchedOption = field.options.find(option => {
+                            const optionValue = isRecord(option) ? option.value : option;
+                            return Object.is(optionValue, sourceValue);
+                        });
+                        nextValues[field.name] = matchedOption === undefined
+                            ? ''
+                            : (isRecord(matchedOption) ? matchedOption.value : matchedOption);
+                    } else {
+                        nextValues[field.name] = normalizeScalarValue(sourceValue);
+                    }
+                }
+            }
+            setFormValues(nextValues);
         }
-    }, [open, values]);
+    }, [fields, open, session, values]);
 
     const handleChange = useCallback((name, value) => {
         setFormValues(prev => ({ ...prev, [name]: value }));
     }, []);
 
     const handleConfirm = useCallback(() => {
-        onClose('confirm', formValues);
-    }, [formValues, onClose]);
+        onClose('confirm', formValues, session);
+    }, [formValues, onClose, session]);
 
     const handleCancel = useCallback(() => {
-        onClose('cancel', null);
-    }, [onClose]);
+        onClose('cancel', null, session);
+    }, [onClose, session]);
 
-    useEffect(() => {
-        if (!open) return;
-        const onKeyDown = (e) => {
-            if (e.key === 'Escape') {
-                handleCancel();
-            }
-        };
-        window.addEventListener('keydown', onKeyDown);
-        return () => window.removeEventListener('keydown', onKeyDown);
-    }, [open, handleCancel]);
+    useModalFocus(open, dialogRef, handleCancel, session);
 
     if (!open) return null;
 
@@ -1823,51 +2634,66 @@ function ContextMenu({ open, title, fields, values, labels, onClose }) {
         onMouseDown: handleCancel
     },
         React.createElement('div', {
+            ref: dialogRef,
             className: 'cortex-context-dialog',
+            role: 'dialog',
+            'aria-modal': true,
+            'aria-labelledby': title ? 'cortex-context-title' : undefined,
+            'aria-label': title ? undefined : 'Context options',
+            tabIndex: -1,
             onMouseDown: (e) => e.stopPropagation(),
             onClick: (e) => e.stopPropagation()
         },
-            title && React.createElement('div', { className: 'cortex-context-header' }, title),
+            title && React.createElement('div', { id: 'cortex-context-title', className: 'cortex-context-header', role: 'heading', 'aria-level': 2 }, title),
             React.createElement('div', { className: 'cortex-context-body' },
                 (fields || []).map((field, i) => {
+                    if (!isRecord(field) || !field.name) return null;
                     const fieldValue = formValues[field.name];
+                    const inputId = `cortex-context-field-${i}`;
+                    const descriptionId = `${inputId}-description`;
                     
                     if (field.type === 'checkbox') {
                         return React.createElement('div', { key: i, className: 'cortex-context-field' },
                             React.createElement(ContextMenuCheckbox, {
                                 field,
                                 value: Boolean(fieldValue),
-                                onChange: handleChange
-                            })
+                                onChange: handleChange,
+                                descriptionId
+                            }),
+                            field.description && React.createElement('div', { id: descriptionId, className: 'cortex-context-sublabel' }, field.description)
                         );
                     }
 
                     if (field.type === 'select') {
                         return React.createElement('div', { key: i, className: 'cortex-context-field' },
-                            React.createElement('div', { className: 'cortex-context-label' },
+                            React.createElement('label', { className: 'cortex-context-label', htmlFor: inputId },
                                 field.label,
                                 field.required && React.createElement('span', { className: 'required' }, '*')
                             ),
-                            field.description && React.createElement('div', { className: 'cortex-context-sublabel' }, field.description),
+                            field.description && React.createElement('div', { id: descriptionId, className: 'cortex-context-sublabel' }, field.description),
                             React.createElement(ContextMenuSelect, {
                                 field,
                                 value: fieldValue,
-                                onChange: handleChange
+                                onChange: handleChange,
+                                inputId,
+                                descriptionId
                             })
                         );
                     }
 
                     if (field.type === 'input' || field.type === 'text') {
                         return React.createElement('div', { key: i, className: 'cortex-context-field' },
-                            React.createElement('div', { className: 'cortex-context-label' },
+                            React.createElement('label', { className: 'cortex-context-label', htmlFor: inputId },
                                 field.label,
                                 field.required && React.createElement('span', { className: 'required' }, '*')
                             ),
-                            field.description && React.createElement('div', { className: 'cortex-context-sublabel' }, field.description),
+                            field.description && React.createElement('div', { id: descriptionId, className: 'cortex-context-sublabel' }, field.description),
                             React.createElement(ContextMenuInput, {
                                 field,
                                 value: fieldValue,
-                                onChange: handleChange
+                                onChange: handleChange,
+                                inputId,
+                                descriptionId
                             })
                         );
                     }
@@ -1877,11 +2703,14 @@ function ContextMenu({ open, title, fields, values, labels, onClose }) {
             ),
             React.createElement('div', { className: 'cortex-context-actions' },
                 React.createElement('button', {
+                    type: 'button',
                     className: 'cortex-context-btn cancel',
                     onClick: handleCancel
                 }, cancelLabel),
                 React.createElement('button', {
+                    type: 'button',
                     className: 'cortex-context-btn confirm',
+                    'data-autofocus': 'true',
                     onClick: handleConfirm
                 }, confirmLabel)
             )
@@ -1893,7 +2722,8 @@ function ContextMenu({ open, title, fields, values, labels, onClose }) {
 // RADIAL MENU COMPONENT (SVG-based, ox_lib inspired)
 // ============================================================================
 
-const RADIAL_PAGE_ITEMS = 8;  // Max items per page
+const RADIAL_PAGE_ITEMS = 8;  // Max rendered sectors per page
+const RADIAL_PAGE_ACTIONS = RADIAL_PAGE_ITEMS - 1;
 const RADIAL_SIZE = 350;       // SVG viewBox size
 const RADIAL_CENTER = RADIAL_SIZE / 2;
 const RADIAL_OUTER_RADIUS = RADIAL_CENTER;
@@ -1963,7 +2793,7 @@ function getRadialPointer(clientX, clientY, element, itemCount, visibleItemCount
     return { type: 'item', index };
 }
 
-function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
+function RadialMenu({ open, id, session, items, canGoBack, visible, appearance }) {
     const [hoverIndex, setHoverIndex] = useState(-1);
     const [page, setPage] = useState(1);
     const [isVisible, setIsVisible] = useState(false);
@@ -1989,15 +2819,19 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
         }
     }, [visible, open]);
 
+    useModalFocus(open && isVisible, radialSvgRef, null, `${session ?? 'none'}:${id ?? ''}`);
+
     // Calculate paginated items
     const allItems = items || [];
-    const totalPages = Math.ceil(allItems.length / RADIAL_PAGE_ITEMS);
+    const totalPages = allItems.length > RADIAL_PAGE_ITEMS
+        ? Math.ceil(allItems.length / RADIAL_PAGE_ACTIONS)
+        : 1;
     const needsPagination = allItems.length > RADIAL_PAGE_ITEMS;
+    const pageStartIndex = needsPagination ? (page - 1) * RADIAL_PAGE_ACTIONS : 0;
     
     let displayItems = allItems;
     if (needsPagination) {
-        const startIdx = (page - 1) * (RADIAL_PAGE_ITEMS - 1);
-        displayItems = allItems.slice(startIdx, startIdx + RADIAL_PAGE_ITEMS - 1);
+        displayItems = allItems.slice(pageStartIndex, pageStartIndex + RADIAL_PAGE_ACTIONS);
         // Add "more" item at the end
         displayItems = [...displayItems, { id: '__more__', label: 'More', icon: '...' }];
     }
@@ -2006,6 +2840,7 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
     const angleStep = 360 / itemCount;
 
     const activateItem = useCallback((index) => {
+        if (!isVisible) return;
         const item = displayItems[index];
         if (!item) return;
 
@@ -2014,12 +2849,15 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
             return;
         }
 
-        const sourceIndex = allItems.findIndex(candidate => candidate.id === item.id);
-        if (sourceIndex >= 0) nuiPost('radialClick', { index: sourceIndex });
-    }, [displayItems, totalPages, allItems]);
+        const sourceIndex = pageStartIndex + index;
+        if (sourceIndex >= 0 && sourceIndex < allItems.length) {
+            nuiPost('radialClick', { index: sourceIndex, itemId: item.id, menuId: id, session });
+        }
+    }, [allItems.length, displayItems, id, isVisible, pageStartIndex, session, totalPages]);
 
     // Handle mouse movement
     const handleMouseMove = useCallback((e) => {
+        if (!isVisible) return;
         const hit = getRadialPointer(
             e.clientX,
             e.clientY,
@@ -2028,10 +2866,11 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
             displayItems.length
         );
         setHoverIndex(hit.type === 'item' ? hit.index : -1);
-    }, [displayItems.length, itemCount]);
+    }, [displayItems.length, isVisible, itemCount]);
 
     // Handle click
     const handleClick = useCallback((e) => {
+        if (!isVisible) return;
         const hit = getRadialPointer(
             e.clientX,
             e.clientY,
@@ -2044,47 +2883,48 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
             if (page > 1) {
                 setPage(p => p - 1);
             } else if (canGoBack) {
-                nuiPost('radialBack', {});
+                nuiPost('radialBack', { menuId: id, session });
             } else {
-                nuiPost('radialClose', {});
+                nuiPost('radialClose', { menuId: id, session });
             }
             return;
         }
 
         if (hit.type === 'item') activateItem(hit.index);
-    }, [activateItem, canGoBack, displayItems.length, itemCount, page]);
+    }, [activateItem, canGoBack, displayItems.length, id, isVisible, itemCount, page, session]);
 
     // Right-click = back/close
     const handleContextMenu = useCallback((e) => {
         e.preventDefault();
+        if (!isVisible) return;
         if (page > 1) {
             setPage(p => p - 1);
         } else if (canGoBack) {
-            nuiPost('radialBack', {});
+            nuiPost('radialBack', { menuId: id, session });
         } else {
-            nuiPost('radialClose', {});
+            nuiPost('radialClose', { menuId: id, session });
         }
-    }, [canGoBack, page]);
+    }, [canGoBack, id, isVisible, page, session]);
 
     // Keyboard handling
     useEffect(() => {
-        if (!open) return;
+        if (!open || !isVisible) return;
 
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
                 e.preventDefault();
-                nuiPost('radialClose', {});
+                nuiPost('radialClose', { menuId: id, session });
             } else if (e.key === 'Backspace') {
                 e.preventDefault();
                 if (page > 1) {
                     setPage(p => p - 1);
                 } else if (canGoBack) {
-                    nuiPost('radialBack', {});
+                    nuiPost('radialBack', { menuId: id, session });
                 }
-            } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+            } else if (displayItems.length > 0 && (e.key === 'ArrowRight' || e.key === 'ArrowDown')) {
                 e.preventDefault();
                 setHoverIndex(current => current < 0 ? 0 : (current + 1) % displayItems.length);
-            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+            } else if (displayItems.length > 0 && (e.key === 'ArrowLeft' || e.key === 'ArrowUp')) {
                 e.preventDefault();
                 setHoverIndex(current => current < 0 ? displayItems.length - 1
                     : (current - 1 + displayItems.length) % displayItems.length);
@@ -2096,7 +2936,7 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [activateItem, open, canGoBack, displayItems.length, hoverIndex, page]);
+    }, [activateItem, open, isVisible, canGoBack, displayItems.length, hoverIndex, id, page, session]);
 
     if (!open) return null;
 
@@ -2111,7 +2951,11 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
         onMouseMove: handleMouseMove,
         onClick: handleClick,
         onContextMenu: handleContextMenu,
-        'aria-label': 'Radial controls'
+        role: 'dialog',
+        'aria-modal': true,
+        'aria-label': 'Radial controls',
+        'aria-busy': !isVisible,
+        'aria-hidden': !isVisible
     },
         React.createElement('svg', {
             className: `cortex-radial-svg${compactControl ? ' cortex-radial-svg--compact-control' : ''}`,
@@ -2119,7 +2963,9 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
             xmlns: 'http://www.w3.org/2000/svg',
             ref: radialSvgRef,
             role: 'menu',
-            'aria-label': id ? `${id.replaceAll('_', ' ')} menu` : 'Controls menu'
+            tabIndex: isVisible ? 0 : -1,
+            'aria-label': id ? `${id.replaceAll('_', ' ')} menu` : 'Controls menu',
+            'aria-activedescendant': hoverIndex >= 0 ? `cortex-radial-item-${pageStartIndex + hoverIndex}` : undefined
         },
             // Sectors
             displayItems.map((item, i) => {
@@ -2132,7 +2978,8 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
                 const iconPos = polarToCartesian(RADIAL_CENTER, RADIAL_CENTER, RADIAL_ICON_RADIUS, midAngle);
 
                 return React.createElement('g', {
-                    key: item.id || i,
+                    key: `${pageStartIndex + i}:${item.id || 'item'}`,
+                    id: `cortex-radial-item-${pageStartIndex + i}`,
                     className: `cortex-radial-sector${isHovered ? ' hover' : ''}`,
                     role: 'menuitem',
                     'aria-label': item.label || item.id || `Item ${i + 1}`
@@ -2151,6 +2998,7 @@ function RadialMenu({ open, id, items, canGoBack, visible, appearance }) {
                         x: iconPos.x,
                         y: iconPos.y - 6,
                         className: 'cortex-radial-sector-icon',
+                        style: item.iconColor ? { '--cortex-radial-icon-color': item.iconColor } : undefined,
                         textAnchor: 'middle',
                         dominantBaseline: 'middle'
                     }, item.icon || '•'),
@@ -2225,9 +3073,7 @@ function SettingsSelect({ field, value, onChange }) {
     const options = Array.isArray(field.options)
         ? field.options.filter((option) => option && option.value !== undefined)
         : [];
-    const selectedIndex = options.findIndex((option) => (
-        Object.is(option.value, value) || String(option.value) === String(value ?? '')
-    ));
+    const selectedIndex = options.findIndex((option) => Object.is(option.value, value));
     const resolvedSelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
     const selectedOption = options[selectedIndex] || null;
     const selectedLabel = selectedOption?.label ?? selectedOption?.value ?? value ?? 'Select';
@@ -2427,9 +3273,13 @@ function SettingsSelect({ field, value, onChange }) {
     );
 }
 
-function SettingsField({ field, value, tabId, onChange, onAction }) {
+function SettingsField({ field, value, tabId, onChange, onAction, onPreviewSound }) {
     if (!field || typeof field !== 'object') return null;
     if (!field.type || !field.key) return null;
+
+    const fieldId = `cortex-setting-${String(tabId).replace(/[^a-z0-9_-]/gi, '-')}-${String(field.key).replace(/[^a-z0-9_-]/gi, '-')}`;
+    const labelId = `${fieldId}-label`;
+    const descriptionId = `${fieldId}-description`;
 
     const renderControl = () => {
         switch (field.type) {
@@ -2458,12 +3308,15 @@ function SettingsField({ field, value, tabId, onChange, onAction }) {
                 const suffix = field.suffix || '%';
                 return React.createElement('div', { className: 'cortex-settings-slider-wrap' },
                     React.createElement('input', {
+                        id: fieldId,
                         type: 'range',
                         className: 'cortex-settings-slider',
                         min: field.min !== undefined ? field.min : 0,
                         max: field.max !== undefined ? field.max : 100,
                         step: field.step !== undefined ? field.step : 1,
                         value: sliderVal,
+                        'aria-labelledby': labelId,
+                        'aria-describedby': field.description ? descriptionId : undefined,
                         onChange: (e) => onChange(tabId, field.key, Number(e.target.value))
                     }),
                     React.createElement('span', { className: 'cortex-settings-slider-val' }, `${sliderVal}${suffix}`)
@@ -2471,7 +3324,7 @@ function SettingsField({ field, value, tabId, onChange, onAction }) {
             }
 
             case 'buttons':
-                return React.createElement('div', { className: 'cortex-settings-btns' },
+                return React.createElement('div', { className: 'cortex-settings-btns', role: 'group', 'aria-labelledby': labelId },
                     (field.buttons || []).map(btn =>
                         React.createElement('button', {
                             key: btn.value,
@@ -2485,6 +3338,7 @@ function SettingsField({ field, value, tabId, onChange, onAction }) {
             case 'text':
             case 'input':
                 return React.createElement('input', {
+                    id: fieldId,
                     type: field.inputType || 'text',
                     className: 'cortex-settings-input',
                     placeholder: field.placeholder || '',
@@ -2493,11 +3347,13 @@ function SettingsField({ field, value, tabId, onChange, onAction }) {
                     autoCapitalize: 'off',
                     autoCorrect: 'off',
                     value: value !== undefined && value !== null ? value : '',
+                    'aria-labelledby': labelId,
+                    'aria-describedby': field.description ? descriptionId : undefined,
                     onChange: (e) => onChange(tabId, field.key, e.target.value)
                 });
 
             case 'soundList':
-                return React.createElement('div', { className: 'cortex-settings-soundlist' },
+                return React.createElement('div', { className: 'cortex-settings-soundlist', role: 'radiogroup', 'aria-labelledby': labelId },
                     (field.options || []).map((opt) =>
                         React.createElement('div', {
                             key: opt.value,
@@ -2506,6 +3362,8 @@ function SettingsField({ field, value, tabId, onChange, onAction }) {
                             React.createElement('button', {
                                 type: 'button',
                                 className: 'cortex-settings-sound-select',
+                                role: 'radio',
+                                'aria-checked': value === opt.value,
                                 onClick: () => onChange(tabId, field.key, opt.value)
                             },
                                 React.createElement('span', { className: 'cortex-settings-sound-radio' }),
@@ -2515,9 +3373,10 @@ function SettingsField({ field, value, tabId, onChange, onAction }) {
                                 type: 'button',
                                 className: 'cortex-settings-sound-preview',
                                 title: 'Preview',
+                                'aria-label': `Preview ${boundedText(opt.label, 'sound', 96)}`,
                                 onClick: (e) => {
                                     e.stopPropagation();
-                                    nuiPost('settingsPreviewSound', { name: opt.name, set: opt.set });
+                                    onPreviewSound(opt.name, opt.set);
                                 }
                             }, '▶')
                         )
@@ -2533,24 +3392,43 @@ function SettingsField({ field, value, tabId, onChange, onAction }) {
 
     return React.createElement('div', { className: rowClass },
         React.createElement('div', { className: 'cortex-settings-row-info' },
-            React.createElement('div', { className: 'cortex-settings-row-label' }, field.label),
+            React.createElement('div', { id: labelId, className: 'cortex-settings-row-label' }, field.label),
             field.description
-                ? React.createElement('div', { className: 'cortex-settings-row-desc' }, field.description)
+                ? React.createElement('div', { id: descriptionId, className: 'cortex-settings-row-desc' }, field.description)
                 : null
         ),
         React.createElement('div', { className: 'cortex-settings-row-ctrl' }, renderControl())
     );
 }
 
-function SettingsPanel({ open, tabs, onClose }) {
+function SettingsPanel({ open, session, tabs, onClose }) {
     const [activeTab, setActiveTab] = useState(0);
     const [values, setValues] = useState({});
     const [submitError, setSubmitError] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const dialogRef = useRef(null);
+    const sessionRef = useRef(normalizeSession(session));
+    sessionRef.current = normalizeSession(session);
 
     useEffect(() => {
         if (!open) return;
-        nuiPost('settingsReady', {});
-    }, [open]);
+        let active = true;
+        void nuiPost('settingsReady', { session }).then(response => {
+            if (!active || response?.ok === true) return;
+            void nuiPost('settingsCancel', { session }).catch(error => {
+                uiDebugLog('settings readiness cleanup failed', error);
+            });
+            onClose(session);
+        }).catch(error => {
+            if (!active) return;
+            uiDebugLog('settingsReady failed', error);
+            void nuiPost('settingsCancel', { session }).catch(cleanupError => {
+                uiDebugLog('settings readiness cleanup failed', cleanupError);
+            });
+            onClose(session);
+        });
+        return () => { active = false; };
+    }, [onClose, open, session]);
 
     useEffect(() => {
         if (!open || !tabs) return;
@@ -2562,7 +3440,8 @@ function SettingsPanel({ open, tabs, onClose }) {
         setValues(init);
         setActiveTab(0);
         setSubmitError('');
-    }, [open, tabs]);
+        setSubmitting(false);
+    }, [open, session, tabs]);
 
     useEffect(() => {
         if (!open || !tabs || tabs.length === 0) return;
@@ -2570,54 +3449,103 @@ function SettingsPanel({ open, tabs, onClose }) {
     }, [open, tabs, activeTab]);
 
     const handleChange = useCallback((tabId, key, value) => {
+        const previousTabValues = values[tabId] || {};
+        const hadPreviousValue = Object.prototype.hasOwnProperty.call(previousTabValues, key);
+        const previousValue = previousTabValues[key];
         setSubmitError('');
         setValues(prev => ({
             ...prev,
             [tabId]: Object.assign({}, prev[tabId] || {}, { [key]: value })
         }));
-        nuiPost('settingsPreview', { tabId, key, value });
-    }, []);
+        void nuiPost('settingsPreview', { tabId, key, value, session }).then(response => {
+            if (response?.ok === true || sessionRef.current !== normalizeSession(session)) return;
+            setValues(prev => {
+                const currentTabValues = prev[tabId] || {};
+                if (!Object.is(currentTabValues[key], value)) return prev;
+                const rollbackTabValues = { ...currentTabValues };
+                if (hadPreviousValue) rollbackTabValues[key] = previousValue;
+                else delete rollbackTabValues[key];
+                return { ...prev, [tabId]: rollbackTabValues };
+            });
+            setSubmitError('PREVIEW FAILED');
+        }).catch(error => {
+            uiDebugLog('settings preview response failed', error);
+        });
+    }, [session, values]);
 
     const handleReset = useCallback(() => {
         if (!tabs) return;
         const tab = tabs[activeTab];
         if (!tab) return;
+        const previousValues = Object.assign({}, values[tab.id] || {});
         const nextValues = Object.assign({}, tab.defaults || {});
         setValues(prev => ({
             ...prev,
             [tab.id]: nextValues
         }));
-        nuiPost('settingsPreview', { tabId: tab.id, values: nextValues });
-    }, [tabs, activeTab]);
+        setSubmitError('');
+        void nuiPost('settingsPreview', { tabId: tab.id, values: nextValues, session }).then(response => {
+            if (response?.ok === true || sessionRef.current !== normalizeSession(session)) return;
+            setValues(prev => prev[tab.id] === nextValues
+                ? { ...prev, [tab.id]: previousValues }
+                : prev);
+            setSubmitError('PREVIEW FAILED');
+        }).catch(error => {
+            uiDebugLog('settings reset response failed', error);
+        });
+    }, [tabs, activeTab, session, values]);
 
     const handleSave = useCallback(async () => {
-        const response = await nuiPost('settingsSave', { tabs: values });
+        if (submitting) return;
+        const capturedSession = normalizeSession(session);
+        setSubmitting(true);
+        const response = await nuiPost('settingsSave', { tabs: values, session });
+        if (sessionRef.current !== capturedSession) return;
         if (response?.ok === true) {
-            onClose();
+            onClose(session);
             return;
         }
         setSubmitError('SAVE FAILED');
-    }, [values, onClose]);
+        setSubmitting(false);
+    }, [onClose, session, submitting, values]);
 
     const handleCancel = useCallback(async () => {
-        const response = await nuiPost('settingsCancel', {});
+        if (submitting) return;
+        const capturedSession = normalizeSession(session);
+        setSubmitting(true);
+        const response = await nuiPost('settingsCancel', { session });
+        if (sessionRef.current !== capturedSession) return;
         if (response?.ok === true) {
-            onClose();
+            onClose(session);
             return;
         }
         setSubmitError('CLOSE FAILED');
-    }, [onClose]);
+        setSubmitting(false);
+    }, [onClose, session, submitting]);
 
     const handleAction = useCallback((tabId, key, value) => {
-        nuiPost('settingsAction', { tabId, key, value });
-    }, []);
+        setSubmitError('');
+        void nuiPost('settingsAction', { tabId, key, value, session }).then(response => {
+            if (response?.ok !== true && sessionRef.current === normalizeSession(session)) {
+                setSubmitError('ACTION FAILED');
+            }
+        }).catch(error => {
+            uiDebugLog('settings action response failed', error);
+        });
+    }, [session]);
 
-    useEffect(() => {
-        if (!open) return;
-        const onKey = (e) => { if (e.key === 'Escape') handleCancel(); };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-    }, [open, handleCancel]);
+    const handlePreviewSound = useCallback((name, set) => {
+        setSubmitError('');
+        void nuiPost('settingsPreviewSound', { name, set, session }).then(response => {
+            if (response?.ok !== true && sessionRef.current === normalizeSession(session)) {
+                setSubmitError('PREVIEW FAILED');
+            }
+        }).catch(error => {
+            uiDebugLog('settings sound preview response failed', error);
+        });
+    }, [session]);
+
+    useModalFocus(open, dialogRef, handleCancel, session);
 
     if (!open || !tabs || tabs.length === 0) return null;
 
@@ -2645,21 +3573,36 @@ function SettingsPanel({ open, tabs, onClose }) {
                 value: tabValues[field.key],
                 tabId: tab.id,
                 onChange: handleChange,
-                onAction: handleAction
+                onAction: handleAction,
+                onPreviewSound: handlePreviewSound
             })
         );
     }
 
+    const handleTabKeyDown = (event, index) => {
+        let nextIndex = index;
+        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = (index + 1) % tabs.length;
+        else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = (index - 1 + tabs.length) % tabs.length;
+        else if (event.key === 'Home') nextIndex = 0;
+        else if (event.key === 'End') nextIndex = tabs.length - 1;
+        else return;
+        event.preventDefault();
+        setActiveTab(nextIndex);
+        window.requestAnimationFrame(() => dialogRef.current?.querySelector(`#cortex-settings-tab-${nextIndex}`)?.focus());
+    };
+
     return React.createElement('div', { className: 'cortex-settings-overlay' },
         React.createElement('div', {
+            ref: dialogRef,
             className: 'cortex-settings-panel',
             role: 'dialog',
             'aria-modal': true,
-            'aria-label': 'Cortex Settings'
+            'aria-labelledby': 'cortex-settings-title',
+            tabIndex: -1
         },
             // Header
             React.createElement('div', { className: 'cortex-settings-header' },
-                React.createElement('div', { className: 'cortex-settings-title' },
+                React.createElement('div', { id: 'cortex-settings-title', className: 'cortex-settings-title' },
                     React.createElement('span', { className: 'cortex-settings-accent' }, 'Cortex'),
                     ' Settings'
                 ),
@@ -2667,6 +3610,7 @@ function SettingsPanel({ open, tabs, onClose }) {
                     type: 'button',
                     className: 'cortex-settings-close',
                     onClick: handleCancel,
+                    disabled: submitting,
                     'aria-label': 'Close settings and discard changes'
                 }, '✕')
             ),
@@ -2676,28 +3620,42 @@ function SettingsPanel({ open, tabs, onClose }) {
                     React.createElement('button', {
                         key: t && t.id != null ? String(t.id) : `tab-${i}`,
                         type: 'button',
+                        id: `cortex-settings-tab-${i}`,
                         role: 'tab',
                         'aria-selected': i === activeTab,
+                        'aria-controls': 'cortex-settings-tabpanel',
+                        tabIndex: i === activeTab ? 0 : -1,
+                        'data-autofocus': i === activeTab ? 'true' : undefined,
                         className: `cortex-settings-tab${i === activeTab ? ' active' : ''}`,
-                        onClick: () => setActiveTab(i)
+                        onClick: () => setActiveTab(i),
+                        onKeyDown: event => handleTabKeyDown(event, i)
                     }, t && t.label != null ? t.label : '')
                 )
             ),
             // Content
-            React.createElement('div', { className: 'cortex-settings-content', role: 'tabpanel' }, ...rows),
+            React.createElement('div', {
+                id: 'cortex-settings-tabpanel',
+                className: 'cortex-settings-content',
+                role: 'tabpanel',
+                'aria-labelledby': `cortex-settings-tab-${activeTab}`
+            }, ...rows),
             // Footer
             React.createElement('div', { className: 'cortex-settings-footer' },
                 React.createElement('div', { className: 'cortex-settings-footer-left' },
-                    React.createElement('button', { type: 'button', className: 'cortex-settings-btn reset', onClick: handleReset }, 'RESET'),
+                    React.createElement('button', { type: 'button', className: 'cortex-settings-btn reset', onClick: handleReset, disabled: submitting }, 'RESET'),
                     React.createElement(
                         'span',
-                        { className: `cortex-settings-live-note${submitError ? ' error' : ''}` },
+                        {
+                            className: `cortex-settings-live-note${submitError ? ' error' : ''}`,
+                            role: 'status',
+                            'aria-live': 'polite'
+                        },
                         submitError || 'LIVE · SAVE TO KEEP'
                     )
                 ),
                 React.createElement('div', { className: 'cortex-settings-footer-right' },
-                    React.createElement('button', { type: 'button', className: 'cortex-settings-btn cancel', onClick: handleCancel }, 'CANCEL'),
-                    React.createElement('button', { type: 'button', className: 'cortex-settings-btn save', onClick: handleSave }, 'SAVE')
+                    React.createElement('button', { type: 'button', className: 'cortex-settings-btn cancel', onClick: handleCancel, disabled: submitting }, 'CANCEL'),
+                    React.createElement('button', { type: 'button', className: 'cortex-settings-btn save', onClick: handleSave, disabled: submitting }, 'SAVE')
                 )
             )
         )
@@ -2727,7 +3685,7 @@ function getInteractionHoldDuration(value) {
 
 function getInteractionPanelKey(item) {
     if (item?.panelVariant !== 'target' || !item.panelId || !item.panelLabel) return null;
-    return `${item.owner}\u0000${item.panelId}\u0000${item.panelVariant}\u0000${item.panelLabel}`;
+    return `${item.owner}\u0000${item.panelId}\u0000${item.panelVariant}\u0000${item.panelLabel}\u0000${item.panelMarker || '?'}`;
 }
 
 function buildInteractionBlocks(items) {
@@ -2753,7 +3711,8 @@ function buildInteractionBlocks(items) {
             panel: {
                 id: item.panelId,
                 label: item.panelLabel,
-                variant: item.panelVariant
+                variant: item.panelVariant,
+                marker: item.panelMarker
             },
             items: [item]
         };
@@ -2847,6 +3806,25 @@ function VehicleAccessIcon({ type }) {
     );
 }
 
+function formatInteractionKey(value) {
+    const key = String(value || '').toUpperCase();
+    if (key === 'DELETE') return { prefix: '', label: 'DEL' };
+    const numpad = /^NUMPAD([0-9]|ENTER)$/.exec(key);
+    if (numpad) return { prefix: 'NUM', label: numpad[1] === 'ENTER' ? '↵' : numpad[1] };
+    return { prefix: '', label: key };
+}
+
+function TargetInteractionKeyLabel({ value }) {
+    const { prefix, label } = formatInteractionKey(value);
+    return React.createElement('span', {
+        className: `cortex-target-key-label${prefix ? ' is-numpad' : ''}${label.length > 3 ? ' is-wide' : ''}`,
+        'aria-hidden': 'true'
+    },
+        prefix ? React.createElement('span', { className: 'cortex-target-key-prefix' }, prefix) : null,
+        React.createElement('span', { className: 'cortex-target-key-value' }, label)
+    );
+}
+
 function TargetInteractionPanel({ panel, items }) {
     return React.createElement('section', {
         className: 'cortex-target-panel',
@@ -2869,7 +3847,7 @@ function TargetInteractionPanel({ panel, items }) {
                 role: 'img',
                 'aria-label': `Press ${item.key} to ${item.label.toLowerCase()}`,
                 'data-key': item.key
-            }, item.key)
+            }, React.createElement(TargetInteractionKeyLabel, { value: item.key }))
         ))),
         React.createElement('span', {
             className: 'cortex-target-divider',
@@ -2877,10 +3855,10 @@ function TargetInteractionPanel({ panel, items }) {
         }),
         React.createElement('div', { className: 'cortex-target-context' },
             React.createElement('span', {
-                className: 'cortex-target-context-label'
+                className: `cortex-target-context-label${panel.label.length > 12 ? ' is-long' : ''}`
             }, panel.label),
             React.createElement(InteractionKey, {
-                item: { key: '' },
+                item: { key: panel.marker || '?' },
                 className: 'cortex-target-marker',
                 decorative: true
             })
@@ -3029,7 +4007,8 @@ const INTERACTION_BASE_FIELDS = Object.freeze([
     'holdRevision',
     'panelId',
     'panelLabel',
-    'panelVariant'
+    'panelVariant',
+    'panelMarker'
 ]);
 const INTERACTION_WORLD_FIELDS = Object.freeze([
     ...INTERACTION_BASE_FIELDS,
@@ -3049,7 +4028,8 @@ function normalizeInteractionPanel(value) {
     return {
         panelId: id,
         panelLabel: label,
-        panelVariant: variant
+        panelVariant: variant,
+        panelMarker: typeof value.marker === 'string' && /^[A-Za-z0-9?]$/.test(value.marker) ? value.marker : '?'
     };
 }
 
@@ -3146,23 +4126,12 @@ function InteractionSurface({ hidden }) {
 
         const announceInteractionReady = async (attempt = 0) => {
             activeController = new AbortController();
-            const timeout = window.setTimeout(() => activeController?.abort(), 1500);
-
-            try {
-                const response = await fetch(`https://${GetParentResourceName()}/interactionReady`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-                    body: '{}',
-                    signal: activeController.signal
-                });
-                const payload = response.ok ? await response.json().catch(() => null) : null;
-                if (payload?.ok === true || cancelled) return;
-            } catch (_) {
-                if (cancelled) return;
-            } finally {
-                window.clearTimeout(timeout);
-                activeController = null;
-            }
+            const payload = await nuiPost('interactionReady', {}, {
+                timeoutMs: 1500,
+                signal: activeController.signal
+            });
+            activeController = null;
+            if (payload?.ok === true || cancelled) return;
 
             const retryDelay = Math.min(2000, 250 + (attempt * 175));
             retryTimer = window.setTimeout(() => announceInteractionReady(attempt + 1), retryDelay);
@@ -3190,8 +4159,8 @@ function InteractionSurface({ hidden }) {
         };
 
         const handleInteractionMessage = (event) => {
-            const message = event.data;
-            if (!message || typeof message !== 'object') return;
+            const message = normalizeNuiMessage(event);
+            if (!message) return;
 
             const data = message.data;
             switch (message.action) {
@@ -3269,6 +4238,7 @@ function App() {
 
     const [alertDialog, setAlertDialog] = useState({
         open: false,
+        session: null,
         header: '',
         content: '',
         centered: false,
@@ -3289,6 +4259,8 @@ function App() {
     const [menu, setMenu] = useState({
         open: false,
         id: null,
+        session: null,
+        revision: null,
         title: '',
         subtitle: '',
         position: 'top-left',
@@ -3307,6 +4279,7 @@ function App() {
     const [radial, setRadial] = useState({
         open: false,
         id: null,
+        session: null,
         items: [],
         canGoBack: false,
         visible: true,
@@ -3315,6 +4288,7 @@ function App() {
 
     const [contextMenu, setContextMenu] = useState({
         open: false,
+        session: null,
         title: '',
         fields: [],
         values: {},
@@ -3323,10 +4297,14 @@ function App() {
 
     const [uiApps, setUiApps] = useState({});
 
-    const [settingsPanel, setSettingsPanel] = useState({ open: false, tabs: [] });
+    const [settingsPanel, setSettingsPanel] = useState({ open: false, session: null, tabs: [] });
+    const diagnosticsRef = useRef({ notificationCount: 0, notifyPosition: 'top-right' });
+    diagnosticsRef.current = { notificationCount: notifications.length, notifyPosition };
 
-    const closeSettingsPanelLocal = useCallback(() => {
-        setSettingsPanel(prev => ({ ...prev, open: false }));
+    const closeSettingsPanelLocal = useCallback((session) => {
+        setSettingsPanel(prev => prev.session === normalizeSession(session)
+            ? { ...prev, open: false }
+            : prev);
     }, []);
 
     const removeNotification = useCallback((id) => {
@@ -3334,89 +4312,26 @@ function App() {
     }, []);
 
     const addNotification = useCallback((data) => {
-        const duration = data.duration ?? 3000;
-        const persistent = data.persistent || duration === 0;
-
-        if (data.position) {
-            setNotifyPosition(data.position);
+        const normalized = normalizeNotificationData(data);
+        if (!normalized) return;
+        if (normalized.position) {
+            setNotifyPosition(normalized.position);
         }
 
-        const typeNorm = data.type || 'info';
-        const titleNorm = data.title == null ? '' : String(data.title);
-        const descNorm = data.description == null ? '' : String(data.description);
-        const dedupeKey = `${typeNorm}\u0000${titleNorm}\u0000${descNorm}`;
-        const allowDedupe = data.dedupe !== false;
-        const visualOptions = {
-            plain: Boolean(data.plain),
-            hideIcon: data.hideIcon === true || data.icon === false
-        };
-
-        setNotifications(prev => {
-            if (data.id) {
-                const id = data.id;
-                const notification = {
-                    id,
-                    dedupeKey,
-                    type: typeNorm,
-                    title: data.title,
-                    description: data.description,
-                    duration,
-                    showDuration: data.showDuration,
-                    persistent,
-                    ...visualOptions
-                };
-                const without = prev.filter(n => n.id !== id);
-                return [...without, notification];
-            }
-
-            if (allowDedupe) {
-                const dupIdx = prev.findIndex(n => n.dedupeKey === dedupeKey);
-                if (dupIdx !== -1) {
-                    const next = prev.slice();
-                    const kept = next[dupIdx];
-                    next[dupIdx] = {
-                        ...kept,
-                        refreshTick: (kept.refreshTick || 0) + 1,
-                        type: typeNorm,
-                        title: data.title,
-                        description: data.description,
-                        duration,
-                        showDuration: data.showDuration,
-                        persistent,
-                        ...visualOptions
-                    };
-                    return next;
-                }
-            }
-
-            const id = `notify-${++notifyIdCounter}`;
-            const notification = {
-                id,
-                dedupeKey,
-                type: typeNorm,
-                title: data.title,
-                description: data.description,
-                duration,
-                showDuration: data.showDuration,
-                persistent,
-                ...visualOptions
-            };
-            return [...prev, notification];
-        });
+        const generatedId = `notify-${++notifyIdCounter}`;
+        setNotifications(prev => mergeNotificationState(prev, normalized, generatedId));
     }, []);
 
-    const clearNotifications = useCallback(() => {
-        setNotifications([]);
+    const clearNotifications = useCallback((data) => {
+        setNotifications(prev => filterNotificationsForClear(prev, data));
     }, []);
 
     const startProgress = useCallback((data) => {
+        const normalized = normalizeProgressData(data);
+        if (!normalized) return;
         setProgress({
             active: true,
-            duration: data.duration || 0,
-            label: data.label || '',
-            position: data.position || 'bottom',
-            style: data.style || 'bar',
-            canCancel: data.canCancel || false
+            ...normalized
         });
     }, []);
 
@@ -3424,48 +4339,40 @@ function App() {
         setProgress(prev => ({ ...prev, active: false }));
     }, []);
 
-    const closeAlertDialog = useCallback(async (result) => {
-        setAlertDialog(prev => ({ ...prev, open: false }));
-
-        try {
-            await fetch(`https://${GetParentResourceName()}/alertDialogResult`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-                body: JSON.stringify({ result })
-            });
-        } catch (e) {
-            uiDebugLog('alertDialogResult post failed', e);
-        }
+    const closeAlertDialog = useCallback(async (result, session) => {
+        const normalizedSession = normalizeSession(session);
+        const response = await nuiPost('alertDialogResult', { result, session });
+        if (response?.ok !== true) return;
+        setAlertDialog(prev => prev.session === normalizedSession
+            ? { ...prev, open: false }
+            : prev);
     }, []);
 
-    const closeContextMenu = useCallback(async (result, values) => {
-        setContextMenu(prev => ({ ...prev, open: false }));
-
-        try {
-            await fetch(`https://${GetParentResourceName()}/contextMenuResult`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-                body: JSON.stringify({ result, values })
-            });
-        } catch (e) {
-            uiDebugLog('contextMenuResult post failed', e);
-        }
+    const closeContextMenu = useCallback(async (result, values, session) => {
+        const normalizedSession = normalizeSession(session);
+        const response = await nuiPost('contextMenuResult', { result, values: isRecord(values) ? values : null, session });
+        if (response?.ok !== true) return;
+        setContextMenu(prev => prev.session === normalizedSession
+            ? { ...prev, open: false }
+            : prev);
     }, []);
 
     const openMenu = useCallback((data) => {
         const normalizedOptions = Array.isArray(data?.options)
-            ? data.options.map(normalizeOption)
+            ? data.options.slice(0, NUI_MAX_MENU_OPTIONS).map(normalizeOption)
             : [];
 
         const initialSelected = normalizedOptions.length ? 1 : 0;
-        const tooltip = normalizedOptions.length ? (normalizedOptions[0].description || '') : '';
+        const tooltip = normalizedOptions.length ? getOptionTooltip(normalizedOptions[0]) : '';
 
         setMenu({
             open: true,
-            id: data?.id || null,
-            title: data?.title || '',
-            subtitle: data?.subtitle || '',
-            position: data?.position || 'top-left',
+            id: boundedText(data?.id, '', 96) || null,
+            session: normalizeSession(data?.session),
+            revision: normalizeRevision(data?.revision),
+            title: boundedText(data?.title, '', 160),
+            subtitle: boundedText(data?.subtitle, '', 256),
+            position: ['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(data?.position) ? data.position : 'top-left',
             canClose: data?.canClose !== false,
             disableInput: Boolean(data?.disableInput),
             options: normalizedOptions,
@@ -3474,47 +4381,53 @@ function App() {
         });
     }, [setMenu]);
 
-    const closeMenuLocal = useCallback(() => {
-        setMenu(prev => ({ ...prev, open: false, id: null }));
-    }, [setMenu]);
-
     const setMenuOptionsAll = useCallback((data) => {
         setMenu(prev => {
             if (!prev.open || prev.id !== data?.id) return prev;
+            if (prev.session !== normalizeSession(data?.session)) return prev;
+            if (!Array.isArray(data?.options)) return prev;
+            const nextRevision = normalizeRevision(data?.revision);
+            if (nextRevision === null || (prev.revision !== null && nextRevision <= prev.revision)) return prev;
             const normalizedOptions = Array.isArray(data?.options)
-                ? data.options.map(normalizeOption)
+                ? data.options.slice(0, NUI_MAX_MENU_OPTIONS).map(normalizeOption)
                 : [];
             const selectedIndex = normalizedOptions.length
                 ? Math.max(1, Math.min(prev.selected || 1, normalizedOptions.length))
                 : 0;
             const tooltip = normalizedOptions.length
-                ? (normalizedOptions[selectedIndex - 1]?.description || '')
+                ? getOptionTooltip(normalizedOptions[selectedIndex - 1])
                 : '';
-            return { ...prev, options: normalizedOptions, selected: selectedIndex, tooltip };
+            return { ...prev, revision: nextRevision, options: normalizedOptions, selected: selectedIndex, tooltip };
         });
     }, [setMenu]);
 
     const setMenuOptionSingle = useCallback((data) => {
         setMenu(prev => {
             if (!prev.open || prev.id !== data?.id) return prev;
+            if (prev.session !== normalizeSession(data?.session)) return prev;
+            if (!isRecord(data?.option)) return prev;
+            const nextRevision = normalizeRevision(data?.revision);
+            if (nextRevision === null || (prev.revision !== null && nextRevision <= prev.revision)) return prev;
             const index = data?.index;
-            if (typeof index !== 'number' || index < 1) return prev;
+            if (!Number.isInteger(index) || index < 1 || index > NUI_MAX_MENU_OPTIONS) return prev;
 
             const next = prev.options.slice(0);
             next[index - 1] = normalizeOption(data?.option || {});
 
             const tooltip = next.length
-                ? (next[(prev.selected || 1) - 1]?.description || '')
+                ? getOptionTooltip(next[(prev.selected || 1) - 1])
                 : '';
 
-            return { ...prev, options: next, tooltip };
+            return { ...prev, revision: nextRevision, options: next, tooltip };
         });
     }, [setMenu]);
 
     // NUI message handler
     useEffect(() => {
         const handleMessage = (event) => {
-            const { action, data } = event.data;
+            const message = normalizeNuiMessage(event);
+            if (!message) return;
+            const { action, data } = message;
 
             if (uiDebugEnabled) {
                 uiDebugLog('message', action, safeJson(data));
@@ -3531,15 +4444,22 @@ function App() {
                         position: data?.position || 'top-right'
                     });
                     break;
-                case 'debugState':
+                case 'debugState': {
+                    const diagnostics = diagnosticsRef.current;
                     addNotification({
                         type: 'info',
                         title: 'UI Debug',
-                        description: `notifications=${notifications.length} position=${notifyPosition}`,
+                        description: `notifications=${diagnostics.notificationCount} position=${diagnostics.notifyPosition}`,
                         duration: 2500,
                         showDuration: true,
-                        position: notifyPosition
+                        position: diagnostics.notifyPosition
                     });
+                    break;
+                }
+                case 'copyToClipboard':
+                    void copyTextToClipboard(data.text).then((copied) => {
+                        if (!copied) uiDebugLog('copyToClipboard failed');
+                    }).catch(error => uiDebugLog('copyToClipboard failed', error));
                     break;
                 case 'notify':
                     addNotification(data);
@@ -3548,7 +4468,9 @@ function App() {
                     openMenu(data);
                     break;
                 case 'menuClose':
-                    closeMenuLocal();
+                    setMenu(prev => prev.session === normalizeSession(data.session)
+                        ? { ...prev, open: false, id: null }
+                        : prev);
                     break;
                 case 'menuSetOptions':
                     setMenuOptionsAll(data);
@@ -3557,55 +4479,77 @@ function App() {
                     setMenuOptionSingle(data);
                     break;
                 case 'uiAppOpen':
-                    setUiApps(prev => ({
-                        ...prev,
-                        [data?.id]: { open: true, payload: data?.payload || {} }
-                    }));
+                    if (isSafeObjectKey(boundedText(data.id, '', 96))) {
+                        const appId = boundedText(data.id, '', 96);
+                        setUiApps(prev => {
+                            if (!prev[appId] && Object.keys(prev).length >= 32) return prev;
+                            return {
+                                ...prev,
+                                [appId]: {
+                                    open: true,
+                                    session: normalizeSession(data.session),
+                                    payload: isRecord(data.payload) ? data.payload : {}
+                                }
+                            };
+                        });
+                    }
                     break;
                 case 'uiAppData':
-                    setUiApps(prev => ({
-                        ...prev,
-                        [data?.id]: { ...(prev[data?.id] || {}), payload: { ...(prev[data?.id]?.payload || {}), ...(data?.payload || {}) } }
-                    }));
+                    if (isSafeObjectKey(boundedText(data.id, '', 96))) {
+                        const appId = boundedText(data.id, '', 96);
+                        setUiApps(prev => {
+                            if (!prev[appId]) return prev;
+                            if (prev[appId].session !== normalizeSession(data.session)) return prev;
+                            return {
+                                ...prev,
+                                [appId]: {
+                                    ...prev[appId],
+                                    payload: { ...(isRecord(prev[appId]?.payload) ? prev[appId].payload : {}), ...(isRecord(data.payload) ? data.payload : {}) }
+                                }
+                            };
+                        });
+                    }
                     break;
                 case 'uiAppClose':
-                    setUiApps(prev => ({
-                        ...prev,
-                        [data?.id]: { ...(prev[data?.id] || {}), open: false }
-                    }));
+                    if (isSafeObjectKey(boundedText(data.id, '', 96))) {
+                        const appId = boundedText(data.id, '', 96);
+                        setUiApps(prev => prev[appId] && prev[appId].session === normalizeSession(data.session)
+                            ? { ...prev, [appId]: { ...prev[appId], open: false } }
+                            : prev);
+                    }
                     break;
                 case 'debugPanelShow':
                     setDebugPanel({
                         open: true,
-                        title: data?.title || 'DEBUG',
-                        subtitle: data?.subtitle || '',
-                        position: data?.position || 'top-right',
-                        accentColor: data?.accentColor || null,
-                        lines: Array.isArray(data?.lines) ? data.lines : [],
-                        data: data?.data || null
+                        title: boundedText(data.title, 'DEBUG', 160),
+                        subtitle: boundedText(data.subtitle, '', 256),
+                        position: ['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(data.position) ? data.position : 'top-right',
+                        accentColor: boundedText(data.accentColor, '', 96) || null,
+                        lines: normalizeDebugLines(data.lines),
+                        data: isRecord(data.data) ? data.data : null
                     });
                     break;
                 case 'debugPanelUpdate':
                     setDebugPanel(prev => ({
                         ...prev,
-                        title: data?.title ?? prev.title,
-                        subtitle: data?.subtitle ?? prev.subtitle,
-                        position: data?.position ?? prev.position,
-                        accentColor: data?.accentColor ?? prev.accentColor,
-                        lines: Array.isArray(data?.lines) ? data.lines : prev.lines,
-                        data: data?.data ?? prev.data
+                        title: data.title !== undefined ? boundedText(data.title, prev.title, 160) : prev.title,
+                        subtitle: data.subtitle !== undefined ? boundedText(data.subtitle, prev.subtitle, 256) : prev.subtitle,
+                        position: ['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(data.position) ? data.position : prev.position,
+                        accentColor: data.accentColor !== undefined ? (boundedText(data.accentColor, '', 96) || null) : prev.accentColor,
+                        lines: Array.isArray(data.lines) ? normalizeDebugLines(data.lines) : prev.lines,
+                        data: data.data !== undefined ? (isRecord(data.data) ? data.data : null) : prev.data
                     }));
                     break;
                 case 'debugPanelHide':
                     setDebugPanel(prev => ({ ...prev, open: false }));
                     break;
                 case 'hideNotify':
-                    if (data?.id) {
-                        removeNotification(data.id);
+                    if (boundedText(data.id, '', 128)) {
+                        removeNotification(boundedText(data.id, '', 128));
                     }
                     break;
                 case 'clearNotifications':
-                    clearNotifications();
+                    clearNotifications(data);
                     break;
                 case 'progressStart':
                     startProgress(data);
@@ -3614,45 +4558,58 @@ function App() {
                     endProgress();
                     break;
                 case 'alertDialog': {
-                    const content = Array.isArray(data?.content) ? data.content.join('\n') : (data?.content || '');
+                    const content = Array.isArray(data.content)
+                        ? data.content.slice(0, 64).map(value => boundedText(value, '', 512)).join('\n').slice(0, NUI_MAX_TEXT_LENGTH)
+                        : boundedText(data.content, '', NUI_MAX_TEXT_LENGTH);
                     setAlertDialog({
                         open: true,
-                        header: data?.header || '',
+                        session: normalizeSession(data.session),
+                        header: boundedText(data.header, '', 256),
                         content,
-                        centered: Boolean(data?.centered),
-                        cancel: data?.cancel !== false,
+                        centered: Boolean(data.centered),
+                        cancel: data.cancel !== false,
                         labels: {
-                            confirm: data?.labels?.confirm || 'CONFIRM',
-                            cancel: data?.labels?.cancel || 'CANCEL'
+                            confirm: boundedText(isRecord(data.labels) ? data.labels.confirm : null, 'CONFIRM', 64),
+                            cancel: boundedText(isRecord(data.labels) ? data.labels.cancel : null, 'CANCEL', 64)
                         },
-                        style: data?.style || null
+                        style: normalizeAlertStyle(data.style)
                     });
                     break;
                 }
+                case 'alertDialogClose':
+                    setAlertDialog(prev => prev.session === normalizeSession(data.session)
+                        ? { ...prev, open: false }
+                        : prev);
+                    break;
                 case 'contextMenu': {
                     setContextMenu({
                         open: true,
-                        title: data?.title || '',
-                        fields: Array.isArray(data?.fields) ? data.fields : [],
-                        values: data?.values || {},
+                        session: normalizeSession(data.session),
+                        title: boundedText(data.title, '', 256),
+                        fields: Array.isArray(data.fields)
+                            ? data.fields.slice(0, NUI_MAX_CONTEXT_FIELDS).map(normalizeContextField).filter(Boolean)
+                            : [],
+                        values: isRecord(data.values) ? data.values : {},
                         labels: {
-                            confirm: data?.labels?.confirm || 'CONFIRM',
-                            cancel: data?.labels?.cancel || 'CANCEL'
+                            confirm: boundedText(isRecord(data.labels) ? data.labels.confirm : null, 'CONFIRM', 64),
+                            cancel: boundedText(isRecord(data.labels) ? data.labels.cancel : null, 'CANCEL', 64)
                         }
                     });
                     break;
                 }
                 case 'contextMenuClose':
-                    setContextMenu(prev => ({ ...prev, open: false }));
+                    setContextMenu(prev => prev.session === normalizeSession(data.session)
+                        ? { ...prev, open: false }
+                        : prev);
                     break;
                 case 'textUIShow': {
                     setTextUi({
                         open: true,
-                        text: data?.text || '',
-                        position: data?.position || 'bottom-center',
-                        icon: data?.icon || null,
-                        style: data?.style || null,
-                        backdrop: Boolean(data?.backdrop)
+                        text: boundedText(data.text, '', NUI_MAX_TEXT_LENGTH),
+                        position: ['top-center', 'top-left', 'top-right', 'bottom-center', 'bottom-left', 'bottom-right'].includes(data.position) ? data.position : 'bottom-center',
+                        icon: boundedText(data.icon, '', 32) || null,
+                        style: normalizeAlertStyle(data.style),
+                        backdrop: Boolean(data.backdrop)
                     });
                     break;
                 }
@@ -3660,7 +4617,7 @@ function App() {
                     setTextUi(prev => ({ ...prev, open: false }));
                     break;
                 case 'helpShow':
-                    setHelp({ open: true, items: data.items || [] });
+                    setHelp({ open: true, items: normalizeHelpItems(data.items) });
                     break;
                 case 'helpHide':
                     setHelp(prev => ({ ...prev, open: false }));
@@ -3668,53 +4625,66 @@ function App() {
                 case 'radialShow':
                     setRadial({
                         open: true,
-                        id: data?.menuId || null,
-                        items: Array.isArray(data?.items) ? data.items : [],
-                        canGoBack: Boolean(data?.canGoBack),
-                        appearance: data?.appearance || null,
+                        id: boundedText(data.menuId, '', 96) || null,
+                        session: normalizeSession(data.session),
+                        items: normalizeRadialItems(data.items),
+                        canGoBack: Boolean(data.canGoBack),
+                        appearance: data.appearance === 'compact-control' ? 'compact-control' : null,
                         visible: true
                     });
                     break;
                 case 'radialHide':
-                    setRadial(prev => ({ ...prev, open: false, visible: false }));
+                    setRadial(prev => prev.session === normalizeSession(data.session)
+                        ? { ...prev, open: false, visible: false }
+                        : prev);
                     break;
                 case 'radialRefresh':
-                    setRadial(prev => ({
+                    setRadial(prev => prev.session === normalizeSession(data.session) ? ({
                         ...prev,
-                        id: data?.menuId || prev.id,
-                        items: Array.isArray(data?.items) ? data.items : prev.items,
-                        canGoBack: data?.canGoBack !== undefined ? Boolean(data.canGoBack) : prev.canGoBack,
-                        appearance: data?.appearance !== undefined ? data.appearance : prev.appearance
-                    }));
+                        id: boundedText(data.menuId, '', 96) || prev.id,
+                        items: Array.isArray(data.items) ? normalizeRadialItems(data.items) : prev.items,
+                        canGoBack: data.canGoBack !== undefined ? Boolean(data.canGoBack) : prev.canGoBack,
+                        appearance: data.appearance !== undefined ? (data.appearance === 'compact-control' ? 'compact-control' : null) : prev.appearance
+                    }) : prev);
                     break;
                 case 'radialTransitionOut':
-                    setRadial(prev => ({ ...prev, visible: false }));
+                    setRadial(prev => prev.session === normalizeSession(data.session)
+                        ? { ...prev, visible: false }
+                        : prev);
                     break;
                 case 'radialTransitionIn':
-                    setRadial(prev => ({
+                    setRadial(prev => prev.session === normalizeSession(data.session) ? ({
                         ...prev,
-                        id: data?.menuId || null,
-                        items: Array.isArray(data?.items) ? data.items : [],
-                        canGoBack: Boolean(data?.canGoBack),
-                        appearance: data?.appearance || null,
+                        id: boundedText(data.menuId, '', 96) || null,
+                        items: normalizeRadialItems(data.items),
+                        canGoBack: Boolean(data.canGoBack),
+                        appearance: data.appearance === 'compact-control' ? 'compact-control' : null,
                         visible: true
-                    }));
+                    }) : prev);
                     break;
                 case 'settingsOpen':
-                    setSettingsPanel({ open: true, tabs: Array.isArray(data?.tabs) ? data.tabs : [] });
+                    setSettingsPanel({
+                        open: true,
+                        session: normalizeSession(data.session),
+                        tabs: normalizeSettingsTabs(data.tabs)
+                    });
                     break;
                 case 'settingsClose':
-                    setSettingsPanel(prev => ({ ...prev, open: false }));
+                    setSettingsPanel(prev => prev.session === normalizeSession(data.session)
+                        ? { ...prev, open: false }
+                        : prev);
                     break;
                 case 'notifySetPosition':
-                    if (data?.position) setNotifyPosition(data.position);
+                    if (['top', 'top-right', 'top-left', 'bottom', 'bottom-right', 'bottom-left'].includes(data.position)) {
+                        setNotifyPosition(data.position);
+                    }
                     break;
             }
         };
 
         window.addEventListener('message', handleMessage);
         return () => window.removeEventListener('message', handleMessage);
-    }, [addNotification, removeNotification, clearNotifications, startProgress, endProgress, openMenu, closeMenuLocal, setMenuOptionsAll, setMenuOptionSingle, notifications.length, notifyPosition, setDebugPanel]);
+    }, [addNotification, removeNotification, clearNotifications, startProgress, endProgress, openMenu, setMenuOptionsAll, setMenuOptionSingle]);
 
     return React.createElement(React.Fragment, null,
         React.createElement(NotificationContainer, {

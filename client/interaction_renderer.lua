@@ -48,6 +48,20 @@ local function setPresentationState(item, visible, distance)
     lib._setInteractionPresentationState(item.owner, item.id, visible == true, distance)
 end
 
+local function setWorldPresentationState(descriptor, visible, distance)
+    local nextVisible = visible == true
+    local nextDistance = nextVisible and distance or nil
+    if descriptor.presentationVisible == nextVisible
+        and descriptor.presentationDistance == nextDistance
+    then
+        return
+    end
+
+    descriptor.presentationVisible = nextVisible
+    descriptor.presentationDistance = nextDistance
+    setPresentationState(descriptor.frameItem, nextVisible, nextDistance)
+end
+
 -- Screen prompts communicate a single key press. Hold state is intentionally
 -- forwarded only for anchored world prompts, where the ring is visible.
 local function copyPresentationItem(item, includeHold)
@@ -62,6 +76,7 @@ local function copyPresentationItem(item, includeHold)
             id = panel.id,
             label = panel.label,
             variant = panel.variant,
+            marker = panel.marker,
         } or nil,
         holdDuration = includeHold and item.holdDuration or nil,
         holdActive = includeHold and item.holdActive == true or false,
@@ -74,6 +89,7 @@ local function presentationPanelsEqual(left, right)
     return left.id == right.id
         and left.label == right.label
         and left.variant == right.variant
+        and left.marker == right.marker
 end
 
 local function presentationItemsEqual(left, right)
@@ -106,7 +122,27 @@ local function clearArray(items, fromIndex)
     end
 end
 
+local function hideWorldPresentations()
+    local handled = {}
+
+    for index = 1, #worldInteractions do
+        local descriptor = worldInteractions[index]
+        handled[descriptor.key] = true
+        setWorldPresentationState(descriptor, false)
+    end
+
+    for index = 1, #visibleWorldInteractions do
+        local descriptor = visibleWorldInteractions[index]
+        if not handled[descriptor.key] then
+            handled[descriptor.key] = true
+            setWorldPresentationState(descriptor, false)
+        end
+    end
+end
+
 local function hideWorldFrame()
+    hideWorldPresentations()
+
     if worldFrameVisible then
         send(emptyWorldFrameMessage)
     end
@@ -133,6 +169,11 @@ local function prepareWorldInteraction(item, previous)
         maxDistanceSquared = maxDistance * maxDistance,
         frameItem = copyPresentationItem(item, true),
     }
+
+    if previous then
+        descriptor.presentationVisible = previous.presentationVisible
+        descriptor.presentationDistance = previous.presentationDistance
+    end
 
     if anchor.type == 'world' then
         local x = tonumber(anchor.x)
@@ -179,6 +220,7 @@ local function sendCurrentInteractions(force)
     local screenItems = {}
     local nextWorldInteractions = {}
     local previousWorldByKey = {}
+    local nextWorldByKey = {}
 
     for index = 1, #worldInteractions do
         local descriptor = worldInteractions[index]
@@ -194,16 +236,25 @@ local function sendCurrentInteractions(force)
                 local descriptor = prepareWorldInteraction(item, previousWorldByKey[descriptorKey])
                 if descriptor then
                     nextWorldInteractions[#nextWorldInteractions + 1] = descriptor
+                    nextWorldByKey[descriptorKey] = true
                 else
-                    setPresentationState(item, false)
+                    if not previousWorldByKey[descriptorKey] then setPresentationState(item, false) end
                 end
             else
                 screenItems[#screenItems + 1] = copyPresentationItem(item)
                 setPresentationState(item, nuiReady)
             end
         else
-            setPresentationState(item, false)
+            local descriptorKey = type(item.anchor) == 'table' and (item.owner .. '\0' .. item.id) or nil
+            if not descriptorKey or not previousWorldByKey[descriptorKey] then
+                setPresentationState(item, false)
+            end
         end
+    end
+
+    for index = 1, #worldInteractions do
+        local descriptor = worldInteractions[index]
+        if not nextWorldByKey[descriptor.key] then setWorldPresentationState(descriptor, false) end
     end
 
     worldInteractions = nextWorldInteractions
@@ -323,29 +374,57 @@ local function getPlayerPed()
     return ped
 end
 
+local function isFiniteNumber(value)
+    return type(value) == 'number'
+        and value == value
+        and value ~= math.huge
+        and value ~= -math.huge
+end
+
+local function finiteCoords(coords)
+    if coords == nil then return nil end
+    local ok, x, y, z = pcall(function()
+        return coords.x, coords.y, coords.z
+    end)
+    if not ok or not isFiniteNumber(x) or not isFiniteNumber(y) or not isFiniteNumber(z) then
+        return nil
+    end
+    return x, y, z
+end
+
 local function buildWorldFrame()
     local ped = getPlayerPed()
-    if ped == 0 or not DoesEntityExist(ped) then return 0, worldFrameVisible end
+    if type(ped) ~= 'number' or ped <= 0 or not DoesEntityExist(ped) then
+        hideWorldFrame()
+        return 0, false
+    end
 
-    local pedCoords = GetEntityCoords(ped)
+    local pedX, pedY, pedZ = finiteCoords(GetEntityCoords(ped))
+    if not pedX then
+        hideWorldFrame()
+        return 0, false
+    end
     local frameCount = 0
     local frameChanged = worldFrameDirty
 
     for index = 1, #worldInteractions do
         local descriptor = worldInteractions[index]
-        setPresentationState(descriptor.frameItem, false)
         local x, y, z = resolveAnchor(descriptor)
+        local descriptorVisible = false
 
-        if x then
-            local dx = pedCoords.x - x
-            local dy = pedCoords.y - y
-            local dz = pedCoords.z - z
+        if isFiniteNumber(x) and isFiniteNumber(y) and isFiniteNumber(z) then
+            local dx = pedX - x
+            local dy = pedY - y
+            local dz = pedZ - z
             local distanceSquared = (dx * dx) + (dy * dy) + (dz * dz)
 
             if distanceSquared <= descriptor.maxDistanceSquared then
                 local onScreen, screenX, screenY = World3dToScreen2d(x, y, z)
 
-                if onScreen and screenX >= 0.0 and screenX <= 1.0 and screenY >= 0.0 and screenY <= 1.0 then
+                if onScreen
+                    and isFiniteNumber(screenX) and isFiniteNumber(screenY)
+                    and screenX >= 0.0 and screenX <= 1.0 and screenY >= 0.0 and screenY <= 1.0
+                then
                     frameCount = frameCount + 1
                     local distance = math_sqrt(distanceSquared)
                     local frameItem = descriptor.frameItem
@@ -355,7 +434,8 @@ local function buildWorldFrame()
                     frameItem.distance = distance
                     worldFrameItems[frameCount] = frameItem
                     visibleWorldInteractions[frameCount] = descriptor
-                    setPresentationState(frameItem, true, distance)
+                    descriptorVisible = true
+                    setWorldPresentationState(descriptor, true, distance)
 
                     if lastWorldInteractions[frameCount] ~= descriptor
                         or descriptor.lastSentX ~= screenX
@@ -367,6 +447,8 @@ local function buildWorldFrame()
                 end
             end
         end
+
+        if not descriptorVisible then setWorldPresentationState(descriptor, false) end
     end
 
     if frameCount ~= lastWorldCount then
@@ -429,8 +511,8 @@ AddEventHandler('onClientResourceStop', function(resourceName)
     started = false
     nuiReady = false
     lastScreenItems = nil
-    worldInteractions = {}
     hideWorldFrame()
+    worldInteractions = {}
 end)
 
 CreateThread(function()

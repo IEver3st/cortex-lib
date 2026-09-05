@@ -20,6 +20,10 @@ assert.match(uiSource, /ReactDOM\.createPortal\(/, 'the options layer must escap
 assert.match(uiSource, /role:\s*'combobox'/, 'the select trigger must expose combobox semantics');
 assert.match(uiSource, /role:\s*'listbox'/, 'the options layer must expose listbox semantics');
 assert.match(uiSource, /role:\s*'option'/, 'each choice must expose option semantics');
+assert.match(uiSource, /const selectedIndex = options\.findIndex\(\(option\) => Object\.is\(option\.value, value\)\)/,
+    'settings selections must retain exact scalar type identity');
+assert.doesNotMatch(uiSource, /Object\.is\(option\.value, value\)\s*\|\|/,
+    'numeric and string settings option values must not select each other');
 assert.match(uiSource, /event\.key === 'ArrowDown'/, 'keyboard users must be able to move through choices');
 assert.match(uiSource, /event\.key === 'Escape'[\s\S]*?event\.stopPropagation\(\)/, 'Escape must close only the dropdown first');
 assert.match(uiSource, /window\.addEventListener\('scroll', handleViewportChange, true\)/, 'the floating menu must track the scrolling settings pane');

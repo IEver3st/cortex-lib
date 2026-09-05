@@ -55,7 +55,7 @@ end, true)
 
 - Test menu requires the resource to be running
 - Use `/cortex` to open the test menu
-- Progress bar can be cancelled with right-click if `canCancel = true`
+- Progress can be cancelled with Backspace / the game cancel control if `canCancel = true`
 - Persistent notifications stay visible until dismissed
 - Notification positions: `top-right`, `top-left`, `top`, `bottom-right`, `bottom-left`, `bottom`
-- Progress bar positions: `bottom`, `middle`
+- Progress positions: `top`, `middle` (`center` is accepted as an alias), `bottom`

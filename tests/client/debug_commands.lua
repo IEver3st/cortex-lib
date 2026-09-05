@@ -200,11 +200,11 @@ local function testCancelable()
     lib.notify({
         type = 'info',
         title = 'Cancelable Test',
-        description = 'Progress will appear - try cancelling with right-click',
+        description = 'Progress will appear - try cancelling with Backspace',
         duration = 3000
     })
     local completed = lib.progress({
-        label = 'Cancel this with right-click',
+        label = 'Cancel this with Backspace',
         duration = 8000,
         position = 'bottom',
         style = 'bar',
@@ -773,7 +773,7 @@ lib.registerMenu({
         { label = 'Middle Position', description = '3 second middle progress (no cancel)' },
         { label = 'Short Duration', description = '1 second quick progress' },
         { label = 'Long Duration', description = '10 second long progress' },
-        { label = 'Cancelable', description = 'Test canceling with right-click' },
+        { label = 'Cancelable', description = 'Test canceling with Backspace' },
     }
 }, function(selected, scrollIndex, args)
     if selected == 1 then

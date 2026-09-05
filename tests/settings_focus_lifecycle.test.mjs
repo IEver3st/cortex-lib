@@ -36,13 +36,19 @@ assert.doesNotMatch(
 );
 
 const readyMatch = source.match(
-    /RegisterNUICallback\('settingsReady',[\s\S]*?function\(_, cb\)([\s\S]*?)\nend\)/
+    /RegisterNUICallback\('settingsReady',[\s\S]*?function\(data, cb\)([\s\S]*?)\nend\)/
 );
 assert.ok(readyMatch, 'settingsReady callback must remain registered');
-assert.match(readyMatch[1], /if settingsOpen then[\s\S]*?SetNuiFocus\(true, true\)/);
+assert.match(readyMatch[1], /matchesSettingsModal\(data\)/, 'settingsReady must reject a stale session');
+assert.match(readyMatch[1], /focusSettingsModal\(settingsSession\)/, 'settingsReady must acquire focus for the active session');
+assert.match(
+    source,
+    /local function focusSettingsModal\(session\)[\s\S]*?SetNuiFocus\(true, true\)/,
+    'the settings focus helper must preserve the native focus fallback'
+);
 assert.match(
     uiSource,
-    /function SettingsPanel[\s\S]*?if \(!open\) return;[\s\S]*?nuiPost\('settingsReady', \{\}\)/,
+    /function SettingsPanel[\s\S]*?if \(!open\) return;[\s\S]*?nuiPost\('settingsReady', \{ session \}\)/,
     'the rendered settings panel must acknowledge readiness before Lua acquires focus'
 );
 
@@ -58,14 +64,20 @@ const saveMatch = source.match(
 );
 assert.ok(saveMatch, 'settingsSave callback must remain registered');
 assert.ok(
-    saveMatch[1].indexOf('releaseSettingsFocus()') < saveMatch[1].indexOf('commitPreviewValues('),
-    'settingsSave must release focus before applying values that can fail'
+    saveMatch[1].indexOf('commitPreviewValues(') < saveMatch[1].indexOf('releaseSettingsFocus()'),
+    'settingsSave must keep the modal session active until the transactional commit succeeds'
+);
+assert.match(
+    saveMatch[1],
+    /if not ok then[\s\S]*?restorePersistedValues[\s\S]*?rollbackPreviewValues\(\)[\s\S]*?beginPreviewSession\(\)[\s\S]*?cb\(\{ ok = false/,
+    'a failed settings commit must restore data and leave a retryable preview session open'
 );
 
 const cancelMatch = source.match(
-    /RegisterNUICallback\('settingsCancel',[\s\S]*?function\(_, cb\)([\s\S]*?)\nend\)/
+    /RegisterNUICallback\('settingsCancel',[\s\S]*?function\(data, cb\)([\s\S]*?)\nend\)/
 );
 assert.ok(cancelMatch, 'settingsCancel callback must remain registered');
+assert.match(cancelMatch[1], /matchesSettingsModal\(data\)/, 'settingsCancel must reject a stale session');
 assert.match(cancelMatch[1], /releaseSettingsFocus\(\)/);
 
 assert.match(

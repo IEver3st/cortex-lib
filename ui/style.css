@@ -125,7 +125,8 @@ body {
 
 button:focus-visible,
 input:focus-visible,
-select:focus-visible {
+select:focus-visible,
+[tabindex]:focus-visible {
     outline: 2px solid var(--state-focus);
     outline-offset: 2px;
 }
@@ -139,6 +140,18 @@ select:disabled {
 
 .cortex-editor-root {
     pointer-events: auto;
+}
+
+.cortex-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
 
 /* ============================================================================
@@ -556,8 +569,11 @@ select:disabled {
 }
 
 .alert-dialog {
-    min-width: calc(420px * var(--cortex-ui-scale));
-    max-width: calc(620px * var(--cortex-ui-scale));
+    width: min(calc(620px * var(--cortex-ui-scale)), calc(100vw - 24px));
+    min-width: 0;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    overflow: auto;
     background: var(--surface-panel-solid);
     border: 1px solid var(--border-default);
     border-radius: calc(6px * var(--cortex-ui-scale));
@@ -777,6 +793,10 @@ select:disabled {
 
 .cortex-menu {
     width: calc(320px * var(--cortex-ui-scale));
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    display: flex;
+    flex-direction: column;
     background: var(--hud-panel);
     border: 1px solid var(--hud-line);
     border-radius: calc(6px * var(--cortex-ui-scale));
@@ -807,6 +827,7 @@ select:disabled {
 .cortex-menu-body {
     display: flex;
     flex-direction: column;
+    min-height: 0;
     max-height: calc(440px * var(--cortex-ui-scale));
     overflow-y: auto;
     overflow-x: hidden;
@@ -828,6 +849,10 @@ select:disabled {
 
 .cortex-menu-option {
     display: flex;
+    width: 100%;
+    border: 0;
+    font: inherit;
+    text-align: left;
     align-items: center;
     justify-content: space-between;
     gap: calc(10px * var(--cortex-ui-scale));
@@ -850,6 +875,18 @@ select:disabled {
 .cortex-menu-option.active {
     background: var(--state-selection-surface);
     border-left-color: var(--state-selection);
+}
+
+.cortex-menu-option-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: calc(22px * var(--cortex-ui-scale));
+    min-width: calc(22px * var(--cortex-ui-scale));
+    color: var(--cortex-menu-icon-color, var(--hud-dim));
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", sans-serif;
+    font-size: calc(16px * var(--cortex-ui-scale));
+    line-height: 1;
 }
 
 .cortex-menu-option-main {
@@ -921,6 +958,8 @@ select:disabled {
    ============================================================================ */
 
 .cortex-editor-root {
+    --cortex-editor-sidebar-width: min(calc(320px * var(--cortex-ui-scale)), 44vw);
+    --cortex-editor-panel-width: min(calc(320px * var(--cortex-ui-scale)), 56vw);
     position: fixed;
     inset: 0;
     z-index: 10000;
@@ -933,7 +972,7 @@ select:disabled {
 }
 
 .cortex-editor-toolbar {
-    height: calc(48px * var(--cortex-ui-scale));
+    min-height: calc(48px * var(--cortex-ui-scale));
     background: var(--hud-panel-2);
     border-bottom: 1px solid var(--hud-line);
     display: flex;
@@ -958,6 +997,8 @@ select:disabled {
 .cortex-editor-actions {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: calc(8px * var(--cortex-ui-scale));
 }
 
@@ -1062,7 +1103,8 @@ select:disabled {
 }
 
 .cortex-editor-sidebar {
-    width: calc(320px * var(--cortex-ui-scale));
+    width: var(--cortex-editor-sidebar-width);
+    min-width: 0;
     background: var(--hud-panel);
     border-right: 1px solid var(--hud-line);
     display: flex;
@@ -1127,6 +1169,18 @@ select:disabled {
     overflow: hidden;
 }
 
+.cortex-zone-select {
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
 .cortex-zone-name {
     font-size: calc(12px * var(--cortex-ui-scale));
     font-weight: 700;
@@ -1160,7 +1214,8 @@ select:disabled {
     transition: opacity 0.2s;
 }
 
-.cortex-zone-item:hover .cortex-zone-delete {
+.cortex-zone-item:hover .cortex-zone-delete,
+.cortex-zone-item:focus-within .cortex-zone-delete {
     opacity: 1;
 }
 
@@ -1174,7 +1229,7 @@ select:disabled {
     left: 100%;
     top: 0;
     bottom: 0;
-    width: calc(320px * var(--cortex-ui-scale));
+    width: var(--cortex-editor-panel-width);
     /* Matched width */
     background: var(--hud-panel);
     border-left: 1px solid var(--hud-line);
@@ -1334,6 +1389,7 @@ select:disabled {
 /* Map & Calibration */
 .cortex-editor-map {
     flex: 1;
+    min-width: 0;
     background: var(--cortex-black);
     position: relative;
     overflow: hidden;
@@ -1603,6 +1659,7 @@ select:disabled {
     position: fixed;
     left: 50%;
     transform: translateX(-50%);
+    width: min(calc(320px * var(--cortex-ui-scale)), calc(100vw - 24px));
     z-index: 9998;
     opacity: 0;
     visibility: hidden;
@@ -1615,7 +1672,11 @@ select:disabled {
 }
 
 .progress-container.bottom {
-    bottom: calc(80px * var(--cortex-ui-scale));
+    bottom: clamp(12px, calc(80px * var(--cortex-ui-scale)), 15vh);
+}
+
+.progress-container.top {
+    top: clamp(12px, calc(80px * var(--cortex-ui-scale)), 15vh);
 }
 
 .progress-container.middle {
@@ -1628,7 +1689,8 @@ select:disabled {
     flex-direction: column;
     align-items: center;
     gap: calc(8px * var(--cortex-ui-scale));
-    min-width: calc(250px * var(--cortex-ui-scale));
+    width: 100%;
+    min-width: 0;
 }
 
 .progress-track {
@@ -1786,9 +1848,16 @@ select:disabled {
     transform: scale(1);
 }
 
+.cortex-radial-overlay:not(.visible) {
+    pointer-events: none;
+}
+
 .cortex-radial-svg {
     width: calc(350px * var(--cortex-ui-scale));
     height: calc(350px * var(--cortex-ui-scale));
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    aspect-ratio: 1;
     filter: drop-shadow(0 4px 20px var(--shadow-color-soft));
 }
 
@@ -1891,6 +1960,30 @@ select:disabled {
         0 calc(2px * var(--cortex-interaction-scale, 1)) calc(2px * var(--cortex-interaction-scale, 1)) var(--shadow-color);
 }
 
+.cortex-target-key-label {
+    display: grid;
+    justify-items: center;
+    max-width: calc(36px * var(--cortex-interaction-scale, 1));
+    overflow: hidden;
+    text-align: center;
+    line-height: 1;
+}
+
+.cortex-target-key-prefix {
+    font-size: calc(10px * var(--cortex-interaction-scale, 1));
+    letter-spacing: calc(0.5px * var(--cortex-interaction-scale, 1));
+}
+
+.cortex-target-key-label.is-numpad .cortex-target-key-value {
+    font-size: calc(22px * var(--cortex-interaction-scale, 1));
+    line-height: 0.95;
+}
+
+.cortex-target-key-label.is-wide {
+    font-size: calc(9px * var(--cortex-interaction-scale, 1));
+    overflow-wrap: anywhere;
+}
+
 .cortex-target-divider {
     display: block;
     width: 100%;
@@ -1912,10 +2005,16 @@ select:disabled {
     letter-spacing: calc(1.15px * var(--cortex-interaction-scale, 1));
 }
 
+.cortex-target-context-label.is-long {
+    font-size: calc(24px * var(--cortex-interaction-scale, 1));
+    letter-spacing: calc(0.5px * var(--cortex-interaction-scale, 1));
+}
+
 .cortex-target-marker {
     width: var(--cortex-target-marker-size);
     height: var(--cortex-target-marker-size);
     justify-self: center;
+    font-size: calc(26px * var(--cortex-interaction-scale, 1));
 }
 
 .cortex-interaction-label,
@@ -2219,7 +2318,7 @@ select:disabled {
 
 .cortex-radial-sector-icon {
     font-size: calc(22px * var(--cortex-ui-scale));
-    fill: var(--hud-color);
+    fill: var(--cortex-radial-icon-color, var(--hud-color));
     pointer-events: none;
     transition: fill 0.1s ease;
 }
@@ -2367,9 +2466,11 @@ select:disabled {
 }
 
 .cortex-context-dialog {
-    width: calc(420px * var(--cortex-ui-scale));
-    min-width: calc(320px * var(--cortex-ui-scale));
-    max-width: 92vw;
+    width: min(calc(420px * var(--cortex-ui-scale)), calc(100vw - 24px));
+    min-width: 0;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    overflow: auto;
     background: var(--surface-panel-solid);
     border: 1px solid var(--border-default);
     border-radius: calc(8px * var(--cortex-ui-scale));
@@ -2425,6 +2526,13 @@ select:disabled {
     display: flex;
     align-items: center;
     gap: calc(10px * var(--cortex-ui-scale));
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
     cursor: pointer;
 }
 
@@ -2475,10 +2583,14 @@ select:disabled {
     align-items: center;
     justify-content: space-between;
     gap: calc(10px * var(--cortex-ui-scale));
+    width: 100%;
     padding: calc(10px * var(--cortex-ui-scale)) calc(12px * var(--cortex-ui-scale));
     background: var(--surface-control);
     border: 1px solid var(--border-default);
     border-radius: calc(6px * var(--cortex-ui-scale));
+    color: inherit;
+    font: inherit;
+    text-align: left;
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
 }
@@ -2524,14 +2636,20 @@ select:disabled {
 }
 
 .cortex-context-select-option {
+    width: 100%;
     padding: calc(10px * var(--cortex-ui-scale)) calc(12px * var(--cortex-ui-scale));
+    border: 0;
+    background: transparent;
+    font: inherit;
+    text-align: left;
     font-size: calc(12px * var(--cortex-ui-scale));
     color: var(--hud-color);
     cursor: pointer;
     transition: background 0.12s;
 }
 
-.cortex-context-select-option:hover {
+.cortex-context-select-option:hover,
+.cortex-context-select-option.active {
     background: var(--surface-control-hover);
 }
 
@@ -2722,6 +2840,17 @@ select:disabled {
 .cortex-settings-tab.active {
     color: var(--state-selection);
     border-bottom-color: var(--state-selection);
+}
+
+/* Focus ring must paint inside the tab: the tabs strip clips overflow, which
+   sliced the global outset outline down to a stray vertical line. */
+.cortex-settings-tab:focus {
+    outline: none;
+}
+
+.cortex-settings-tab:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--state-focus);
 }
 
 /* Content */
@@ -3196,6 +3325,8 @@ select:disabled {
 
 .cortex-settings-footer-right {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: calc(10px * var(--cortex-ui-scale));
 }
 
@@ -3220,12 +3351,16 @@ select:disabled {
 
 @media (max-width: 560px) {
     .cortex-settings-footer {
+        align-items: flex-end;
+        gap: calc(8px * var(--cortex-ui-scale));
         padding-left: calc(12px * var(--cortex-ui-scale));
         padding-right: calc(12px * var(--cortex-ui-scale));
     }
 
     .cortex-settings-live-note {
-        display: none;
+        max-width: 38vw;
+        white-space: normal;
+        line-height: 1.35;
     }
 
     .cortex-settings-btn {
@@ -3255,6 +3390,13 @@ select:disabled {
     border-color: var(--border-strong);
 }
 
+.cortex-settings-btn:disabled,
+.cortex-settings-action-btn:disabled,
+.cortex-settings-close:disabled {
+    opacity: 0.55;
+    pointer-events: none;
+}
+
 .cortex-settings-btn.reset {
     background: var(--state-error-surface);
     border-color: var(--state-error);
@@ -3280,4 +3422,73 @@ select:disabled {
 .cortex-settings-btn.save:hover {
     background: var(--state-focus-surface-hover);
     border-color: var(--state-focus);
+}
+
+@media (max-width: 900px) {
+    .cortex-editor-toolbar {
+        height: auto;
+        padding-top: calc(8px * var(--cortex-ui-scale));
+        padding-bottom: calc(8px * var(--cortex-ui-scale));
+        flex-wrap: wrap;
+    }
+
+    .cortex-editor-actions {
+        max-width: 100%;
+    }
+}
+
+@media (max-height: 700px) {
+    .cortex-menu-root.top-left,
+    .cortex-menu-root.top-right {
+        top: 12px;
+    }
+
+    .cortex-menu-root.bottom-left,
+    .cortex-menu-root.bottom-right {
+        bottom: 12px;
+    }
+
+    .cortex-menu-body {
+        max-height: calc(100vh - 180px);
+    }
+}
+
+@media (max-width: 374px), (max-height: 374px) {
+    .cortex-radial-svg,
+    .cortex-radial-svg--compact-control {
+        max-width: min(calc(100vw - 24px), calc(100vh - 24px));
+        height: auto;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .notify,
+    .notify.exiting,
+    .cortex-draw-indicator,
+    .cortex-interaction,
+    .cortex-world-interaction-label,
+    .cortex-key,
+    .alert-dialog,
+    .cortex-context-dialog {
+        animation: none;
+    }
+
+    .notify,
+    .cortex-editor-btn,
+    .cortex-zone-item,
+    .cortex-zone-delete,
+    .cortex-menu-option,
+    .cortex-context-checkbox-box,
+    .cortex-context-checkbox-box svg,
+    .cortex-context-select-trigger,
+    .cortex-context-select-option,
+    .cortex-context-input,
+    .cortex-settings-btn,
+    .cortex-settings-action-btn,
+    .cortex-settings-input,
+    .cortex-settings-tab,
+    .cortex-settings-close,
+    .cortex-settings-slider {
+        transition: none;
+    }
 }
