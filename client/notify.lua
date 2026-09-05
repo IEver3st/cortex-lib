@@ -18,6 +18,28 @@ local function getDefaultPosition()
     return setting or 'top-right'
 end
 
+local function resolveUserDefaultSound()
+    local getCatalog = lib.getNotifySoundCatalog
+    local getSetting = lib.getSetting
+
+    if type(getCatalog) ~= 'function' or type(getSetting) ~= 'function' then
+        return nil
+    end
+
+    local presetId = getSetting('notifySoundPreset')
+    if type(presetId) ~= 'string' or presetId == '' then
+        return nil
+    end
+
+    for _, entry in ipairs(getCatalog()) do
+        if entry.value == presetId then
+            return { name = entry.name, set = entry.set }
+        end
+    end
+
+    return nil
+end
+
 local function playSound(sound, notifyType)
     if not isSoundEnabled() then
         return
@@ -26,7 +48,7 @@ local function playSound(sound, notifyType)
     local soundData
     
     if sound == true then
-        soundData = SoundPresets[notifyType] or SoundPresets.info
+        soundData = resolveUserDefaultSound() or SoundPresets[notifyType] or SoundPresets.info
     elseif type(sound) == 'table' then
         soundData = sound
     else
@@ -52,8 +74,12 @@ function lib.notify(data)
         data.duration = data.duration or 3000
     end
     
-    if data.sound then
-        playSound(data.sound, data.type)
+    if data.sound ~= false then
+        local s = data.sound
+        if s == nil then
+            s = true
+        end
+        playSound(s, data.type)
     end
 
     local nuiData = {}
@@ -306,7 +332,8 @@ function lib.showTextUI(text, opts)
             text = text,
             position = opts.position or 'bottom-center',
             icon = opts.icon,
-            style = opts.style
+            style = opts.style,
+            backdrop = opts.backdrop == true
         }
     })
 end

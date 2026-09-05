@@ -20,8 +20,15 @@
 ---@field position? NotifyPosition Position on screen
 ---@field type? NotifyType Notification type/style
 ---@field showDuration? boolean Show duration progress bar
----@field sound? boolean|SoundData Play sound (true = default, or custom sound data)
+---@field sound? boolean|SoundData|false Omit = default click; true = settings/preset; table = custom; false = mute
 ---@field persistent? boolean If true, notification stays until manually closed
+---@field plain? boolean Transparent panel (no black card)
+---@field hideIcon? boolean Hide leading type icon
+---@field icon? boolean Set `false` to hide icon (same as hideIcon)
+
+-- Min ms between notification UI sounds (burst spam guard)
+local NOTIFY_SOUND_MIN_INTERVAL_MS = 280
+local lastNotifySoundGameMs = 0
 
 -- Sound presets for quick access
 local SoundPresets = {
@@ -45,6 +52,29 @@ local function isSoundEnabled()
     return setting
 end
 
+---Resolve { name, set } from Settings → Sound preset (used when `sound == true`).
+local function resolveUserDefaultSound()
+    local getCatalog = lib.getNotifySoundCatalog
+    local getSetting = lib.getSetting
+
+    if type(getCatalog) ~= 'function' or type(getSetting) ~= 'function' then
+        return nil
+    end
+
+    local presetId = getSetting('notifySoundPreset')
+    if type(presetId) ~= 'string' or presetId == '' then
+        return nil
+    end
+
+    for _, entry in ipairs(getCatalog()) do
+        if entry.value == presetId then
+            return { name = entry.name, set = entry.set }
+        end
+    end
+
+    return nil
+end
+
 local function getDefaultPosition()
     local getSetting = lib.getSetting
     if type(getSetting) ~= 'function' then
@@ -65,13 +95,19 @@ local function playSound(sound, notifyType)
     local soundData
     
     if sound == true then
-        soundData = SoundPresets[notifyType] or SoundPresets.info
+        soundData = resolveUserDefaultSound() or SoundPresets[notifyType] or SoundPresets.info
     elseif type(sound) == 'table' then
         soundData = sound
     else
         return
     end
-    
+
+    local now = GetGameTimer()
+    if now - lastNotifySoundGameMs < NOTIFY_SOUND_MIN_INTERVAL_MS then
+        return
+    end
+    lastNotifySoundGameMs = now
+
     local soundId = GetSoundId()
     PlaySoundFrontend(soundId, soundData.name, soundData.set, true)
     ReleaseSoundId(soundId)
@@ -101,9 +137,13 @@ local function notify(data)
         data.duration = data.duration or 3000
     end
     
-    -- Play sound if requested
-    if data.sound then
-        playSound(data.sound, data.type)
+    -- Native sound every notify unless explicitly muted (exports / net / lib paths)
+    if data.sound ~= false then
+        local s = data.sound
+        if s == nil then
+            s = true
+        end
+        playSound(s, data.type)
     end
 
     -- Don't send sound data to NUI
@@ -432,6 +472,7 @@ end)
 ---@field position? 'top-center' | 'top-left' | 'top-right' | 'bottom-center' | 'bottom-left' | 'bottom-right'
 ---@field icon? 'hand' | string
 ---@field style? table<string, any>
+---@field backdrop? boolean When true, allow solid background/border from `style` (default: false = text-only plate)
 
 ---Show a single top-level text UI prompt
 ---@param text string
@@ -445,7 +486,8 @@ local function showTextUI(text, opts)
             text = text,
             position = opts.position or 'bottom-center',
             icon = opts.icon,
-            style = opts.style
+            style = opts.style,
+            backdrop = opts.backdrop == true
         }
     })
 end

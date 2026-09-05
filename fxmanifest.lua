@@ -1,37 +1,25 @@
---[[
-    Everest Lib (es_lib)
-    Lightweight UI & Cross-Script Interface
-    
-    Fast. Minimal. Essential.
-    
-    Module-based architecture: modules are lazy-loaded when accessed.
-    Other resources include `@es_lib/init.lua` in shared_scripts to use lib.
-]]
-
 fx_version 'cerulean'
 game 'gta5'
 
 name 'es_lib'
-author 'Everest Studios'
+author 'Cortex Software'
 version '2.0.0'
-description 'Lightweight UI and utility library for the Everest ecosystem (module-based)'
+description 'Lightweight UI and utility library for the Cortex ecosystem (module-based)'
 
--- Internal initialization for es_lib resource itself
+
 shared_script 'resource/init.lua'
 
--- Client utility scripts (register exports for external resources using exports.es_lib:)
+
 client_scripts {
     'client/utils.lua',
     'client/debug_panel.lua',
 }
 
--- Test commands (only loaded internally)
 client_script 'tests/client/debug_commands.lua'
 
--- UI files
+
 ui_page 'ui/index.html'
 
--- Files available for LoadResourceFile (lazy-loaded modules + UI)
 files {
     -- External init for other resources
     'init.lua',
@@ -65,6 +53,3 @@ files {
 }
 
 lua54 'yes'
-
--- Provide the init.lua for external resources to use
--- Usage in other resources: shared_script '@es_lib/init.lua'
