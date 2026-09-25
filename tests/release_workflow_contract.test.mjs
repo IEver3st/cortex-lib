@@ -56,6 +56,7 @@ assert.match(
 );
 assert.doesNotMatch(workflow, /actions\/github-script|softprops\/action-gh-release|oven-sh\/setup-bun/);
 assert.match(workflow, /branches: \[main\]/, 'ordinary main pushes trigger releases');
+assert.match(workflow, /fetch-depth: 2/, 'whitespace checks need the source parent, not a shallow root diff');
 assert.match(workflow, /node scripts\/prepare-release\.mjs/, 'release version is automatic');
 assert.match(workflow, /\[skip release\]/, 'maintenance commits can validate without publishing');
 assert.match(workflow, /RELEASE_ASSET: cortex-lib\.zip/, 'latest download URL must remain stable');
