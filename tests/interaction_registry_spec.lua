@@ -37,7 +37,7 @@ function GetCurrentResourceName()
     return 'cortex-lib'
 end
 
-dofile('../cortex-lib/imports/interaction/client.lua')
+dofile('imports/interaction/client.lua')
 
 local ok = exported.showInteraction({
     id = 'low',

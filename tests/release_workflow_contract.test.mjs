@@ -44,17 +44,25 @@ for (const requiredGate of [
 assert.match(workflow, /git ls-files -z/, 'release contents must come only from tracked files');
 assert.match(
     workflow,
-    /:\(exclude\)tests\/release_workflow_contract\.test\.mjs/,
-    'the repository-only workflow contract must not be copied into the runtime archive'
+    /client imports resource server ui README\.md README\.txt LICENSE THIRD_PARTY_NOTICES\.md/,
+    'release must contain runtime files, the customer README and licenses only'
 );
 assert.match(workflow, /git archive[\s\S]*?--prefix="\$\{RELEASE_NAME\}\/"/, 'archive must contain one top-level resource folder');
 assert.match(workflow, /sha256sum "\$\{RELEASE_ASSET\}"/, 'release must publish an archive checksum');
 assert.match(
     workflow,
-    /Validate exact release archive[\s\S]*?unzip -q[\s\S]*?validate-resource\.ps1[\s\S]*?node --test[\s\S]*?lua5\.4/,
-    'the exact extracted archive must pass manifest, Node, and Lua validation before publication'
+    /Validate exact release archive[\s\S]*?unzip -q[\s\S]*?validate-resource\.ps1[\s\S]*?node --check[\s\S]*?luac5\.4/,
+    'the exact extracted archive must pass manifest and JavaScript/Lua syntax validation before publication'
 );
 assert.doesNotMatch(workflow, /actions\/github-script|softprops\/action-gh-release|oven-sh\/setup-bun/);
+assert.match(workflow, /branches: \[main\]/, 'ordinary main pushes trigger releases');
+assert.match(workflow, /node scripts\/prepare-release\.mjs/, 'release version is automatic');
+assert.match(workflow, /\[skip release\]/, 'maintenance commits can validate without publishing');
+assert.match(workflow, /RELEASE_ASSET: cortex-lib\.zip/, 'latest download URL must remain stable');
+assert.match(workflow, /git push origin "\$\{RELEASE_COMMIT\}:refs\/tags\/\$\{RELEASE_TAG\}"/);
+assert.doesNotMatch(workflow, /git push[^\n]*(?:--force|HEAD:main)/, 'automation must not rewrite tags or main');
+assert.match(workflow, /gh release create[\s\S]*?--draft[\s\S]*?gh release upload[\s\S]*?--draft=false/);
+assert.match(workflow, /gh release download[\s\S]*?sha256sum --check[\s\S]*?cmp/, 'read back the published bytes');
 
 assert.match(validator, /Manifest reference missing/);
 assert.match(validator, /Lazy-loadable import is not listed in files/);
