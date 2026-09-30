@@ -26,14 +26,8 @@ local sqrt = math.sqrt
 local pcall = pcall
 local huge = math.huge
 
-local uiAppHandlers = {}
-local uiAppCount = 0
 local CURRENT_RESOURCE = GetCurrentResourceName()
-local MAX_UI_APPS = 16
-local MAX_UI_PAYLOAD_NODES = 128
-local MAX_UI_PAYLOAD_DEPTH = 4
 local MAX_CLIPBOARD_LENGTH = 16384
-local SUPPORTED_UI_APPS = { weatherzonesEditor = true }
 local VALID_POOLS = {
     CPed = true,
     CObject = true,
@@ -55,20 +49,6 @@ end
 
 local function isBoundedString(value, maxLength)
     return type(value) == 'string' and value ~= '' and #value <= maxLength and not value:find('\0', 1, true)
-end
-
-local function isSafePayloadString(value, maxLength, allowEmpty)
-    return type(value) == 'string'
-        and (allowEmpty or value ~= '')
-        and #value <= maxLength
-        and not value:find('%c')
-end
-
-local function isSafePayloadKey(value)
-    return isSafePayloadString(value, 128, false)
-        and value ~= '__proto__'
-        and value ~= 'prototype'
-        and value ~= 'constructor'
 end
 
 local function isValidEntityHandle(entity)
@@ -112,79 +92,6 @@ local function isDenseArray(value, maxItems)
     return count == length
 end
 
-local function validatePayload(value, depth, budget, seen)
-    local valueType = type(value)
-    if valueType == 'nil' or valueType == 'boolean' then return true end
-    if valueType == 'number' then return isFiniteNumber(value) end
-    if valueType == 'string' then return isSafePayloadString(value, 2048, true) end
-    if valueType ~= 'table' or depth > MAX_UI_PAYLOAD_DEPTH or seen[value] then return false end
-
-    seen[value] = true
-    for key, child in next, value do
-        budget.count = budget.count + 1
-        if budget.count > MAX_UI_PAYLOAD_NODES then
-            seen[value] = nil
-            return false
-        end
-
-        if (type(key) ~= 'string' and type(key) ~= 'number')
-            or (type(key) == 'string' and not isSafePayloadKey(key))
-            or (type(key) == 'number' and not isFiniteNumber(key))
-            or not validatePayload(child, depth + 1, budget, seen)
-        then
-            seen[value] = nil
-            return false
-        end
-    end
-
-    seen[value] = nil
-    return true
-end
-
-local function copyPayload(value, depth, budget, seen)
-    local valueType = type(value)
-    if valueType ~= 'table' then
-        if valueType == 'nil' or valueType == 'boolean' then return value end
-        if valueType == 'number' then return isFiniteNumber(value) and value or nil end
-        if valueType == 'string' then return isSafePayloadString(value, 2048, true) and value or nil end
-        return nil
-    end
-    if depth > MAX_UI_PAYLOAD_DEPTH or seen[value] then return nil end
-
-    seen[value] = true
-    local copy = {}
-    for key, child in next, value do
-        budget.count = budget.count + 1
-        if budget.count > MAX_UI_PAYLOAD_NODES
-            or (type(key) == 'string' and not isSafePayloadKey(key))
-            or (type(key) == 'number' and not isFiniteNumber(key))
-            or (type(key) ~= 'string' and type(key) ~= 'number')
-        then
-            seen[value] = nil
-            return nil
-        end
-
-        local childCopy = copyPayload(child, depth + 1, budget, seen)
-        if type(child) == 'table' and childCopy == nil then
-            seen[value] = nil
-            return nil
-        end
-        copy[key] = childCopy
-    end
-    seen[value] = nil
-    return copy
-end
-
-local function normalizePayload(value)
-    local validateOk, valid = pcall(validatePayload, value, 0, { count = 0 }, {})
-    if not validateOk or not valid then return nil end
-
-    if type(value) ~= 'table' then return value end
-    local copyOk, copy = pcall(copyPayload, value, 0, { count = 0 }, {})
-    if not copyOk then return nil end
-    return copy
-end
-
 local function vehicleHasPlayerOccupant(vehicle, localPlayerVehicle)
     if vehicle == localPlayerVehicle then return true end
     if type(GetVehicleMaxNumberOfPassengers) ~= 'function'
@@ -212,17 +119,33 @@ local function releaseNativeFocus()
     end
 end
 
+local modalReleaseObservers = {}
+local function notifyModalReleased(generation, reason)
+    local observer = modalReleaseObservers[generation]
+    modalReleaseObservers[generation] = nil
+    if observer then
+        SetTimeout(0, function()
+            if GetResourceState(observer.owner) == 'started' then
+                pcall(observer.callback, generation, reason)
+            end
+        end)
+    end
+end
+
 local function closeCurrentModal(reason)
     if not modalState.surface then return false end
 
     local previousSurface = modalState.surface
     local previousGeneration = modalState.generation
+    local external = modalState.external
+    modalState.external = nil
     modalState.surface = nil
     modalState.resource = nil
     modalState.focused = false
-    releaseNativeFocus()
+    if not external then releaseNativeFocus() end
 
     local closer = modalClosers[previousSurface]
+    if external then modalClosers[previousSurface] = nil end
     if closer then
         local ok, err = pcall(closer, previousGeneration, reason or 'replaced')
         if not ok then
@@ -230,6 +153,7 @@ local function closeCurrentModal(reason)
         end
     end
 
+    notifyModalReleased(previousGeneration, reason or 'replaced')
     return true
 end
 
@@ -255,12 +179,12 @@ function lib._acquireModal(surface, resourceName)
     return modalState.generation
 end
 
-function lib._focusModal(surface, generation, keepInput)
+function lib._focusModal(surface, generation, keepInput, cursor)
     if modalState.surface ~= surface or modalState.generation ~= generation then
         return false
     end
 
-    SetNuiFocus(true, true)
+    SetNuiFocus(true, cursor ~= false)
     if type(SetNuiFocusKeepInput) == 'function' then
         SetNuiFocusKeepInput(keepInput == true)
     end
@@ -280,11 +204,18 @@ function lib._releaseModal(surface, generation)
         return false
     end
 
+    if modalState.external then return closeCurrentModal('released') end
     modalState.surface = nil
     modalState.resource = nil
     modalState.focused = false
     releaseNativeFocus()
+    notifyModalReleased(generation, 'released')
     return true
+end
+
+-- Frame-bound guards only need occupancy, not an allocated snapshot.
+function lib._hasModalSurface()
+    return modalState.surface ~= nil
 end
 
 function lib._getModalState()
@@ -498,211 +429,10 @@ function lib.copyToClipboard(text)
     return true
 end
 
-function lib.registerUiApp(appId, handler)
-    if not isBoundedString(appId, 64) or not appId:match('^[%w:_%-%.]+$') then
-        error('cortex-lib.registerUiApp: appId must be a non-empty string')
-    end
-
-    if type(handler) ~= 'function' then
-        error('cortex-lib.registerUiApp: handler must be a function')
-    end
-    if not SUPPORTED_UI_APPS[appId] then return false, 'unsupported_app' end
-
-    local owner = getInvokingOwner()
-    local existing = uiAppHandlers[appId]
-    if existing and existing.owner ~= owner then
-        return false, 'owned_by_other_resource'
-    end
-
-    if not existing and uiAppCount >= MAX_UI_APPS then
-        return false, 'capacity_exceeded'
-    end
-
-    if existing and existing.session then
-        local session = existing.session
-        existing.session = nil
-        lib._releaseModal('uiApp:' .. appId, session)
-        SendNUIMessage({ action = 'uiAppClose', data = { id = appId, session = session, reason = 're_registered' } })
-    end
-
-    if not existing then uiAppCount = uiAppCount + 1 end
-    uiAppHandlers[appId] = {
-        owner = owner,
-        handler = handler,
-        session = nil,
-    }
-    return true
-end
-
-function lib.unregisterUiApp(appId)
-    local entry = uiAppHandlers[appId]
-    if not entry then return false end
-    if entry.owner ~= getInvokingOwner() then return false, 'not_owner' end
-
-    if entry.session then
-        lib._releaseModal('uiApp:' .. appId, entry.session)
-        SendNUIMessage({ action = 'uiAppClose', data = { id = appId, session = entry.session } })
-    end
-    uiAppHandlers[appId] = nil
-    modalClosers['uiApp:' .. appId] = nil
-    uiAppCount = math.max(0, uiAppCount - 1)
-    return true
-end
-
-function lib.openUiApp(appId, payload)
-    local entry = uiAppHandlers[appId]
-    if not entry or entry.owner ~= getInvokingOwner() then return false, 'not_owner' end
-    local normalizedPayload = normalizePayload(payload or {})
-    if not normalizedPayload then return false, 'invalid_payload' end
-
-    local session = lib._acquireModal('uiApp:' .. appId, entry.owner)
-    if not session then return false, 'modal_unavailable' end
-    entry.session = session
-    lib._registerModalSurface('uiApp:' .. appId, function(generation, reason)
-        local current = uiAppHandlers[appId]
-        if current and current.session == generation then
-            current.session = nil
-            SendNUIMessage({ action = 'uiAppClose', data = { id = appId, session = generation, reason = reason } })
-        end
-    end)
-    SendNUIMessage({
-        action = 'uiAppOpen',
-        data = {
-            id = appId,
-            payload = normalizedPayload,
-            session = session,
-        }
-    })
-    if not lib._focusModal('uiApp:' .. appId, session, false) then
-        entry.session = nil
-        lib._releaseModal('uiApp:' .. appId, session)
-        SendNUIMessage({ action = 'uiAppClose', data = { id = appId, session = session, reason = 'focus_failed' } })
-        return false, 'focus_failed'
-    end
-    return true
-end
-
-function lib.updateUiApp(appId, payload)
-    local entry = uiAppHandlers[appId]
-    if not entry or entry.owner ~= getInvokingOwner() then return false, 'not_owner' end
-    local normalizedPayload = normalizePayload(payload or {})
-    if not entry.session
-        or not lib._matchesModal('uiApp:' .. appId, entry.session, entry.session)
-        or not normalizedPayload
-    then
-        return false, 'invalid_state'
-    end
-
-    SendNUIMessage({
-        action = 'uiAppData',
-        data = {
-            id = appId,
-            payload = normalizedPayload,
-            session = entry.session,
-        }
-    })
-    return true
-end
-
-function lib.closeUiApp(appId)
-    local entry = uiAppHandlers[appId]
-    if not entry or entry.owner ~= getInvokingOwner() then return false, 'not_owner' end
-
-    local session = entry.session
-    entry.session = nil
-    if session then lib._releaseModal('uiApp:' .. appId, session) end
-    SendNUIMessage({
-        action = 'uiAppClose',
-        data = {
-            id = appId,
-            session = session,
-        }
-    })
-    return true
-end
-
-RegisterNUICallback('cortex:uiEvent', function(data, cb)
-    if type(data) ~= 'table' then
-        cb({ ok = false, error = 'invalid_payload' })
-        return
-    end
-
-    local appId = data.appId
-    local eventType = data.type
-    local payload = normalizePayload(data.payload or {})
-    local entry = appId and uiAppHandlers[appId]
-
-    if not isBoundedString(appId, 64)
-        or not isBoundedString(eventType, 64)
-        or not isSafePayloadString(eventType, 64, false)
-        or type(payload) ~= 'table'
-    then
-        cb({ ok = false, error = 'invalid_payload' })
-        return
-    end
-
-    if not entry or type(entry.handler) ~= 'function' then
-        cb({
-            ok = false,
-            error = 'unregistered_app'
-        })
-        return
-    end
-
-    if not lib._matchesModal('uiApp:' .. appId, entry.session, data.session) then
-        cb({ ok = false, error = 'stale_session' })
-        return
-    end
-
-    local ok, result = pcall(entry.handler, eventType, payload)
-    if not ok then
-        print(('^1[cortex-lib]^7 ui app handler "%s" failed: %s'):format(appId, safeErrorText(result)))
-        cb({
-            ok = false,
-            error = 'handler_error'
-        })
-        return
-    end
-
-    local resultBudget = { count = 0 }
-    local validateOk, resultValid = pcall(validatePayload, result, 0, resultBudget, {})
-    if not validateOk or not resultValid then
-        cb({ ok = false, error = 'invalid_handler_result' })
-        return
-    end
-
-    if type(result) == 'table' then
-        local copyBudget = { count = 0 }
-        local copyOk, response = pcall(copyPayload, result, 0, copyBudget, {})
-        if not copyOk or not response or (response.ok == nil and copyBudget.count >= MAX_UI_PAYLOAD_NODES) then
-            cb({ ok = false, error = 'invalid_handler_result' })
-            return
-        end
-        if response.ok == nil then response.ok = true end
-        cb(response)
-        return
-    end
-
-    cb({
-        ok = true,
-        result = result
-    })
-end)
-
 AddEventHandler('onResourceStop', function(resourceName)
     if resourceName == CURRENT_RESOURCE or modalState.resource == resourceName then
         closeCurrentModal('resource_stop')
     end
-
-    local removed = 0
-    for appId, entry in pairs(uiAppHandlers) do
-        if entry.owner == resourceName then
-            uiAppHandlers[appId] = nil
-            modalClosers['uiApp:' .. appId] = nil
-            removed = removed + 1
-        end
-    end
-    uiAppCount = math.max(0, uiAppCount - removed)
 end)
 
 exports('clearPool', lib.clearPool)
@@ -720,10 +450,43 @@ exports('ensureVehicle', lib.ensureVehicle)
 exports('getCamDirection', lib.getCamDirection)
 
 exports('copyToClipboard', lib.copyToClipboard)
-exports('registerUiApp', lib.registerUiApp)
-exports('unregisterUiApp', lib.unregisterUiApp)
-exports('openUiApp', lib.openUiApp)
-exports('updateUiApp', lib.updateUiApp)
-exports('closeUiApp', lib.closeUiApp)
+
+-- External renderers retain their own iframe; this library arbitrates ownership.
+local function isExternalCallback(value)
+    if type(value) == 'function' then return true end
+    if type(value) ~= 'table' then return false end
+    local mt = getmetatable(value)
+    return type(mt) == 'table' and type(rawget(mt,'__call')) == 'function'
+end
+exports('getExternalFocusVersion', function() return 1 end)
+exports('ownsExternalFocus', function(token)
+    return modalState.external == true and modalState.resource == getInvokingOwner()
+        and modalState.generation == token
+end)
+exports('acquireExternalFocus', function(onRevoke)
+    local owner = getInvokingOwner()
+    if owner == CURRENT_RESOURCE or not isExternalCallback(onRevoke) or modalState.surface
+        or IsNuiFocused() then return false end
+    modalState.generation = modalState.generation + 1
+    modalState.surface, modalState.resource, modalState.external = 'external', owner, true
+    modalState.focused = true
+    modalClosers.external = onRevoke
+    return modalState.generation
+end)
+exports('releaseExternalFocus', function(token)
+    if not modalState.external or modalState.resource ~= getInvokingOwner()
+        or modalState.generation ~= token then return false end
+    return closeCurrentModal('released')
+end)
+exports('openSettingsHandoff', function(onClose)
+    local owner = getInvokingOwner()
+    if owner == CURRENT_RESOURCE or not isExternalCallback(onClose) or modalState.surface
+        or IsNuiFocused() then return false end
+    if not lib.openSettingsMenu() or modalState.surface ~= 'settings'
+        or modalState.resource ~= owner then return false end
+    local token = modalState.generation
+    modalReleaseObservers[token] = { owner=owner, callback=onClose }
+    return token
+end)
 
 return lib

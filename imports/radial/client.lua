@@ -2,6 +2,7 @@ local CURRENT_RESOURCE = GetCurrentResourceName()
 local MAX_ROOT_ITEMS = 32
 local MAX_MENUS = 32
 local MAX_MENU_ITEMS = 32
+local MAX_TRAIL_LABEL = 64
 local ROOT_SENTINEL = {}
 
 local isOpen = false
@@ -10,6 +11,7 @@ local menus = {}
 local menuCount = 0
 local menuItems = {}
 local menuHistory = {}
+local historyMeta = {}
 local currentRadial = nil
 local currentOwner = nil
 local currentSession = nil
@@ -62,6 +64,8 @@ local function validateItems(items, maxItems)
             or not boundedString(item.label, 128, false)
             or (item.icon ~= nil and not boundedString(item.icon, 128, true))
             or (item.iconColor ~= nil and not safeColor(item.iconColor))
+            or (item.description ~= nil and not boundedString(item.description, 256, true))
+            or (item.disabled ~= nil and type(item.disabled) ~= 'boolean')
             or (item.menu ~= nil and not boundedString(item.menu, 64, false))
             or (item.keepOpen ~= nil and type(item.keepOpen) ~= 'boolean')
             or (item.onSelect ~= nil and type(item.onSelect) ~= 'function')
@@ -117,6 +121,8 @@ local function sanitizeItem(item)
         label = item.label,
         icon = item.icon,
         iconColor = item.iconColor,
+        description = item.description,
+        disabled = item.disabled,
         menu = item.menu,
         keepOpen = item.keepOpen,
     }
@@ -128,6 +134,8 @@ local function copyStoredItem(item, owner)
         label = item.label,
         icon = item.icon,
         iconColor = item.iconColor,
+        description = item.description,
+        disabled = item.disabled,
         menu = item.menu,
         keepOpen = item.keepOpen,
         onSelect = item.onSelect,
@@ -160,6 +168,16 @@ local function getItemByIndex(index)
     return currentItems()[index]
 end
 
+-- Breadcrumb labels of the items that opened each submenu, root first.
+local function buildTrail()
+    local trail = {}
+    for index = 1, #historyMeta do
+        local label = historyMeta[index].label
+        trail[index] = #label > MAX_TRAIL_LABEL and label:sub(1, MAX_TRAIL_LABEL) or label
+    end
+    return trail
+end
+
 local function refreshRadial()
     if not isOpen then return end
     SendNUIMessage({
@@ -169,6 +187,7 @@ local function refreshRadial()
             menuId = currentRadial,
             appearance = currentAppearance(),
             canGoBack = #menuHistory > 0,
+            trail = buildTrail(),
             session = currentSession,
         }
     })
@@ -289,6 +308,7 @@ clearOpenRadial = function(sendMessage, instant)
     currentOwner = nil
     currentSession = nil
     menuHistory = {}
+    historyMeta = {}
     transitionRevision = transitionRevision + 1
     if sendMessage then
         SendNUIMessage({ action = 'radialHide', data = { instant = instant, session = session } })
@@ -319,6 +339,7 @@ local function showRadial(menuId)
     currentOwner = owner
     currentSession = session
     menuHistory = {}
+    historyMeta = {}
     transitionRevision = transitionRevision + 1
     SendNUIMessage({
         action = 'radialShow',
@@ -327,6 +348,7 @@ local function showRadial(menuId)
             menuId = currentRadial,
             appearance = currentAppearance(),
             canGoBack = false,
+            trail = {},
             session = session,
         }
     })
@@ -353,11 +375,12 @@ local function hideRadial(skipTransition)
     closeActiveRadial(skipTransition)
 end
 
-local function transitionTo(menuId, historyEntry)
+local function transitionTo(menuId, historyEntry, meta)
     local menu = menus[menuId]
     if not menu then return false end
 
     menuHistory[#menuHistory + 1] = historyEntry
+    historyMeta[#historyMeta + 1] = meta
     currentRadial = menuId
     transitionRevision = transitionRevision + 1
     local revision = transitionRevision
@@ -373,22 +396,24 @@ local function transitionTo(menuId, historyEntry)
             menuId = currentRadial,
             appearance = currentAppearance(),
             canGoBack = #menuHistory > 0,
+            trail = buildTrail(),
             session = session,
         }
     })
     return true
 end
 
-local function navigateToMenu(menuId, itemOwner)
+local function navigateToMenu(menuId, itemOwner, label, zeroIndex)
     local menu = menus[menuId]
     if not menu or menu.owner ~= itemOwner then return false end
-    return transitionTo(menuId, currentRadial or ROOT_SENTINEL)
+    return transitionTo(menuId, currentRadial or ROOT_SENTINEL, { label = label, index = zeroIndex })
 end
 
 local function radialBack()
     if #menuHistory == 0 then closeActiveRadial(); return end
 
     local previous = table.remove(menuHistory)
+    local meta = table.remove(historyMeta)
     transitionRevision = transitionRevision + 1
     local revision = transitionRevision
     local session = currentSession
@@ -408,6 +433,8 @@ local function radialBack()
             menuId = currentRadial,
             appearance = currentAppearance(),
             canGoBack = #menuHistory > 0,
+            trail = buildTrail(),
+            focusIndex = meta and meta.index or nil,
             session = session,
         }
     })
@@ -447,8 +474,12 @@ RegisterNUICallback('radialClick', function(data, cb)
         cb({ ok = false, error = 'stale_item' }); return
     end
 
+    if item.disabled then
+        cb({ ok = false, error = 'disabled_item' }); return
+    end
+
     if item.menu then
-        local ok = navigateToMenu(item.menu, item._owner)
+        local ok = navigateToMenu(item.menu, item._owner, item.label, zeroIndex)
         cb({ ok = ok, error = ok and nil or 'invalid_menu' })
         return
     end

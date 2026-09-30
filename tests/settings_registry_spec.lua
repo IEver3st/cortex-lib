@@ -60,7 +60,8 @@ exports = setmetatable({}, {
                 getSettingsDefinition = function()
                     return {
                         label = 'Healthy',
-                        settings = { { key = 'healthy_enabled', label = 'Healthy', type = 'toggle', default = true } },
+                        settings = { { key = 'healthy_enabled', label = 'Healthy', type = 'toggle', default = true,
+                            advanced = true, showWhen = { healthy_enabled = true } } },
                         sections = {},
                     }
                 end,
@@ -86,10 +87,16 @@ local api = assert(dofile(scriptPath))
 local poison = function() end
 local field = { key = 'shared', label = 'Shared', type = 'toggle', poison = poison }
 field.cycle = field
-local fieldsA = { field, { key = 'unique_a', label = 'Unique A', type = 'toggle' } }
+local fieldsA = { field, { key = 'unique_a', label = 'Unique A', type = 'toggle', advanced = true, showWhen = { shared = false } } }
 local fieldsB = { field }
 
 invokingResource = 'owner-a'
+assert(api.registerSettings('bad-condition', 'Bad Condition', nil, {
+    { key = 'enabled', type = 'toggle', showWhen = { enabled = function() end } },
+}, { enabled = true }) == false, 'visibility conditions must reject non-serializable values')
+assert(api.registerSettings('bad-advanced', 'Bad Advanced', nil, {
+    { key = 'enabled', type = 'toggle', advanced = 'yes' },
+}, { enabled = true }) == false, 'advanced metadata must be boolean')
 local invalid, invalidError = api.registerSettings('__proto__', 'Unsafe', nil, {}, {})
 assert(invalid == false, 'reserved tab IDs must be rejected')
 invalid, invalidError = api.registerSettings('missing-default', 'Missing', nil, {
@@ -127,10 +134,13 @@ assert(api.getSetting('unique_a') == nil and api.setSetting('unique_a', false) =
 
 local ownerACalls, ownerBCalls = 0, 0
 invokingResource = 'owner-a'
-assert(api.onSettingChange('shared', function(value, _, tabId)
-    ownerACalls = ownerACalls + 1
-    assert(value == false and tabId == 'tab-a')
-end))
+assert(api.onSettingChange('shared', setmetatable({}, {
+    __index = function() error('Cannot index a funcref') end,
+    __call = function(_, value, _, tabId)
+        ownerACalls = ownerACalls + 1
+        assert(value == false and tabId == 'tab-a')
+    end,
+})))
 invokingResource = 'owner-b'
 assert(api.onSettingChange('shared', function() ownerBCalls = ownerBCalls + 1 end))
 
@@ -200,10 +210,23 @@ assert(discoveryAttempts == 1, 'a transient discovery export failure must be att
 assert(hostileDiscoveryAttempts == 1, 'an unprintable discovery error must remain contained')
 local openMessage = messages[#messages]
 local foundHealthy = false
-for _, tab in ipairs(openMessage.data.tabs) do if tab.id == 'healthy-resource' then foundHealthy = true end end
+for _, tab in ipairs(openMessage.data.tabs) do
+    if tab.id == 'healthy-resource' then
+        foundHealthy = true
+        assert(tab.fields[1].advanced and tab.fields[1].showWhen.healthy_enabled == true,
+            'legacy script definitions must retain advanced and contextual metadata')
+        assert(tab.values.healthy_enabled == true, 'presentation metadata must not change persisted defaults')
+    end
+end
 assert(foundHealthy, 'a hostile discovery error must not prevent subsequent resources from registering')
 local externalField = openMessage.data.tabs[2].fields[1]
 assert(externalField.poison == nil and externalField.cycle == nil, 'settings fields must use a strict serializable allowlist')
+local advancedField
+for _, tab in ipairs(openMessage.data.tabs) do
+    if tab.id == 'tab-a' then advancedField = tab.fields[2] end
+end
+assert(advancedField and advancedField.advanced == true and advancedField.showWhen.shared == false,
+    'advanced and false-valued visibility conditions must survive the settings snapshot')
 local actionSession = openMessage.data.session
 local actionReply
 callbacks.settingsAction({ session = actionSession, tabId = 'typed-actions', key = 'choice', value = false }, function(value)

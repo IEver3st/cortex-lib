@@ -476,7 +476,8 @@ local function cleanupProgress(entry)
 
     if entry.sent then
         entry.sent = false
-        pcall(SendNUIMessage, { action = 'progressEnd' })
+        -- completed lets the NUI show the outcome (paper pulse vs sand) before leaving.
+        pcall(SendNUIMessage, { action = 'progressEnd', data = { completed = entry.completed == true } })
     end
 
     local ped = entry.ped
@@ -592,7 +593,11 @@ local function progress(data)
         local startTime = GetGameTimer()
 
         while not entry.cancelled do
-            if elapsedSince(GetGameTimer(), startTime) >= normalized.duration then completed = true; break end
+            if elapsedSince(GetGameTimer(), startTime) >= normalized.duration then
+                completed = true
+                entry.completed = true
+                break
+            end
             if normalized.canCancel and IsControlJustPressed(0, 177) then break end
 
             local currentPed = PlayerPedId()
@@ -833,7 +838,20 @@ local function contextValueAllowed(field, value)
         end
         return false
     end
-    return boundedString(value, 512, true) and (not field.required or value ~= '')
+    if not boundedString(value, 512, true) or (field.required and value == '') then return false end
+    -- Declared number bounds are opt-in: only fields that set min/max/step are range-checked.
+    if field.inputType == 'number' and value ~= '' and (field.min or field.max or field.step) then
+        local number = tonumber(value)
+        if not isFiniteNumber(number) then return false end
+        if (field.min and number < field.min) or (field.max and number > field.max) then return false end
+    end
+    return true
+end
+
+local MAX_CONTEXT_NUMBER = 1e9
+
+local function optionalContextNumber(value)
+    return value == nil or (isFiniteNumber(value) and math.abs(value) <= MAX_CONTEXT_NUMBER)
 end
 
 local function normalizeContext(data)
@@ -858,6 +876,11 @@ local function normalizeContext(data)
             or (field.required ~= nil and type(field.required) ~= 'boolean')
             or (field.inputType ~= nil and not VALID_CONTEXT_INPUT_TYPES[field.inputType])
             or (field.options ~= nil and not isDenseArray(field.options, 64))
+            or not optionalContextNumber(field.min)
+            or not optionalContextNumber(field.max)
+            or not optionalContextNumber(field.step)
+            or (field.step ~= nil and field.step <= 0)
+            or (field.min ~= nil and field.max ~= nil and field.min > field.max)
         then
             return nil
         end
@@ -878,6 +901,9 @@ local function normalizeContext(data)
             required = field.required == true,
             icon = field.icon,
             options = options,
+            min = field.min,
+            max = field.max,
+            step = field.step,
         }
         normalizedFields[index] = normalized
         byName[name] = normalized

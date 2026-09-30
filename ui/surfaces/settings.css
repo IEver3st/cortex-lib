@@ -1,0 +1,684 @@
+/* Settings page of the pause shell (pause.js Frame, page = settings).
+   Tokens and --u only; --u already carries the player's Interface size, and
+   body copy multiplies by --cx-text. The game behind is blurred natively by
+   client/pause.lua; this layer only darkens it. CEF never filters the backdrop. */
+
+.cortex-pause-overlay.is-settings-page {
+    /* Ink at 66%: dark enough to read paper over a bright, blurred sky. */
+    --settings-scrim: rgba(15, 16, 18, 0.66);
+    background: var(--settings-scrim);
+    color: var(--paper);
+    font-family: var(--body);
+    animation: cx-settings-scrim-in var(--t-enter) var(--ease) both;
+}
+
+/* A centred column: rows stay short enough to read label and control
+   together, and the (blurred) scene frames it evenly on wide screens. */
+.is-settings-page .cortex-pause.cortex-settings-panel {
+    left: 0;
+    right: 0;
+    margin-inline: auto;
+    width: min(calc(100% - 2 * var(--pause-safe)), calc(1460 * var(--u)));
+    animation: cx-settings-rise var(--t-enter) var(--ease) both;
+}
+
+@keyframes cx-settings-scrim-in { from { opacity: 0; } }
+@keyframes cx-settings-rise { from { opacity: 0; transform: translateY(calc(6 * var(--u))); } }
+
+/* ------------------------------------------------------------ heading --- */
+.is-settings-page .cortex-settings-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: calc(24 * var(--u));
+    margin: 0 0 calc(18 * var(--u));
+    padding: 0;
+    border: 0;
+}
+
+.cortex-settings-title-block {
+    position: relative;
+    display: grid;
+    gap: calc(6 * var(--u));
+    padding-left: calc(16 * var(--u));
+}
+
+/* The accent bar marks the live surface (kit SlipHeader anatomy). */
+.cortex-settings-title-block::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: calc(4 * var(--u));
+    border-radius: calc(1 * var(--u));
+    background: var(--accent);
+}
+
+.is-settings-page .cortex-settings-heading h1 {
+    margin: 0;
+    max-width: none;
+    font: italic 800 calc(44 * var(--u)) / 0.92 var(--display);
+    font-synthesis: style;
+    letter-spacing: 0.005em;
+    text-transform: uppercase;
+    color: var(--paper);
+}
+
+.cortex-settings-legend { flex: 0 1 auto; padding-bottom: calc(4 * var(--u)); }
+
+/* --------------------------------------------------------------- body --- */
+.pause-settings-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+/* Tabs: resting paper text; hover washes; the selected tab flips to paper. */
+.cortex-settings-tabs {
+    display: flex;
+    flex: none;
+    gap: calc(6 * var(--u));
+    margin: 0 0 calc(16 * var(--u));
+    padding: 0 0 calc(4 * var(--u));
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.cortex-settings-tabs::-webkit-scrollbar { display: none; }
+
+.cortex-settings-tab {
+    position: relative;
+    flex: none;
+    height: calc(40 * var(--u));
+    padding: 0 calc(18 * var(--u));
+    border-radius: var(--r-sm);
+    background: var(--slip-soft);
+    color: var(--muted);
+    font: italic 800 calc(18 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast) var(--ease);
+}
+
+.cortex-settings-tab:hover { background: var(--slip); color: var(--paper); }
+.cortex-settings-tab:focus-visible { color: var(--paper); box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--accent); }
+.cortex-settings-tab.active { background: var(--paper); color: var(--ink); }
+.cortex-settings-tab.active:focus-visible { box-shadow: inset 0 calc(-4 * var(--u)) 0 var(--accent); }
+.cortex-settings-tab:active { transform: translateY(calc(2 * var(--u))); }
+
+.cortex-settings-tab.is-dirty::after,
+.pause-sections button.is-dirty .pause-section-name::after {
+    content: '';
+    display: inline-block;
+    width: calc(7 * var(--u));
+    height: calc(7 * var(--u));
+    margin-left: calc(8 * var(--u));
+    border-radius: calc(2 * var(--u));
+    background: var(--accent);
+    vertical-align: middle;
+    transform: translateY(calc(-2 * var(--u)));
+}
+
+.cortex-settings-tab.active.is-dirty::after,
+.pause-sections button.active.is-dirty .pause-section-name::after { background: var(--ink); }
+
+.pause-settings-workspace {
+    display: grid;
+    grid-template-columns: calc(236 * var(--u)) minmax(0, 1fr);
+    gap: calc(22 * var(--u));
+    flex: 1;
+    min-height: 0;
+}
+
+/* ------------------------------------------------------ section index --- */
+.pause-sections {
+    display: flex;
+    flex-direction: column;
+    gap: calc(4 * var(--u));
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+}
+
+.pause-section-label {
+    padding: calc(6 * var(--u)) calc(14 * var(--u)) calc(10 * var(--u));
+    color: var(--muted);
+    font: 700 calc(12 * var(--u)) / 1.2 var(--body);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+}
+
+.pause-sections button {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: calc(10 * var(--u));
+    width: 100%;
+    min-height: calc(44 * var(--u));
+    padding: calc(8 * var(--u)) calc(14 * var(--u)) calc(8 * var(--u)) calc(18 * var(--u));
+    border-radius: var(--r-sm);
+    color: var(--paper);
+    text-align: left;
+    font: italic 800 calc(19 * var(--u)) / 1.05 var(--display);
+    font-synthesis: style;
+    text-transform: uppercase;
+    overflow: hidden;
+    transition: background var(--t-fast), color var(--t-fast);
+}
+
+/* Hover: paper wash, accent bar wipes in from the left. */
+.pause-sections button::before,
+.cortex-settings-row::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: calc(8 * var(--u));
+    bottom: calc(8 * var(--u));
+    width: calc(4 * var(--u));
+    border-radius: calc(1 * var(--u));
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform var(--t-fast) var(--ease);
+}
+
+.pause-sections button:hover { background: var(--wash-strong); }
+.pause-sections button:hover::before,
+.pause-sections button:focus-visible::before { transform: scaleX(1); }
+.pause-sections button:focus-visible { background: var(--wash-strong); }
+.pause-sections button.active { background: var(--paper); color: var(--ink); }
+.pause-sections button.active::before { transform: scaleX(1); }
+
+.pause-section-name { min-width: 0; overflow-wrap: anywhere; }
+.pause-section-count {
+    flex: none;
+    color: var(--muted);
+    font: 700 calc(13 * var(--u)) / 1 var(--data);
+    font-style: normal;
+    font-variant-numeric: tabular-nums;
+}
+.pause-sections button.active .pause-section-count { color: var(--ink); }
+
+/* ---------------------------------------------------------- main pane --- */
+.pause-settings-main { display: flex; flex-direction: column; gap: calc(12 * var(--u)); min-width: 0; min-height: 0; }
+
+/* Search is an ink well: its bottom rule turns accent while typing. */
+.pause-search {
+    display: flex;
+    align-items: center;
+    gap: calc(16 * var(--u));
+    flex: none;
+    min-height: calc(46 * var(--u));
+    padding: 0 calc(10 * var(--u)) 0 calc(16 * var(--u));
+    border-radius: var(--r-sm);
+    background: var(--slip);
+    box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--rule-strong);
+    transition: box-shadow var(--t-fast);
+}
+
+.pause-search:focus-within { box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--accent); }
+
+.pause-search input {
+    flex: 1;
+    min-width: 0;
+    height: calc(44 * var(--u));
+    background: transparent;
+    color: var(--paper);
+    font: 400 calc(16 * var(--u) * var(--cx-text)) / 1.3 var(--body);
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.pause-search input::placeholder { color: var(--muted); }
+.pause-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+
+.pause-search-count {
+    flex: none;
+    color: var(--muted);
+    font: 700 calc(12 * var(--u)) / 1 var(--data);
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+}
+
+.pause-advanced-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(10 * var(--u));
+    flex: none;
+    height: calc(34 * var(--u));
+    padding: 0 calc(6 * var(--u)) 0 calc(12 * var(--u));
+    border-radius: var(--r-sm);
+    color: var(--muted);
+    font: italic 800 calc(15 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    text-transform: uppercase;
+    transition: background var(--t-fast), color var(--t-fast);
+}
+
+.pause-advanced-toggle .cx-toggle { width: calc(38 * var(--u)); height: calc(20 * var(--u)); }
+.pause-advanced-toggle .cx-toggle-knob { top: calc(3 * var(--u)); left: calc(3 * var(--u)); width: calc(14 * var(--u)); height: calc(14 * var(--u)); }
+.pause-advanced-toggle .cx-toggle.is-on .cx-toggle-knob { transform: translateX(calc(18 * var(--u))); }
+.pause-advanced-toggle:hover,
+.pause-advanced-toggle:focus-visible { background: var(--wash-strong); color: var(--paper); }
+.pause-advanced-toggle[aria-checked='true'] { color: var(--paper); }
+
+/* One slip holds the list; rows are separated by space, not rules. */
+.cortex-settings-content {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: calc(6 * var(--u)) calc(8 * var(--u)) calc(10 * var(--u));
+    border-radius: var(--r);
+    background: var(--slip);
+    scrollbar-width: thin;
+    scrollbar-color: var(--rule-strong) transparent;
+}
+
+.cortex-settings-content::-webkit-scrollbar { width: calc(4 * var(--u)); }
+.cortex-settings-content::-webkit-scrollbar-thumb { background: var(--rule-strong); border-radius: calc(2 * var(--u)); }
+.cortex-settings-content::-webkit-scrollbar-track { background: transparent; }
+
+.cortex-settings-section {
+    padding: calc(22 * var(--u)) calc(16 * var(--u)) calc(8 * var(--u));
+    color: var(--muted);
+    font: 700 calc(12 * var(--u)) / 1.2 var(--body);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+}
+
+.cortex-settings-section:first-child { padding-top: calc(12 * var(--u)); }
+
+.cortex-settings-empty {
+    padding: calc(40 * var(--u)) calc(24 * var(--u));
+    color: var(--muted);
+    font: 400 calc(16 * var(--u) * var(--cx-text)) / 1.5 var(--body);
+    text-align: center;
+}
+
+/* ---------------------------------------------------------------- row --- */
+.cortex-settings-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, auto) calc(34 * var(--u));
+    align-items: center;
+    gap: calc(20 * var(--u));
+    min-height: calc(74 * var(--u));
+    padding: calc(12 * var(--u)) calc(10 * var(--u)) calc(12 * var(--u)) calc(22 * var(--u));
+    border-radius: var(--r-sm);
+    transition: background var(--t-fast);
+}
+
+.cortex-settings-row:hover,
+.cortex-settings-row:focus-within { background: var(--wash); }
+.cortex-settings-row:hover::before,
+.cortex-settings-row:focus-within::before { transform: scaleX(1); }
+
+.cortex-settings-row-info { min-width: 0; }
+
+.cortex-settings-row-label {
+    color: var(--paper);
+    font: italic 800 calc(21 * var(--u)) / 1.05 var(--display);
+    font-synthesis: style;
+    letter-spacing: 0.005em;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+}
+
+/* Unsaved: a small mint mark beside the label ("yours, not yet saved"). */
+.cortex-settings-row-dirty {
+    display: inline-block;
+    width: calc(8 * var(--u));
+    height: calc(8 * var(--u));
+    margin-left: calc(10 * var(--u));
+    border-radius: calc(2 * var(--u));
+    background: var(--accent);
+    vertical-align: middle;
+    transform: translateY(calc(-2 * var(--u)));
+}
+
+.cortex-settings-row-desc {
+    max-width: 62ch;
+    margin-top: calc(5 * var(--u));
+    color: var(--muted);
+    font: 400 calc(14 * var(--u) * var(--cx-text)) / 1.4 var(--body);
+}
+
+.cortex-settings-row-ctrl {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 0;
+    max-width: calc(440 * var(--u));
+}
+
+.cortex-settings-row-reset {
+    display: grid;
+    place-items: center;
+    width: calc(34 * var(--u));
+    height: calc(34 * var(--u));
+    border-radius: var(--r-sm);
+    color: var(--muted);
+    transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast) var(--ease);
+}
+
+.cortex-settings-row-reset svg { width: calc(18 * var(--u)); height: calc(18 * var(--u)); }
+.cortex-settings-row-reset:disabled { visibility: hidden; }
+.cortex-settings-row-reset:hover { background: var(--wash-strong); color: var(--paper); }
+.cortex-settings-row-reset:focus-visible { background: var(--paper); color: var(--ink); }
+.cortex-settings-row-reset:active { transform: translateY(calc(2 * var(--u))); }
+
+.cx-settings-glyph-line { fill: none; stroke: currentColor; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.cx-settings-glyph-fill { fill: currentColor; }
+
+/* ----------------------------------------------------------- controls --- */
+.cortex-settings-row-ctrl .cx-dropdown { width: calc(280 * var(--u)); max-width: 100%; }
+.cortex-settings-row-ctrl .cx-dropdown-trigger { min-width: 0; height: calc(40 * var(--u)); }
+.cortex-settings-row-ctrl .cx-segmented { flex-wrap: nowrap; background: var(--wash); }
+.cortex-settings-row-ctrl .cx-segment { min-width: calc(72 * var(--u)); padding: calc(9 * var(--u)) calc(12 * var(--u)); font-size: calc(15 * var(--u)); }
+.cortex-settings-row-ctrl .cx-segment:active:not(:disabled) { transform: translateY(calc(2 * var(--u))); }
+.cortex-settings-row-ctrl .cx-toggle { width: calc(52 * var(--u)); height: calc(28 * var(--u)); }
+.cortex-settings-row-ctrl .cx-toggle-knob { width: calc(20 * var(--u)); height: calc(20 * var(--u)); }
+.cortex-settings-row-ctrl .cx-toggle.is-on .cx-toggle-knob { transform: translateX(calc(24 * var(--u))); }
+.cortex-settings-row-ctrl .cx-toggle:focus-visible { box-shadow: 0 0 0 calc(3 * var(--u)) var(--paper); }
+
+/* Dropdown lists opened from settings sit above the overlay, fully opaque so
+   the rows underneath never ghost through the list. */
+.cx-dropdown-menu.cx-settings-menu { z-index: 10060; background: var(--ink); }
+
+/* Slider: 6u track, solid accent fill, a squared paper handle. The native
+   range keeps its semantics; only the look is drawn here. */
+.cx-settings-slider {
+    display: flex;
+    align-items: center;
+    gap: calc(16 * var(--u));
+    width: calc(360 * var(--u));
+    max-width: 100%;
+}
+
+.cx-settings-range {
+    --thumb: calc(14 * var(--u));
+    --rail: calc(6 * var(--u));
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: calc(80 * var(--u));
+    height: calc(32 * var(--u));
+}
+
+.cx-settings-range::before,
+.cx-settings-range::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    height: var(--rail);
+    border-radius: calc(2 * var(--u));
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+.cx-settings-range::before { right: 0; background: var(--rule-strong); }
+.cx-settings-range::after { width: calc(var(--fill, 0) * (100% - var(--thumb)) + var(--thumb) / 2); background: var(--accent); }
+
+.cx-settings-range input {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.cx-settings-range input::-webkit-slider-runnable-track { height: 100%; background: transparent; border: 0; }
+.cx-settings-range input::-webkit-slider-thumb {
+    width: var(--thumb);
+    height: calc(26 * var(--u));
+    margin-top: calc(3 * var(--u));
+    border: 0;
+    border-radius: calc(3 * var(--u));
+    background: var(--paper);
+    box-shadow: 0 0 0 calc(3 * var(--u)) var(--ink);
+    transition: background var(--t-fast), transform var(--t-fast) var(--ease);
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.cx-settings-range input::-moz-range-track { height: 100%; background: transparent; border: 0; }
+.cx-settings-range input::-moz-range-thumb {
+    width: var(--thumb);
+    height: calc(26 * var(--u));
+    border: 0;
+    border-radius: calc(3 * var(--u));
+    background: var(--paper);
+    box-shadow: 0 0 0 calc(3 * var(--u)) var(--ink);
+}
+
+.cx-settings-range:hover input::-webkit-slider-thumb,
+.cx-settings-range input:focus-visible::-webkit-slider-thumb { background: var(--accent); }
+.cx-settings-range input:active::-webkit-slider-thumb { transform: translateY(calc(1 * var(--u))); }
+
+.cx-settings-slider-value {
+    flex: none;
+    min-width: 4.2ch;
+    color: var(--paper);
+    font: italic 800 calc(22 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.cx-settings-slider-value small { margin-left: calc(2 * var(--u)); color: var(--muted); font-size: calc(15 * var(--u)); }
+
+/* Colour swatches: the chosen chip sits in a paper frame (flips to paper). */
+.cx-settings-swatches { display: flex; align-items: center; gap: calc(14 * var(--u)); }
+.cx-settings-swatch-row { display: flex; gap: calc(6 * var(--u)); padding: calc(4 * var(--u)); border-radius: var(--r-sm); background: var(--wash); }
+
+.cx-settings-swatch {
+    display: grid;
+    place-items: center;
+    width: calc(34 * var(--u));
+    height: calc(34 * var(--u));
+    border-radius: calc(3 * var(--u));
+    transition: background var(--t-fast), transform var(--t-fast) var(--ease);
+}
+
+.cx-settings-swatch i {
+    display: block;
+    width: calc(22 * var(--u));
+    height: calc(22 * var(--u));
+    border-radius: calc(3 * var(--u));
+    background: var(--swatch);
+    box-shadow: inset 0 0 0 calc(3 * var(--u)) rgba(15, 16, 18, 0.18);
+}
+
+.cx-settings-swatch:hover { background: var(--wash-strong); }
+.cx-settings-swatch.is-selected { background: var(--paper); }
+.cx-settings-swatch:focus-visible { box-shadow: inset 0 0 0 calc(3 * var(--u)) var(--paper); }
+.cx-settings-swatch.is-selected:focus-visible { box-shadow: inset 0 0 0 calc(3 * var(--u)) var(--accent); }
+.cx-settings-swatch:active { transform: translateY(calc(2 * var(--u))); }
+
+.cx-settings-swatch-name {
+    min-width: 7ch;
+    color: var(--muted);
+    font: italic 800 calc(15 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    text-transform: uppercase;
+}
+
+/* Text input: the same ink well as search. */
+.cx-settings-input {
+    width: calc(280 * var(--u));
+    max-width: 100%;
+    height: calc(40 * var(--u));
+    padding: 0 calc(12 * var(--u));
+    border-radius: var(--r-sm);
+    background: var(--wash);
+    box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--rule-strong);
+    color: var(--paper);
+    font: 400 calc(16 * var(--u) * var(--cx-text)) / 1.2 var(--body);
+    transition: background var(--t-fast), box-shadow var(--t-fast);
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.cx-settings-input::placeholder { color: var(--dim); }
+.cx-settings-input:hover { background: var(--wash-strong); }
+.cx-settings-input:focus { background: var(--wash-strong); box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--accent); }
+
+/* Actions registered by scripts, and the sound preview button. */
+.cx-settings-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: calc(8 * var(--u)); }
+
+.cx-settings-action,
+.cx-settings-icon-button {
+    height: calc(38 * var(--u));
+    padding: 0 calc(16 * var(--u));
+    border-radius: var(--r-sm);
+    background: var(--wash-strong);
+    color: var(--paper);
+    font: italic 800 calc(15 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast) var(--ease);
+}
+
+.cx-settings-icon-button { display: grid; place-items: center; flex: none; width: calc(40 * var(--u)); padding: 0; }
+.cx-settings-icon-button svg { width: calc(18 * var(--u)); height: calc(18 * var(--u)); }
+.cx-settings-action:hover,
+.cx-settings-icon-button:hover { background: var(--rule-strong); }
+.cx-settings-action:focus-visible,
+.cx-settings-icon-button:focus-visible { background: var(--paper); color: var(--ink); }
+.cx-settings-action:active,
+.cx-settings-icon-button:active { transform: translateY(calc(2 * var(--u))); }
+
+.cx-settings-sound { display: flex; align-items: center; gap: calc(8 * var(--u)); }
+.cx-settings-sound .cx-dropdown { width: calc(240 * var(--u)); }
+
+.cortex-settings-row :disabled { cursor: default; }
+
+/* ------------------------------------------------------------- footer --- */
+.cortex-settings-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: none;
+    gap: calc(16 * var(--u));
+    margin-top: calc(14 * var(--u));
+}
+
+.cortex-settings-footer-left,
+.cortex-settings-footer-right { display: flex; align-items: center; gap: calc(10 * var(--u)); min-width: 0; }
+.cortex-settings-footer-right { flex-wrap: wrap; justify-content: flex-end; }
+
+.cortex-settings-live-note {
+    color: var(--muted);
+    font: italic 800 calc(15 * var(--u)) / 1.2 var(--display);
+    font-synthesis: style;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.cortex-settings-live-note:empty { display: none; }
+.cortex-settings-live-note.is-dirty { color: var(--paper); }
+.cortex-settings-live-note.error { color: var(--error); }
+
+.cortex-settings-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(10 * var(--u));
+    height: calc(44 * var(--u));
+    padding: 0 calc(20 * var(--u));
+    border-radius: var(--r-sm);
+    background: var(--slip);
+    color: var(--paper);
+    font: italic 800 calc(18 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    pointer-events: auto;
+    transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast) var(--ease);
+}
+
+.cortex-settings-btn:hover:not(:disabled) { background: var(--ink-2); box-shadow: inset calc(4 * var(--u)) 0 0 var(--accent); }
+.cortex-settings-btn:focus-visible { background: var(--paper); color: var(--ink); }
+.cortex-settings-btn:active:not(:disabled) { transform: translateY(calc(2 * var(--u))); }
+.cortex-settings-btn:disabled { color: var(--dim); cursor: default; }
+.cortex-settings-btn.reset:hover:not(:disabled) { color: var(--error); box-shadow: inset calc(4 * var(--u)) 0 0 var(--error); }
+
+/* The committing action is already flipped to paper. */
+.cortex-settings-btn.save { background: var(--paper); color: var(--ink); }
+.cortex-settings-btn.save:hover:not(:disabled) { background: var(--accent); color: var(--ink); box-shadow: none; }
+.cortex-settings-btn.save:focus-visible { box-shadow: inset 0 0 0 calc(3 * var(--u)) var(--accent); }
+.cortex-settings-btn.save:disabled { background: var(--wash-strong); color: var(--dim); }
+.cortex-settings-btn .cx-key { box-shadow: none; }
+.cortex-settings-btn:focus-visible .cx-key { background: var(--ink); color: var(--paper); }
+
+/* The Frame footer only carries a status line on this page. */
+.is-settings-page .cortex-settings-status { min-height: 0; padding-top: calc(10 * var(--u)); }
+.is-settings-page .cortex-settings-status .pause-status {
+    max-width: 100%;
+    padding: calc(6 * var(--u)) calc(10 * var(--u));
+    border-radius: var(--r-sm);
+    background: var(--slip);
+    color: var(--warning);
+    font: 400 calc(14 * var(--u) * var(--cx-text)) / 1.3 var(--body);
+}
+
+/* --------------------------------------------------------- responsive --- */
+@media (max-width: 1100px) {
+    .pause-settings-workspace { grid-template-columns: calc(190 * var(--u)) minmax(0, 1fr); gap: calc(14 * var(--u)); }
+    .cortex-settings-row { grid-template-columns: minmax(0, 1fr) calc(34 * var(--u)); }
+    .cortex-settings-row-info { grid-column: 1 / -1; }
+    .cortex-settings-row-ctrl { justify-content: flex-start; max-width: none; }
+    .cortex-settings-legend { display: none; }
+}
+
+@media (max-width: 700px) {
+    .pause-settings-workspace { display: flex; flex-direction: column; gap: calc(8 * var(--u)); }
+    .pause-sections { flex-direction: row; flex: none; overflow-x: auto; }
+    .pause-section-label { display: none; }
+    .pause-sections button { width: auto; flex: none; white-space: nowrap; }
+    .pause-search-count { display: none; }
+    .cortex-settings-footer { flex-wrap: wrap; }
+    .cortex-settings-footer-left, .cortex-settings-footer-right { width: 100%; justify-content: space-between; }
+}
+
+@media (max-width: 560px) {
+    .cortex-settings-footer { align-items: flex-end; gap: calc(8 * var(--u)); }
+    .cortex-settings-live-note { max-width: 38vw; white-space: normal; line-height: 1.35; }
+    .cortex-settings-btn { padding-left: calc(14 * var(--u)); padding-right: calc(14 * var(--u)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cortex-pause-overlay.is-settings-page,
+    .is-settings-page .cortex-pause.cortex-settings-panel { animation: none; }
+    .cortex-settings-tab, .pause-sections button, .pause-sections button::before, .cortex-settings-row,
+    .cortex-settings-row::before, .cortex-settings-row-reset, .cortex-settings-btn, .cx-settings-swatch,
+    .cx-settings-action, .cx-settings-icon-button { transition: none; }
+}
+
+/* Text that sits straight on the scrim (not on a slip) keeps the legible halo
+   for bright, blurred skies; anything flipped to paper drops it. */
+.is-settings-page .cortex-settings-heading,
+.pause-sections,
+.cortex-settings-live-note { text-shadow: var(--legible); }
+.pause-sections button.active,
+.is-settings-page .cortex-settings-heading .cx-key { text-shadow: none; }

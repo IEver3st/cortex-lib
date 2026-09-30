@@ -24,6 +24,30 @@ local fallbackGeneration = 0
 local LookControls = { 1, 2, 3, 4 }
 local CombatControls = { 24, 25, 68, 69, 70, 91, 92 }
 
+-- Game-control menus keep gameplay input (walk, drive, mouse look) and read
+-- navigation from controls instead of NUI focus, like vMenu. The wheel, both
+-- mouse buttons, arrows, Enter/Backspace/Esc and the pad's D-pad/A/B are
+-- claimed; weapon firing, aiming and weapon-wheel scrolling are suppressed.
+local GameMenuBlocked = {
+    14, 15, 16, 17, 37, 24, 25, 257, 140, 141, 142, 263, 264,
+    68, 69, 70, 91, 92, 99, 100, 114, 115, 116, 81, 82,
+    27, 172, 173, 174, 175, 176, 177, 191, 194, 200, 201, 202, 241, 242,
+}
+local GameMenuInputs = {
+    { 'back', 'Escape', { 200 } },
+    { 'back', 'Backspace', { 177, 194, 202, 25, 68, 91 } },
+    { 'select', nil, { 176, 191, 201, 24, 69, 92 } },
+    { 'up', nil, { 172, 241, 15, 17 } },
+    { 'down', nil, { 173, 242, 14, 16 } },
+    { 'left', nil, { 174 } },
+    { 'right', nil, { 175 } },
+}
+local GameMenuRepeat = { up = { 172 }, down = { 173 }, left = { 174 }, right = { 175 } }
+local GAME_MENU_REPEAT_DELAY = 350
+local GAME_MENU_REPEAT_RATE = 90
+local GAME_MENU_RELEASE_GRACE = 300
+local gameInputSession = nil
+
 local function getInvokingOwner()
     local owner = GetInvokingResource and GetInvokingResource() or nil
     return owner or CURRENT_RESOURCE
@@ -47,8 +71,16 @@ local function safeColor(value)
     return value:match('^var%(%-%-[%w%-]+%)$') ~= nil
 end
 
+local function isCallback(value)
+    if type(value) == 'function' then return true end
+    -- Export arguments are deserialized as callable Cfx function references.
+    if type(value) ~= 'table' or type(rawget(value, '__cfx_functionReference')) ~= 'string' then return false end
+    local mt = getmetatable(value)
+    return type(mt) == 'table' and type(mt.__call) == 'function'
+end
+
 local function isOptionalCallback(value)
-    return value == nil or type(value) == 'function'
+    return value == nil or isCallback(value)
 end
 
 local function safeErrorText(value)
@@ -101,7 +133,8 @@ local function releaseModal(session)
 end
 
 local function protectedCall(label, callback, ...)
-    if type(callback) ~= 'function' then return true end
+    if callback == nil then return true end
+    if not isCallback(callback) then return false end
 
     local ok, err = pcall(callback, ...)
     if not ok then print(('^1[cortex-lib]^7 menu %s callback failed: %s'):format(label, safeErrorText(err))) end
@@ -132,6 +165,60 @@ local function stopControlLock()
     controlsLocked = false
 end
 
+local function anyControl(list, check)
+    for index = 1, #list do
+        if check(0, list[index]) then return true end
+    end
+    return false
+end
+
+local function blockGameMenuControls()
+    for index = 1, #GameMenuBlocked do DisableControlAction(0, GameMenuBlocked[index], true) end
+    DisablePlayerFiring(PlayerId(), true)
+end
+
+local function readGameMenuInput(allowPad)
+    if not allowPad and not IsUsingKeyboard(2) then return nil end
+    for index = 1, #GameMenuInputs do
+        local input = GameMenuInputs[index]
+        if anyControl(input[3], IsDisabledControlJustPressed) then return input[1], input[2] end
+    end
+    return nil
+end
+
+local function startGameMenuInput(session, allowPad)
+    gameInputSession = session
+    CreateThread(function()
+        local held, heldSince, lastRepeat = nil, 0, 0
+        while gameInputSession == session do
+            blockGameMenuControls()
+            -- Chat, another focused UI or the pause menu own input for now.
+            if not IsNuiFocused() and not IsPauseMenuActive() then
+                local now = GetGameTimer()
+                local input, key = readGameMenuInput(allowPad)
+                if input then
+                    held, heldSince, lastRepeat = GameMenuRepeat[input] and input or nil, now, now
+                    SendNUIMessage({ action = 'menuNav', data = { session = session, input = input, key = key } })
+                elseif held then
+                    if not anyControl(GameMenuRepeat[held], IsDisabledControlPressed) then
+                        held = nil
+                    elseif now - heldSince >= GAME_MENU_REPEAT_DELAY and now - lastRepeat >= GAME_MENU_REPEAT_RATE then
+                        lastRepeat = now
+                        SendNUIMessage({ action = 'menuNav', data = { session = session, input = held } })
+                    end
+                end
+            end
+            Wait(0)
+        end
+        -- The click that closed the menu must not fire a weapon on release.
+        local releaseUntil = GetGameTimer() + GAME_MENU_RELEASE_GRACE
+        while GetGameTimer() < releaseUntil and gameInputSession == nil do
+            blockGameMenuControls()
+            Wait(0)
+        end
+    end)
+end
+
 local function validateValue(value)
     if type(value) == 'string' then return boundedString(value, 256, true) end
     if type(value) == 'number' then return isFiniteNumber(value) end
@@ -151,6 +238,7 @@ local function validateOption(option)
     if option.checked ~= nil and type(option.checked) ~= 'boolean' then return false end
     if option.defaultIndex ~= nil and (not isFiniteNumber(option.defaultIndex) or not math.tointeger(option.defaultIndex)) then return false end
     if option.close ~= nil and type(option.close) ~= 'boolean' then return false end
+    if option.disabled ~= nil and type(option.disabled) ~= 'boolean' then return false end
 
     if option.values ~= nil then
         if not isDenseArray(option.values, MAX_VALUES) then return false end
@@ -197,6 +285,7 @@ local function sanitizeOption(option)
         checked = option.checked,
         defaultIndex = option.defaultIndex,
         close = option.close,
+        disabled = option.disabled == true or nil,
     }
 end
 
@@ -226,6 +315,8 @@ local function buildNuiMenu(menu, session, revision)
         subtitle = menu.subtitle,
         position = menu.position or 'top-left',
         disableInput = menu.disableInput == true,
+        gameControls = menu.gameControls == true,
+        startIndex = menu.startIndex,
         canClose = menu.canClose ~= false,
         options = options,
         session = session,
@@ -248,6 +339,7 @@ local function clearOpenMenu(sendMessage, reason, runOnClose)
     OpenMenuSession = nil
     OpenMenuRevision = nil
     stopControlLock()
+    gameInputSession = nil
 
     if sendMessage then SendNUIMessage({ action = 'menuClose', data = { id = id, session = session } }) end
     if runOnClose and menu then protectedCall('close', menu.onClose, reason) end
@@ -262,6 +354,15 @@ local function registerMenu(menu, cb)
     if menu.position ~= nil and not VALID_MENU_POSITIONS[menu.position] then return false, 'invalid_position' end
     if menu.disableInput ~= nil and type(menu.disableInput) ~= 'boolean' then return false, 'invalid_disable_input' end
     if menu.canClose ~= nil and type(menu.canClose) ~= 'boolean' then return false, 'invalid_can_close' end
+    if menu.gameControls ~= nil and type(menu.gameControls) ~= 'boolean' then return false, 'invalid_game_controls' end
+    if menu.gamepad ~= nil and type(menu.gamepad) ~= 'boolean' then return false, 'invalid_gamepad' end
+    local startIndex = nil
+    if menu.startIndex ~= nil then
+        startIndex = type(menu.startIndex) == 'number' and math.tointeger(menu.startIndex) or nil
+        if not startIndex or startIndex < 1 or type(menu.options) ~= 'table' or startIndex > #menu.options then
+            return false, 'invalid_start_index'
+        end
+    end
     if not isOptionalCallback(cb)
         or not isOptionalCallback(menu.onClose)
         or not isOptionalCallback(menu.onSelected)
@@ -293,6 +394,9 @@ local function registerMenu(menu, cb)
         subtitle = menu.subtitle,
         position = menu.position,
         disableInput = menu.disableInput == true,
+        gameControls = menu.gameControls == true,
+        gamepad = menu.gamepad ~= false,
+        startIndex = startIndex,
         canClose = menu.canClose,
         options = storedOptions,
         onClose = menu.onClose,
@@ -319,6 +423,14 @@ local function showMenu(id)
     menu.revision = nextMenuRevision()
     OpenMenuRevision = menu.revision
     SendNUIMessage({ action = 'menuOpen', data = buildNuiMenu(menu, session, OpenMenuRevision) })
+
+    if menu.gameControls then
+        -- No NUI focus: gameplay keeps the keyboard, mouse look and movement.
+        controlsLocked = false
+        stopControlLock()
+        startGameMenuInput(session, menu.gamepad)
+        return true
+    end
 
     local lockInput = menu.disableInput == true
     if not focusModal(session, lockInput) then
@@ -417,6 +529,7 @@ RegisterNUICallback('cortex_menu_sideScroll', function(data, cb)
     if not option or not option.values or not scrollIndex or scrollIndex < 1 or scrollIndex > #option.values then
         cb({ ok = false, error = 'invalid_option' }); return
     end
+    if option.disabled then cb({ ok = false, error = 'option_disabled' }); return end
     local previousIndex = option.defaultIndex
     option.defaultIndex = scrollIndex
     local ok = protectedCall('sideScroll', menu.onSideScroll, selected, scrollIndex, getOptionArgs(option))
@@ -431,6 +544,7 @@ RegisterNUICallback('cortex_menu_check', function(data, cb)
     if not option or type(option.checked) ~= 'boolean' or type(data.checked) ~= 'boolean' then
         cb({ ok = false, error = 'invalid_option' }); return
     end
+    if option.disabled then cb({ ok = false, error = 'option_disabled' }); return end
     local previousChecked = option.checked
     option.checked = data.checked
     local ok = protectedCall('check', menu.onCheck, selected, data.checked, getOptionArgs(option))
@@ -443,6 +557,8 @@ RegisterNUICallback('cortex_menu_submit', function(data, cb)
     local menu = getMenu(OpenMenuId)
     local option, selected = getMenuOption(menu, data.selected)
     if not option then cb({ ok = false, error = 'invalid_option' }); return end
+    -- Disabled rows are presentation in NUI; Lua is the authority that refuses them.
+    if option.disabled then cb({ ok = false, error = 'option_disabled' }); return end
 
     local scrollIndex = 1
     if option.values then

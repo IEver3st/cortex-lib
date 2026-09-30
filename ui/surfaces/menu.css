@@ -1,0 +1,361 @@
+/* ============================================================================
+   MENU: a --slip column. SlipHeader, a windowed list of display-caps rows
+   (selected flips to paper with the accent bar), description, keycap legend.
+   Sizes in --u only; nothing visible under 3u; only transform/opacity move.
+   ============================================================================ */
+
+.cortex-menu-root {
+    --cx-menu-row: calc(44 * var(--u));
+    --cx-menu-gap: calc(2 * var(--u));
+    --cx-menu-stride: calc(46 * var(--u)); /* row + gap; MENU_ROW_STRIDE_U in menu.js */
+    /* The runtime safe-zone inset from Lua (--cx-safe), never closer than 24u. */
+    --cx-menu-inset: max(var(--cx-safe, 0px), calc(24 * var(--u)));
+    position: fixed;
+    z-index: 9995;
+    pointer-events: auto;
+    font-family: var(--body);
+    text-shadow: none;
+    color: var(--paper);
+}
+
+.cortex-menu-root.top-left { top: var(--cx-menu-inset); left: var(--cx-menu-inset); }
+.cortex-menu-root.top-right { top: var(--cx-menu-inset); right: var(--cx-menu-inset); }
+.cortex-menu-root.bottom-left { bottom: var(--cx-menu-inset); left: var(--cx-menu-inset); }
+.cortex-menu-root.bottom-right { bottom: var(--cx-menu-inset); right: var(--cx-menu-inset); }
+
+.cortex-menu {
+    display: flex;
+    flex-direction: column;
+    width: calc(380 * var(--u));
+    max-width: calc(100vw - 2 * var(--cx-menu-inset));
+    max-height: calc(100vh - 2 * var(--cx-menu-inset));
+    padding: calc(18 * var(--u)) 0 calc(16 * var(--u));
+    border-radius: var(--r);
+    background: var(--slip);
+    color: var(--paper);
+    animation: cortex-menu-in var(--t-enter) var(--ease) both;
+}
+
+@keyframes cortex-menu-in {
+    from { opacity: 0; transform: translateY(calc(6 * var(--u))); }
+    to { opacity: 1; transform: none; }
+}
+
+/* The header bar (x = 12u) and the selected row's accent bar share one edge. */
+.cortex-menu-header {
+    flex: 0 0 auto;
+    margin: 0 calc(16 * var(--u)) calc(16 * var(--u)) calc(12 * var(--u));
+}
+
+.cortex-menu-header .cx-slip-header { padding-top: calc(1 * var(--u)); padding-bottom: calc(1 * var(--u)); }
+.cortex-menu-header .cx-eyebrow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Italic caps lean past their box; give clipped (ellipsized) runs room for the last glyph. */
+.cortex-menu-header .cx-slip-title,
+.cortex-menu-legend .cx-hint-label,
+.cortex-menu-option-label,
+.cortex-menu-value-label { padding-right: 0.14em; }
+
+.cortex-menu-count { color: var(--dim); white-space: nowrap; }
+.cortex-menu-count b { color: var(--paper); font-weight: 700; }
+
+/* ------------------------------------------------------------------ list --- */
+.cortex-menu-body {
+    position: relative;
+    flex: 0 1 auto;
+    min-height: 0;
+    margin: 0 calc(12 * var(--u));
+}
+
+.cortex-menu-viewport {
+    height: calc(var(--cx-menu-rows, 1) * var(--cx-menu-stride) - var(--cx-menu-gap));
+    overflow: hidden;
+}
+
+.cortex-menu-track {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cx-menu-gap);
+    transition: transform 180ms var(--ease);
+    will-change: transform;
+}
+
+.cortex-menu-option {
+    position: relative;
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: calc(10 * var(--u));
+    width: 100%;
+    height: var(--cx-menu-row);
+    padding: 0 calc(14 * var(--u));
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--paper);
+    text-align: left;
+    cursor: pointer;
+    transition: opacity 160ms var(--ease), transform 120ms var(--ease);
+}
+
+.cortex-menu-option:hover:not(.active):not(.is-disabled) { background: var(--wash); }
+
+/* Selected: flips to paper with ink text and a 4u accent bar on its left edge. */
+.cortex-menu-option.active {
+    background: var(--paper);
+    color: var(--ink);
+    box-shadow: inset calc(4 * var(--u)) 0 0 var(--accent);
+}
+
+.cortex-menu-option.is-pressed { transform: translateY(calc(2 * var(--u))); }
+
+.cortex-menu-option.is-disabled { color: var(--dim); cursor: default; }
+.cortex-menu-option.is-disabled.active { background: var(--wash-strong); color: var(--muted); box-shadow: inset calc(4 * var(--u)) 0 0 var(--dim); }
+
+/* Faded edges: the partly-hidden neighbours at a scrolled window's ends. */
+.cortex-menu-option.is-edge { opacity: 0.34; }
+.cortex-menu-option.is-outside { opacity: 0; pointer-events: none; }
+.cortex-menu-option.active.is-edge { opacity: 1; }
+
+.cortex-menu-option-icon {
+    display: inline-grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: calc(24 * var(--u));
+    height: calc(24 * var(--u));
+    color: var(--cortex-menu-icon-color, var(--muted));
+}
+
+.cortex-menu-option.active .cortex-menu-option-icon { color: var(--ink); }
+.cortex-menu-option.is-disabled .cortex-menu-option-icon { color: var(--dim); }
+
+.cortex-menu-glyph {
+    width: calc(22 * var(--u));
+    height: calc(22 * var(--u));
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    overflow: visible;
+}
+
+.cortex-menu-glyph-text {
+    font: italic 800 calc(18 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    text-transform: uppercase;
+}
+
+/* Emoji become a single-colour silhouette so one icon family reads on screen. */
+.cortex-menu-glyph-text.is-silhouette {
+    color: transparent;
+    font-style: normal;
+    text-shadow: 0 0 0 var(--cortex-menu-icon-color, var(--muted));
+}
+
+.cortex-menu-option.active .cortex-menu-glyph-text.is-silhouette { text-shadow: 0 0 0 var(--ink); }
+
+.cortex-menu-option-main {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: calc(6 * var(--u));
+    min-width: 0;
+    transition: transform 160ms var(--ease);
+}
+
+.cortex-menu-option.active .cortex-menu-option-main { transform: translateX(calc(4 * var(--u))); }
+
+.cortex-menu-option-line {
+    display: flex;
+    align-items: center;
+    gap: calc(12 * var(--u));
+    min-width: 0;
+}
+
+.cortex-menu-option-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: italic 800 calc(20 * var(--u)) / 1.1 var(--display);
+    font-synthesis: style;
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+}
+
+/* ‹ VALUE › */
+.cortex-menu-value {
+    display: inline-flex;
+    flex: 0 1 auto;
+    align-items: center;
+    gap: calc(4 * var(--u));
+    max-width: 56%;
+    min-width: 0;
+    color: var(--muted);
+}
+
+.cortex-menu-value-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: italic 800 calc(17 * var(--u)) / 1.1 var(--display);
+    font-synthesis: style;
+    font-variant-numeric: tabular-nums;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.cortex-menu-option.active .cortex-menu-value { color: var(--ink); }
+
+.cortex-menu-chevron {
+    position: relative;
+    display: inline-block;
+    flex: 0 0 auto;
+    width: calc(18 * var(--u));
+    height: calc(24 * var(--u));
+    cursor: pointer;
+}
+
+.cortex-menu-chevron::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: calc(8 * var(--u));
+    height: calc(8 * var(--u));
+    border-top: calc(3 * var(--u)) solid currentColor;
+    border-right: calc(3 * var(--u)) solid currentColor;
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.cortex-menu-chevron.is-prev::before { transform: translate(-30%, -50%) rotate(-135deg); }
+.cortex-menu-chevron.is-next::before { transform: translate(-70%, -50%) rotate(45deg); }
+.cortex-menu-chevron:hover::before { border-color: var(--accent-deep); }
+
+/* Check rows: the kit CheckMark; on the paper face an ink box with an accent tick. */
+.cortex-menu-option .cx-check { width: calc(22 * var(--u)); height: calc(22 * var(--u)); }
+.cortex-menu-option.active .cx-check { box-shadow: inset 0 0 0 calc(3 * var(--u)) var(--dim); }
+.cortex-menu-option.active .cx-check.is-on { background: var(--ink); box-shadow: none; }
+.cortex-menu-option.active .cx-check.is-on svg { stroke: var(--accent); }
+.cortex-menu-option.is-disabled .cx-check.is-on { background: var(--dim); }
+
+/* Progress rows: tabular percent and a 4u meter under the label. */
+.cortex-menu-option-percent {
+    flex: 0 0 auto;
+    color: var(--muted);
+    font: italic 800 calc(16 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    font-variant-numeric: tabular-nums;
+}
+
+.cortex-menu-option.active .cortex-menu-option-percent { color: var(--ink); }
+.cortex-menu-option-meter { width: 100%; }
+.cortex-menu-option.active .cx-meter { background: var(--muted); }
+.cortex-menu-option.active .cx-meter-fill { background: var(--ink); }
+.cortex-menu-option.is-disabled .cx-meter-fill { background: var(--dim); }
+
+/* 4u scroll rail in the slip's right gutter, only when the list overflows. */
+.cortex-menu-rail {
+    position: absolute;
+    top: 0;
+    right: calc(-8 * var(--u));
+    width: calc(4 * var(--u));
+    height: calc(var(--cx-menu-rows, 1) * var(--cx-menu-stride) - var(--cx-menu-gap));
+    border-radius: calc(1 * var(--u));
+    background: var(--rule);
+    overflow: hidden;
+}
+
+.cortex-menu-rail i {
+    display: block;
+    width: 100%;
+    height: calc(var(--cx-rail-size, 1) * 100%);
+    min-height: calc(12 * var(--u));
+    border-radius: calc(1 * var(--u));
+    background: var(--muted);
+    transform: translateY(calc(var(--cx-rail-offset, 0) * 100%));
+    transition: transform 180ms var(--ease);
+}
+
+.cortex-menu-empty {
+    display: grid;
+    gap: calc(6 * var(--u));
+    padding: calc(10 * var(--u)) calc(14 * var(--u)) calc(6 * var(--u));
+}
+
+.cortex-menu-empty-title {
+    color: var(--muted);
+    font: italic 800 calc(20 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    text-transform: uppercase;
+}
+
+.cortex-menu-empty-copy { color: var(--dim); font-size: calc(14 * var(--u) * var(--cx-text)); }
+
+/* ----------------------------------------------------------- description --- */
+.cortex-menu-description {
+    display: grid;
+    flex: 0 0 auto;
+    gap: calc(6 * var(--u));
+    margin: calc(14 * var(--u)) calc(20 * var(--u)) 0 calc(26 * var(--u));
+}
+
+/* Menus that describe rows keep two lines reserved, so moving onto a row
+   without a description does not shift a bottom-anchored menu. */
+.cortex-menu-description.is-reserved { min-height: calc(2 * 1.45 * 14 * var(--u) * var(--cx-text)); }
+
+.cortex-menu-description-title {
+    color: var(--paper);
+    font: italic 800 calc(16 * var(--u)) / 1.1 var(--display);
+    font-synthesis: style;
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    overflow-wrap: anywhere;
+}
+
+.cortex-menu-tooltip {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 6;
+    color: var(--muted);
+    font: calc(14 * var(--u) * var(--cx-text)) / 1.45 var(--body);
+    overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------- legend --- */
+.cortex-menu-footer {
+    flex: 0 0 auto;
+    margin: calc(16 * var(--u)) calc(12 * var(--u)) 0 calc(26 * var(--u));
+}
+
+.cortex-menu-legend { gap: calc(10 * var(--u)) calc(12 * var(--u)); }
+.cortex-menu-legend .cx-hint { font-size: calc(14 * var(--u)); color: var(--muted); }
+.cortex-menu-legend .cx-hint.is-disabled { color: var(--dim); }
+/* Pressed keycaps invert to ink; on an ink slip they keep a 3u paper rim. */
+.cortex-menu-legend .cx-key.is-pressed { box-shadow: inset 0 0 0 calc(3 * var(--u)) var(--paper); }
+html[data-cx-hints='off'] .cortex-menu-footer { display: none; }
+
+@media (max-height: 700px) {
+    .cortex-menu { padding-top: calc(14 * var(--u)); }
+    .cortex-menu-header { margin-bottom: calc(12 * var(--u)); }
+    .cortex-menu-body { margin-bottom: 0; }
+    .cortex-menu-tooltip { -webkit-line-clamp: 4; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cortex-menu,
+    .cortex-menu-track,
+    .cortex-menu-rail i,
+    .cortex-menu-option,
+    .cortex-menu-option-main { animation: none; transition: none; }
+}
+
+html[data-cx-motion='reduced'] .cortex-menu,
+html[data-cx-motion='reduced'] .cortex-menu-track,
+html[data-cx-motion='reduced'] .cortex-menu-rail i,
+html[data-cx-motion='reduced'] .cortex-menu-option,
+html[data-cx-motion='reduced'] .cortex-menu-option-main { animation: none; transition: none; }

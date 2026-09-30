@@ -1,0 +1,424 @@
+/* ============================================================================
+   RADIAL MENU. A donut of --slip segments with constant-width gaps. The hovered
+   slip flips to paper (ink content) and a mint arc rides its outer edge. The
+   hub names the choice; page dots and the controls legend sit under the wheel.
+   The SVG viewBox is 460 units = 460 radial units (--ru), so every stroke is in
+   --u and never drops under 3u.
+   ============================================================================ */
+
+.cortex-radial-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    cursor: default;
+    opacity: 0;
+    transition: opacity var(--t-fast, 160ms) var(--ease);
+}
+
+.cortex-radial-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+    animation: cx-radial-rise var(--t-enter, 240ms) var(--ease);
+}
+
+.cortex-radial-overlay:not(.visible) {
+    pointer-events: none;
+}
+
+@keyframes cx-radial-rise {
+    from { opacity: 0; transform: translateY(calc(6 * var(--u))); }
+    to { opacity: 1; transform: none; }
+}
+
+/* ------------------------------------------------------------------ wheel --- */
+.cortex-radial-wheel {
+    --radial-k: 1;
+    --radial-size: calc(460 * var(--u));
+    --ru: calc(var(--u) * var(--radial-k));
+    position: relative;
+    width: var(--radial-size);
+    height: var(--radial-size);
+    color: var(--paper);
+    text-shadow: none;
+}
+
+.cortex-radial-wheel.is-compact {
+    --radial-k: 0.826;
+    --radial-size: calc(380 * var(--u));
+}
+
+.cortex-radial-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.cortex-radial-svg:focus,
+.cortex-radial-svg:focus-visible { outline: none; }
+
+/* A slip is ink at the player's surface opacity. Fill and a same-colour round
+   stroke are composited once by element opacity, so rounded corners never
+   double the alpha at the edge. */
+.cortex-radial-slip-shape,
+.cortex-radial-hub-disc {
+    fill: var(--ink);
+    stroke: var(--ink);
+    stroke-width: 6;
+    stroke-linejoin: round;
+    opacity: var(--cx-surface-alpha, 0.9);
+}
+
+.cortex-radial-slip-shape {
+    transition: fill 120ms var(--ease), stroke 120ms var(--ease), opacity 120ms var(--ease);
+}
+
+.cortex-radial-slips > .cortex-radial-slip {
+    transform-box: view-box;
+    transform-origin: 50% 50%;
+    animation: cx-radial-slip-in 260ms var(--ease) both;
+    animation-delay: calc(var(--i, 0) * 18ms);
+}
+
+.cortex-radial-slips.is-paging-next > .cortex-radial-slip,
+.cortex-radial-slips.is-paging-prev > .cortex-radial-slip {
+    animation-duration: 200ms;
+    animation-delay: calc(var(--i, 0) * 10ms);
+}
+
+@keyframes cx-radial-slip-in {
+    from { opacity: 0; transform: scale(0.92); }
+    to { opacity: 1; transform: none; }
+}
+
+.cortex-radial-slip-body {
+    transition: transform 160ms var(--ease);
+}
+
+.cortex-radial-slip.is-hover .cortex-radial-slip-body {
+    transform: translate(var(--push-x), var(--push-y));
+}
+
+.cortex-radial-slip.is-ghost .cortex-radial-slip-shape {
+    opacity: calc(var(--cx-surface-alpha, 0.9) * 0.4);
+}
+
+/* Selected: flips to paper. */
+.cortex-radial-slip.is-hover .cortex-radial-slip-shape {
+    fill: var(--paper);
+    stroke: var(--paper);
+    opacity: 1;
+}
+
+.cortex-radial-arc {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 6;
+    stroke-linecap: butt;
+    opacity: 0;
+    transition: opacity 120ms var(--ease);
+}
+
+.cortex-radial-slip.is-hover .cortex-radial-arc { opacity: 1; }
+
+/* Disabled: dim content, no flip, no mint. Aiming at it still shows a quiet
+   rule-coloured arc so the player sees where the wheel points. */
+.cortex-radial-slip.is-disabled.is-hover .cortex-radial-slip-shape {
+    fill: var(--ink);
+    stroke: var(--ink);
+    opacity: 1;
+}
+
+.cortex-radial-slip.is-disabled.is-hover .cortex-radial-arc { stroke: var(--rule-strong); }
+.cortex-radial-slip.is-disabled.is-hover .cortex-radial-slip-body { transform: none; }
+
+/* ----------------------------------------------------------------- labels --- */
+.cortex-radial-labels {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.cortex-radial-label {
+    --cortex-radial-content: var(--paper);
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: calc(6 * var(--ru));
+    width: calc(var(--w, 90) * var(--ru));
+    color: var(--cortex-radial-content);
+    text-align: center;
+    transform: translate(-50%, -50%);
+    transition: transform 160ms var(--ease), color 120ms var(--ease);
+    animation: cx-radial-fade 260ms var(--ease) both;
+    animation-delay: calc(var(--i, 0) * 18ms + 40ms);
+}
+
+@keyframes cx-radial-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.cortex-radial-label.is-hover {
+    --cortex-radial-content: var(--ink);
+    transform: translate(-50%, -50%) translate(calc(var(--px, 0) * var(--ru)), calc(var(--py, 0) * var(--ru)));
+}
+
+.cortex-radial-label.is-disabled { --cortex-radial-content: var(--dim); }
+.cortex-radial-label.is-disabled.is-hover { transform: translate(-50%, -50%); }
+
+.cortex-radial-label-text {
+    display: -webkit-box;
+    max-width: 100%;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    padding: 0 0.14em;           /* room for the italic overhang */
+    overflow-wrap: anywhere;
+    font: italic 800 calc(15 * var(--ru)) / 1 var(--display);
+    font-synthesis: style;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.cortex-radial-label.no-icon .cortex-radial-label-text { font-size: calc(18 * var(--ru)); line-height: 0.98; }
+.cortex-radial-label.is-icon-only .cortex-radial-label-text { display: none; }
+.cortex-radial-label.is-icon-only .cortex-radial-icon { width: calc(36 * var(--ru)); height: calc(36 * var(--ru)); }
+.cortex-radial-label.is-icon-only .cortex-radial-glyph { font-size: calc(38 * var(--ru)); }
+
+.cortex-radial-icon {
+    flex: 0 0 auto;
+    width: calc(30 * var(--ru));
+    height: calc(30 * var(--ru));
+    overflow: visible;
+    fill: none;
+    stroke: var(--cortex-radial-icon-color, var(--cortex-radial-content));
+    stroke-width: 2.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: stroke 120ms var(--ease);
+}
+
+.cortex-radial-glyph {
+    flex: 0 0 auto;
+    color: var(--cortex-radial-icon-color, var(--cortex-radial-content));
+    font: italic 800 calc(32 * var(--ru)) / 0.9 var(--display);
+    font-synthesis: style;
+    font-variant-numeric: tabular-nums;
+    text-transform: uppercase;
+    transition: color 120ms var(--ease);
+}
+
+/* Emoji collapse to a one-colour silhouette in the current content colour. */
+.cortex-radial-glyph.is-silhouette {
+    color: transparent;
+    text-shadow: 0 0 0 var(--cortex-radial-icon-color, var(--cortex-radial-content));
+    font: calc(26 * var(--ru)) / 1 var(--body);
+}
+
+/* On paper the content is ink, whatever colour the consumer gave the icon. */
+.cortex-radial-label.is-hover .cortex-radial-icon { stroke: var(--ink); }
+.cortex-radial-label.is-hover .cortex-radial-glyph { color: var(--ink); }
+.cortex-radial-label.is-hover .cortex-radial-glyph.is-silhouette { color: transparent; text-shadow: 0 0 0 var(--ink); }
+.cortex-radial-label.is-disabled .cortex-radial-icon { stroke: var(--dim); }
+.cortex-radial-label.is-disabled .cortex-radial-glyph { color: var(--dim); }
+
+.cortex-radial-chevron {
+    flex: 0 0 auto;
+    width: calc(14 * var(--ru));
+    height: calc(14 * var(--ru));
+    margin-top: calc(-2 * var(--ru));
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.72;
+}
+
+.cortex-radial-label.is-icon-only .cortex-radial-chevron { display: none; }
+
+/* -------------------------------------------------------------------- hub --- */
+.cortex-radial-hub {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    display: grid;
+    place-items: center;
+    width: calc(164 * var(--ru));
+    height: calc(164 * var(--ru));
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.cortex-radial-hub-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: calc(8 * var(--ru));
+    max-width: 100%;
+    text-align: center;
+    animation: cx-radial-hub-in 140ms var(--ease) both;
+}
+
+@keyframes cx-radial-hub-in {
+    from { opacity: 0; transform: translateY(calc(3 * var(--ru))); }
+    to { opacity: 1; transform: none; }
+}
+
+.cortex-radial-hub-meta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: calc(8 * var(--ru));
+    max-width: 100%;
+    min-width: 0;
+}
+
+.cortex-radial-crumb {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--muted);
+    font: 700 calc(11 * var(--ru) * var(--cx-text, 1)) / 1.1 var(--body);
+    letter-spacing: 0.16em;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.cortex-radial-hub-label,
+.cortex-radial-hub-title {
+    display: -webkit-box;
+    max-width: 100%;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    padding: 0 0.12em;
+    overflow-wrap: anywhere;
+    color: var(--paper);
+    font: italic 800 calc(32 * var(--ru)) / 0.92 var(--display);
+    font-synthesis: style;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+}
+
+.cortex-radial-hub-label.is-long,
+.cortex-radial-hub-title.is-long { font-size: calc(25 * var(--ru)); }
+.cortex-radial-hub-label.is-longer,
+.cortex-radial-hub-title.is-longer { font-size: calc(20 * var(--ru)); -webkit-line-clamp: 3; }
+
+.cortex-radial-hub-desc {
+    display: -webkit-box;
+    max-width: 100%;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    color: var(--muted);
+    font: calc(13 * var(--ru) * var(--cx-text, 1)) / 1.28 var(--body);
+    overflow-wrap: anywhere;
+}
+
+.cortex-radial-hub-content.is-disabled .cortex-radial-hub-label { color: var(--dim); }
+
+.cortex-radial-hub-content.is-empty .cortex-radial-hub-title { color: var(--dim); font-size: calc(24 * var(--ru)); }
+
+.cortex-radial-hub-action {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(8 * var(--ru));
+    color: var(--muted);
+    font: italic 800 calc(18 * var(--ru)) / 1 var(--display);
+    font-synthesis: style;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.cortex-radial-hub-content.is-idle { gap: calc(10 * var(--ru)); }
+
+/* ----------------------------------------------------------------- footer --- */
+.cortex-radial-footer {
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 22 * var(--u));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: calc(14 * var(--u));
+    width: max-content;
+    max-width: calc(100vw - 2 * var(--safe));
+    transform: translateX(-50%);
+    color: var(--paper);
+    text-shadow: var(--legible);
+    pointer-events: none;
+}
+
+.cortex-radial-pages {
+    display: flex;
+    align-items: center;
+    gap: calc(12 * var(--u));
+}
+
+.cortex-radial-dots {
+    display: flex;
+    align-items: center;
+    gap: calc(6 * var(--u));
+}
+
+.cortex-radial-dot {
+    display: block;
+    width: calc(8 * var(--u));
+    height: calc(8 * var(--u));
+    border-radius: calc(2 * var(--u));
+    background: var(--paper);
+    box-shadow: 0 calc(2 * var(--u)) 0 var(--ink);
+    opacity: 0.45;
+    transition: opacity var(--t-fast, 160ms) var(--ease);
+}
+
+.cortex-radial-dot.is-current {
+    width: calc(22 * var(--u));
+    background: var(--accent);
+    opacity: 1;
+}
+
+.cortex-radial-legend { justify-content: center; }
+.cortex-radial-legend .cx-hint-label { padding-right: 0.12em; }   /* italic overhang */
+
+/* ---------------------------------------------------------- reduced motion --- */
+@media (prefers-reduced-motion: reduce) {
+    .cortex-radial-overlay,
+    .cortex-radial-overlay.visible,
+    .cortex-radial-slips > .cortex-radial-slip,
+    .cortex-radial-label,
+    .cortex-radial-hub-content {
+        animation: none;
+        transition: none;
+    }
+
+    .cortex-radial-slip-body,
+    .cortex-radial-slip-shape,
+    .cortex-radial-arc,
+    .cortex-radial-dot {
+        transition: none;
+    }
+}
+
+html[data-cx-motion='reduced'] .cortex-radial-overlay.visible,
+html[data-cx-motion='reduced'] .cortex-radial-slips > .cortex-radial-slip,
+html[data-cx-motion='reduced'] .cortex-radial-label,
+html[data-cx-motion='reduced'] .cortex-radial-hub-content {
+    animation: none;
+}
+
+/* Short screens: keep the footer on screen under the wheel. */
+@media (max-height: 640px) {
+    .cortex-radial-wheel { --radial-k: 0.86; --radial-size: calc(396 * var(--u)); }
+    .cortex-radial-wheel.is-compact { --radial-k: 0.74; --radial-size: calc(340 * var(--u)); }
+}

@@ -1,61 +1,37 @@
-# Test Commands for cortex-lib
+# Maintainer checks
 
-## Quick Start
+Run from the repository root with Node.js, PowerShell 7 (`pwsh`) and Lua 5.4.
+The suite needs no neighboring Cortex repositories, package installation or
+running game client.
 
-To enable the test menu, add the test file to your fxmanifest.lua:
-
-```lua
-client_scripts {
-    'client/utils.lua',
-    'client/interaction_renderer.lua',
-    'client/debug_panel.lua',
-    'tests/client/debug_commands.lua',
+```powershell
+node --test tests/*.test.mjs
+Get-ChildItem -LiteralPath tests -Filter '*_spec.lua' | ForEach-Object {
+    lua $_.FullName
+    if ($LASTEXITCODE -ne 0) { throw "Failed: $($_.Name)" }
 }
+Get-ChildItem -LiteralPath ui -Recurse -Filter '*.js' | ForEach-Object {
+    node --check $_.FullName
+    if ($LASTEXITCODE -ne 0) { throw "Invalid JavaScript: $($_.Name)" }
+}
+pwsh -NoProfile -File scripts/validate-resource.ps1 -Path .
+git diff --check
 ```
 
-Then restart the resource and run `/cortex` in FiveM to open the test menu.
+The retained checks cover loaders and public API routing, callback validation,
+settings persistence and rollback, focus ownership, interaction arbitration and
+projection state, native menu handoffs, skill checks, overlay behavior and packaging.
+They use deterministic stubs and fixtures; they do not prove FiveM or CEF behavior.
 
-## Test Menu
+The legacy demo, retired Scaleform bridge, earlier browser preview and tests belonging
+to Chat or Death are no longer part of this repository. Source-text checks that
+duplicated the retained lifecycle tests or pinned an old visual treatment were
+removed. Tests and developer documentation are excluded from customer ZIPs.
 
-The `/cortex` menu covers:
+The current [browser UI lab](../docs/browser-lab.md) runs with `bun run dev`.
+Its HTTP isolation and renderer-family coverage checks are part of the Node
+suite. Interactive browser checks exercise fixtures; game callbacks remain mocks.
 
-- Notifications (types, positions, persistent, sound, update/hide, helper methods)
-- Progress bars (bar/circle, middle, cancelable, animations, props, control locks, API cancel)
-- Menus (option types, callbacks, nested menus, setMenuOptions, input lock)
-- Alert dialogs (confirmation, info, styled)
-- Text UI (positions and custom styles)
-- Debug panel (show/update/hide/status)
-- Utilities (requestAnimDict, requestModel, getOpenMenu)
-
-## Client Console Testing
-
-You can also run tests directly from the FiveM client console (F8):
-
-```lua
-lib.notify({ type = 'success', title = 'Success', description = 'Works!' })
-lib.progress({ label = 'Test', duration = 3000 })
-lib.clearNotifications()
-```
-
-## Server-Side Testing
-
-To test server notifications, add this to a server script:
-
-```lua
-RegisterCommand('cortex_test_server', function(source)
-    TriggerClientEvent('cortex-lib:notify', source, {
-        type = 'info',
-        title = 'Server Notification',
-        description = 'Sent from server!'
-    })
-end, true)
-```
-
-## Notes
-
-- Test menu requires the resource to be running
-- Use `/cortex` to open the test menu
-- Progress can be cancelled with Backspace / the game cancel control if `canCancel = true`
-- Persistent notifications stay visible until dismissed
-- Notification positions: `top-right`, `top-left`, `top`, `bottom-right`, `bottom-left`, `bottom`
-- Progress positions: `top`, `middle` (`center` is accepted as an alias), `bottom`
+For runtime acceptance, use [the release checklist](../docs/release.md). The
+optional `/cortexdebug` workbench requires `setr cortex_debug 1` before startup;
+disable it afterward. Do not add a test script to the production manifest.

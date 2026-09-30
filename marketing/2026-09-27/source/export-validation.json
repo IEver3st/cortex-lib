@@ -1,0 +1,50 @@
+[
+  {
+    "name": "01-cortex-lib",
+    "width": 1920,
+    "height": 1080,
+    "layers": 15,
+    "textLayers": 5,
+    "bytes": 3223928
+  },
+  {
+    "name": "02-notifications",
+    "width": 1920,
+    "height": 1080,
+    "layers": 12,
+    "textLayers": 4,
+    "bytes": 2960975
+  },
+  {
+    "name": "03-menus-and-radial",
+    "width": 1920,
+    "height": 1080,
+    "layers": 14,
+    "textLayers": 5,
+    "bytes": 2837863
+  },
+  {
+    "name": "04-input-dialogs",
+    "width": 1920,
+    "height": 1080,
+    "layers": 12,
+    "textLayers": 4,
+    "bytes": 2323440
+  },
+  {
+    "name": "05-shared-settings",
+    "width": 1920,
+    "height": 1080,
+    "layers": 11,
+    "textLayers": 3,
+    "bytes": 2369956
+  },
+  {
+    "name": "06-interaction-prompts",
+    "width": 1920,
+    "height": 1080,
+    "layers": 13,
+    "textLayers": 5,
+    "bytes": 2723869
+  }
+]

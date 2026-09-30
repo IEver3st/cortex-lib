@@ -1,0 +1,196 @@
+@font-face {
+    font-family: 'Barlow Condensed';
+    src: url('./cortex-display.woff2') format('woff2');
+    font-weight: 100 900;
+    font-display: swap;
+}
+/* One opt-in visual vocabulary. Loaded after resource CSS; no viewport styling. */
+:root {
+    --cx-paper: #f0f0e9;
+    --cx-ink: #111715;
+    --cx-muted: #b8bcb7;
+    --cx-accent: #8fcbbf;
+    --cx-accent-rgb: 143, 203, 191;
+    --cx-accent-deep: #2f6e62;
+    --cx-surface-alpha: 0.92;
+    --cx-panel: rgba(17, 23, 21, 0.92);
+    --cx-raised: rgba(32, 40, 36, var(--cx-surface-alpha));
+    --cx-ink-surface: rgba(17, 23, 21, var(--cx-surface-alpha));
+    --cx-paper-surface: rgba(240, 240, 233, var(--cx-surface-alpha));
+    --cx-rule: rgba(240, 240, 233, 0.16);
+    --cx-body: Arial, sans-serif;
+    --cx-display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+    --cx-data: 'Courier New', monospace;
+}
+:root.cortex-shared-style {
+    --hud-color: var(--cx-paper);
+    --hud-dim: var(--cx-muted);
+    --hud-glow: transparent;
+    --hud-bg: var(--cx-panel);
+    --hud-panel: var(--cx-panel);
+    --hud-panel-2: var(--cx-raised);
+    --hud-panel-3: var(--cx-ink-surface);
+    --hud-line: var(--cx-rule);
+    --hud-line-2: var(--cx-rule);
+    --font-hud: var(--cx-body);
+    --font-display: var(--cx-display);
+    --font-brand: var(--cx-display);
+    --text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --es-border: var(--cx-rule);
+    --es-accent: var(--cx-accent);
+    --es-accent-violet: var(--cx-accent);
+    --accent: var(--cx-accent);
+    --accent-hover: var(--cx-paper);
+    --es-focus-ring: var(--cx-accent);
+    --font-ui: var(--cx-body);
+    --es-accent-border: var(--cx-rule);
+    --es-accent-dim: transparent;
+    --es-success: #9bc2ae;
+    --es-warning: #d8ba82;
+    --es-error: #df918d;
+    --ui-paper: var(--cx-paper);
+    --ui-paper-fill: var(--cx-paper-surface);
+    --ui-ink-fill: var(--cx-ink-surface);
+    --surface-raised-fill: var(--cx-raised);
+    --ui-panel: var(--cx-panel);
+    --ui-rule: var(--cx-rule);
+    --surface-hud: var(--cx-panel);
+    --surface-hud-soft: var(--cx-panel);
+    --surface-panel: var(--cx-panel);
+    --surface-panel-subtle: var(--cx-raised);
+    --surface-panel-solid: var(--cx-ink-surface);
+    --surface-control: rgba(235, 233, 230, calc(var(--cx-surface-alpha) * 0.0652));
+    --surface-control-hover: rgba(235, 233, 230, calc(var(--cx-surface-alpha) * 0.1087));
+    --surface-control-active: rgba(235, 233, 230, calc(var(--cx-surface-alpha) * 0.1522));
+    --surface-scrim: rgba(7, 7, 8, calc(var(--cx-surface-alpha) * 0.565));
+    --surface-scrim-strong: rgba(7, 7, 8, calc(var(--cx-surface-alpha) * 0.783));
+    --cortex-aqua: var(--cx-accent);
+    --state-focus: var(--cx-accent);
+    --font-ui-display: var(--cx-display);
+    --font-ui-body: var(--cx-body);
+    --chat-accent: var(--cx-accent);
+    --chat-font: var(--cx-body);
+    --rewind-font: var(--cx-display);
+    --console-display: var(--cx-display);
+    --console-paper: var(--cx-paper);
+    --console-ink: var(--cx-ink);
+    --accent-primary: var(--cx-accent);
+    --border-active: var(--cx-accent);
+    --bg-panel: var(--cx-panel);
+    --bg-surface: var(--cx-raised);
+    --bg-app: var(--cx-ink-surface);
+    --bg-item: var(--cx-raised);
+    --bg-item-hover: var(--cx-panel);
+    --bg-item-active: var(--cx-panel);
+    --ink-0: var(--cx-ink-surface);
+    --ink-1: var(--cx-panel);
+    --ink-2: var(--cx-raised);
+    --ink-3: var(--cx-raised);
+    --ink-4: var(--cx-raised);
+    --ink-5: var(--cx-raised);
+    --font-sans: var(--cx-body);
+    --font-mono: var(--cx-data);
+    --mdt-accent: var(--cx-accent);
+    --mdt-text: var(--cx-paper);
+    --mdt-text-dim: var(--cx-muted);
+    --mdt-surface: var(--cx-panel);
+    --mdt-surface-2: var(--cx-raised);
+    --mdt-surface-3: var(--cx-raised);
+    --mdt-chrome: var(--cx-ink-surface);
+    --mdt-bg: var(--cx-ink-surface);
+    --mdt-sidebar: var(--cx-panel);
+    --mdt-toolbar: var(--cx-panel);
+    --mdt-border: var(--cx-rule);
+    --mdt-bezel: var(--cx-raised);
+    --mdt-bezel-edge: var(--cx-rule);
+}
+.cortex-shared-style[data-cortex-resource="cortex-lib"] .cortex-pause-overlay {
+    --pause-scrim: rgba(8, 14, 13, calc(var(--cx-surface-alpha) * 0.848));
+    --pause-home-scrim: rgba(8, 14, 13, calc(var(--cx-surface-alpha) * 0.3913));
+    --pause-panel: var(--cx-panel);
+    --pause-panel-hover: rgba(27, 43, 37, var(--cx-surface-alpha));
+    --pause-control: rgba(0, 0, 0, calc(var(--cx-surface-alpha) * 0.326));
+    --pause-ink-fill: var(--cx-ink-surface);
+    --pause-paper-fill: var(--cx-paper-surface);
+    --pause-accent-fill: rgba(var(--cx-accent-rgb), var(--cx-surface-alpha));
+}
+/* CEF backdrop compositing is unsafe even inside rounded, bounded panels. */
+.cortex-shared-style *, .cortex-shared-style *::before, .cortex-shared-style *::after {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+/* Chat keeps its local inline preferences; the shared profile supplies accent and type. */
+.cortex-shared-style[data-cortex-resource="cortex-chat"] .es-chat {
+    --chat-accent: var(--cx-accent);
+    --chat-font: var(--cx-body);
+    max-width: calc(100vw - 2 * var(--cx-safe, 20px));
+    max-height: calc(100vh - 2 * var(--cx-safe, 20px));
+}
+/* Chat authors the Cortex panel composition locally (ruled rows, paper tab and
+   keycaps, mint inset selection); the shared profile supplies tokens only. */
+.cortex-shared-style[data-cortex-resource="cortex-chat"] {
+    --chat-display: var(--cx-display);
+    --cx-paper-local: var(--cx-paper);
+    --cx-ink-local: var(--cx-ink);
+}
+/* Modal snapshots can lag native focus release. Chat's native focus gate owns
+   the composer; hiding it here would make its heartbeat cancel the new session.
+   Passive history still yields to menus, and blur/Escape closes the composer. */
+.cortex-modal-active[data-cortex-resource="cortex-chat"] .es-chat:not(.chat-open) { visibility: hidden; pointer-events: none; }
+/* Cortex settings is a full-screen page: every other Cortex NUI (HUD, chat,
+   camera overlays) steps out of the way until it closes. */
+.cortex-settings-active:not([data-cortex-resource="cortex-lib"]) body { visibility: hidden; }
+.cortex-modal-active[data-cortex-resource="cortex-lib"] .cortex-interactions,
+.cortex-modal-active[data-cortex-resource="cortex-lib"] #textui { visibility: hidden; pointer-events: none; }
+.cortex-shared-style[data-cortex-resource="cortex_mdtsv"] body { font-family: var(--cx-body); }
+.cortex-shared-style[data-cortex-resource="cortex_mdtsv"] .topo-vignette { display: none; }
+.cortex-shared-style[data-cortex-resource="cortex-emotemenu"] .menu-shell {
+    background: var(--cx-panel);
+}
+.cortex-shared-style[data-cortex-resource="cortex-rewind"] .rewind-instrument {
+    --rewind-paper: var(--cx-paper); --rewind-accent: var(--cx-accent); --rewind-body: var(--cx-body);
+}
+.cortex-shared-style[data-cortex-resource="cortex_mdtsv"] .mdt-root {
+    --mdt-accent: var(--cx-accent);
+    --mdt-accent-dim: var(--cx-raised);
+    --mdt-accent-glow: transparent;
+}
+.cortex-shared-style[data-cortex-resource="cortex-admin"] .admin-shell {
+    --ink-0: var(--cx-ink-surface);
+    --ink-1: var(--cx-panel);
+    --ink-2: var(--cx-raised);
+    --ink-3: var(--cx-raised);
+    --ink-4: var(--cx-raised);
+}
+.cortex-shared-style[data-cortex-resource="cortex-admin"] .console-nav-item.is-active {
+    background: var(--cx-paper-surface);
+}
+/* Each resource owns its silhouette. Cinematic states inherit typography only. */
+.cortex-shared-style[data-cortex-resource="cortex-death"] .content {
+    --death-paper: var(--cx-paper);
+    --death-body: var(--cx-body);
+    --death-display: var(--cx-display);
+}
+.cortex-shared-style[data-cortex-resource="gsd-arges"] {
+    --housing: var(--cx-ink-surface); --housing-raised: var(--cx-raised); --well: var(--cx-ink-surface);
+    --text: var(--cx-paper); --text-muted: var(--cx-muted); --focus: var(--cx-accent);
+}
+.cortex-shared-style[data-cortex-resource="opticom"] {
+    --surface: var(--cx-panel); --surface-raised: var(--cx-raised);
+    --text: var(--cx-paper); --muted: var(--cx-muted); --line: var(--cx-rule);
+}
+.cortex-shared-style[data-cortex-resource="opticom"] .receiver { font-family: var(--cx-display); }
+.cortex-reduced-motion *, .cortex-reduced-motion *::before, .cortex-reduced-motion *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+}
+
+/* Shared opacity belongs to actual panels. It never creates backing for a
+   glanceable instrument or a cinematic state. Child glyphs retain their fills. */
+.cortex-shared-style :is([data-cortex-surface="instrument"], [data-cortex-surface="cinematic"]) {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}

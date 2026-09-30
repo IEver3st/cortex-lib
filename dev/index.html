@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Cortex Library · UI lab</title>
+  <link rel="stylesheet" href="/dev/tokens.css"><link rel="stylesheet" href="/dev/lab.css">
+</head>
+<body>
+<div class="lab">
+  <header><div><span class="eyebrow">Cortex library</span><h1>UI lab<span> / Browser fixtures</span></h1></div>
+    <div class="actions"><button id="previous" aria-label="Previous scenario">Previous</button><button id="next">Next</button><button id="tour" aria-pressed="false">Tour all</button><button id="reset">Clear stage</button></div>
+  </header>
+  <aside class="catalog"><label for="search">Find a scenario</label><input id="search" type="search" placeholder="Try settings, hold, empty…"><p id="count"></p><nav id="scenarios" aria-label="Scenarios"></nav></aside>
+  <main>
+    <section class="scenario-heading"><div><span id="group" class="eyebrow"></span><h2 id="title"></h2><p id="description"></p></div><button id="replay">Replay</button></section>
+    <div class="toolbar">
+      <div class="control"><span>Viewport</span><div id="viewports" class="segments"><button data-size="1280x720">720p</button><button data-size="1920x1080" aria-pressed="true">1080p</button><button data-size="2560x1440">1440p</button><button data-size="3440x1440">Ultrawide</button><button data-size="fit">Fit</button></div></div>
+      <div class="control"><span>Backdrop</span><div id="backgrounds" class="segments"><button data-background="dark" aria-pressed="true">Dark</button><button data-background="bright">Bright</button><button data-background="busy">Busy</button><label class="file-button">Image<input id="image" type="file" accept="image/*"></label></div></div>
+      <div class="control"><label for="zoom">Zoom</label><input id="zoom" type="range" min="1" max="3" step="0.25" value="1"><output id="zoom-value">1×</output></div>
+    </div>
+    <div id="stage-scroll"><div id="stage-space"><div id="stage" data-background="dark"><iframe id="preview" title="Live Cortex NUI preview" src="about:blank"></iframe></div></div></div>
+    <div class="statusline"><span id="status" role="status">Loading UI…</span><span id="dimensions"></span></div>
+    <details id="tools"><summary>Message editor & callback log</summary><div class="inspectors">
+      <section><label for="payload">Scenario messages · JSON array · optional after (milliseconds)</label><textarea id="payload" spellcheck="false"></textarea><div class="actions"><button id="send">Send messages</button><button id="copy">Copy JSON</button></div></section>
+      <section><div class="actions"><button id="fail" aria-pressed="false">Fail next action</button><button id="clear-log">Clear log</button><button id="clear-settings">Reset saved settings</button></div><pre id="log" aria-label="Callback log"></pre></section>
+    </div></details>
+    <details><summary>What needs FiveM?</summary><p>These fixtures exercise the shipped React components and their message contracts. Lua registries, permissions, key arbitration, native map/settings/audio, world projection, entities, server callbacks, zones, raycasts, and multiplayer require the in-game workbench. Mock callbacks and anchors are labelled in the log. No game connection is made.</p></details>
+  </main>
+</div>
+<script type="module" src="/dev/lab.js"></script>
+</body></html>

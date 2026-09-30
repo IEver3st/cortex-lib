@@ -24,4 +24,10 @@ assert(messages[#messages].action == 'helpHide', 'owner stop must hide active he
 assert(api.showHelp({ { key = 'G', description = 'Alias' } }))
 assert(messages[#messages].data.items[1].label == 'G', 'legacy key/description aliases must normalize to label/value')
 
+assert(messages[#messages].data.compact == nil, 'help stays full size by default')
+assert(api.showHelp({ { label = 'Zoom', value = 'Up Down' } }, { compact = true }))
+assert(messages[#messages].data.compact == true, 'compact option reaches the NUI')
+assert(api.showHelp({ { label = 'Zoom', value = 'Up Down' } }, { compact = 'yes' }))
+assert(messages[#messages].data.compact == nil, 'only a boolean true enables compact')
+
 print('help lifecycle: PASS')

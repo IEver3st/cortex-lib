@@ -1,0 +1,29 @@
+/* Passive side menu. Lua owns wheel/click navigation; movement and camera remain live. */
+.debug-menu {
+    --debug-scale: var(--cortex-ui-scale, 1);
+    position: fixed; top: max(calc(24px * var(--debug-scale)), 8vh); right: max(calc(20px * var(--debug-scale)), 2vw); z-index: 10020;
+    width: calc(310px * var(--debug-scale)); max-width: calc(100vw - calc(40px * var(--debug-scale))); max-height: 84vh;
+    display: flex; flex-direction: column; pointer-events: none;
+    color: var(--ui-paper); background: var(--surface-hud);
+    background-image: url('notify-grain.svg'); text-shadow: none;
+    font: calc(13px * var(--debug-scale))/1.35 var(--font-ui-body); border: 0; box-shadow: inset calc(4px * var(--debug-scale)) 0 0 var(--accent, #8fcbbf);
+}
+.debug-menu-header { display: flex; align-items: baseline; justify-content: space-between; padding: calc(14px * var(--debug-scale)) calc(14px * var(--debug-scale)) calc(10px * var(--debug-scale)); border-top: calc(2px * var(--debug-scale)) solid var(--state-focus); }
+.debug-menu-header h1 { font: 800 calc(25px * var(--debug-scale))/1 var(--font-ui-display); text-transform: uppercase; }
+.debug-menu-header h1 span { color: var(--state-focus); }
+.debug-menu-header > span { color: var(--text-secondary); font-size: calc(11px * var(--debug-scale)); }
+.debug-menu-location { display: flex; justify-content: space-between; gap: calc(12px * var(--debug-scale)); padding: calc(7px * var(--debug-scale)) calc(14px * var(--debug-scale)); color: var(--text-secondary); border-top: calc(3px * var(--debug-scale)) solid var(--ui-rule); border-bottom: calc(3px * var(--debug-scale)) solid var(--ui-rule); font-size: calc(11px * var(--debug-scale)); }
+.debug-menu-list { min-height: 0; overflow-y: auto; }
+.debug-menu-row { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: calc(12px * var(--debug-scale)); min-height: calc(34px * var(--debug-scale)); padding: calc(8px * var(--debug-scale)) calc(14px * var(--debug-scale)); border: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
+.debug-menu-row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.debug-menu-row.selected { color: var(--ui-ink); background: var(--state-focus); }
+.debug-menu-value { flex: none; font-size: calc(11px * var(--debug-scale)); }
+.debug-menu-detail { padding: calc(10px * var(--debug-scale)) calc(14px * var(--debug-scale)); border-top: calc(3px * var(--debug-scale)) solid var(--ui-rule); color: var(--text-secondary); font-size: calc(11px * var(--debug-scale)); overflow-wrap: anywhere; }
+.debug-menu-detail p { margin: 0; }
+.debug-menu-detail .debug-menu-result { margin-top: calc(6px * var(--debug-scale)); color: var(--ui-paper); }
+.debug-menu-detail .error, .debug-menu-detail[role=alert] { color: var(--state-error); }
+.debug-menu-hints { display: flex; justify-content: space-between; gap: calc(8px * var(--debug-scale)); padding: calc(8px * var(--debug-scale)) calc(14px * var(--debug-scale)); border-top: calc(3px * var(--debug-scale)) solid var(--ui-rule); font-size: calc(10px * var(--debug-scale)); color: var(--text-secondary); }
+@media (max-height: 650px) { .debug-menu { top: calc(16px * var(--debug-scale)); max-height: calc(100vh - calc(32px * var(--debug-scale))); } .debug-menu-row { min-height: calc(28px * var(--debug-scale)); padding-block: calc(6px * var(--debug-scale)); } .debug-menu-detail { max-height: calc(70px * var(--debug-scale)); overflow-y: auto; } }
+
+/* Keep aggregate progress visible over the library samples without capturing input. */
+#debug-test-all-container { z-index: 10060; }

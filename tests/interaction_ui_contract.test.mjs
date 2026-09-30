@@ -1,3 +1,4 @@
+import { uiSource, uiStyles } from './ui_source.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -7,8 +8,8 @@ const testDir = path.dirname(fileURLToPath(import.meta.url));
 const read = (...segments) => readFileSync(path.join(testDir, '..', ...segments), 'utf8')
     .replace(/\r\n/g, '\n');
 
-const uiSource = read('ui', 'app.js');
-const styles = read('ui', 'style.css');
+const styles = uiStyles + read('ui', 'interaction-key.css');
+const sharedKey = read('ui', 'interaction-key.js');
 const registry = read('imports', 'interaction', 'client.lua');
 const renderer = read('client', 'interaction_renderer.lua');
 const loader = read('init.lua');
@@ -29,8 +30,10 @@ const clampSource = uiSource.match(/function clampInteractionNumber\([\s\S]*?\n}
 const panelSource = uiSource.match(/function normalizeInteractionPanel\([\s\S]*?\n}/);
 const itemsSource = uiSource.match(/function normalizeInteractionItems\([\s\S]*?\n}/);
 assert.ok(clampSource && panelSource && itemsSource, 'interaction payload normalization must remain independently testable');
+const worldLimitSource = uiSource.match(/const INTERACTION_WORLD_LIMIT = \d+;/);
+assert.ok(worldLimitSource, 'the world item cap must remain statically discoverable');
 const normalizeInteractionItems = Function(
-    `${clampSource[0]}; ${durationSource[0]}; ${panelSource[0]}; ${itemsSource[0]}; return normalizeInteractionItems;`
+    `${worldLimitSource[0]}; ${clampSource[0]}; ${durationSource[0]}; ${panelSource[0]}; ${itemsSource[0]}; return normalizeInteractionItems;`
 )();
 
 const screenItems = normalizeInteractionItems(Array.from({ length: 10 }, (_, index) => ({
@@ -93,27 +96,45 @@ assert.deepEqual(
 assert.equal(worldItems[0].holdDuration, 1200);
 assert.equal(worldItems[0].holdActive, true);
 assert.equal(worldItems[0].holdRevision, 4);
+assert.equal(worldItems[0].tier, 'prompt', 'items without a tier are full prompts (older renderers)');
+assert.equal(worldItems[0].active, true, 'items without an active flag own their key');
+assert.equal(worldItems[0].group, null);
+
+// Two-tier protocol: markers carry no label/key, lists share a group.
+const tiered = normalizeInteractionItems([
+    { tier: 'marker', id: 'far', owner: 'x', x: 0.4, y: 0.4, fade: 3, label: 'LEAK', key: 'E', holdActive: true },
+    { tier: 'prompt', id: 'a', owner: 'x', label: 'A', key: 'E', x: 0.5, y: 0.5, group: 'x:a', selected: true, active: true, focused: true },
+    { tier: 'prompt', id: 'b', owner: 'x', label: 'B', key: 'E', x: 0.5, y: 0.5, group: 'x:a', active: false },
+    { tier: 'marker', x: 'bad', y: 0.1 }
+], true);
+assert.equal(tiered.length, 3, 'malformed markers are dropped');
+assert.deepEqual([tiered[0].tier, tiered[0].label, tiered[0].key, tiered[0].fade, tiered[0].holdActive], ['marker', '', '', 1, false],
+    'markers are bounded and never forward labels, keys or hold state');
+assert.deepEqual([tiered[1].group, tiered[1].selected, tiered[1].active, tiered[1].focused], ['x:a', true, true, true]);
+assert.deepEqual([tiered[2].selected, tiered[2].active, tiered[2].focused], [false, false, false]);
+const manyWorld = normalizeInteractionItems(Array.from({ length: 40 }, (_, i) => ({ tier: 'marker', id: `m${i}`, x: 0.5, y: 0.5 })), true);
+assert.equal(manyWorld.length, 16, 'the world frame is capped at the registry total');
 
 const keyComponent = uiSource.match(/function InteractionKey\([\s\S]*?\n}\n\nfunction getVehicleAccessPresentation/);
 assert.ok(keyComponent, 'the shared interaction key component must remain discoverable');
-assert.match(keyComponent[0], /cortex-interaction-key-ring-track/);
-assert.match(keyComponent[0], /cortex-interaction-key-ring-progress/);
-assert.match(keyComponent[0], /pathLength: '100'/);
-assert.match(keyComponent[0], /decorative = false/);
-assert.match(keyComponent[0], /'aria-hidden': decorative \? 'true' : undefined/);
-const screenPrompts = uiSource.match(/function InteractionPrompts\([\s\S]*?\n}\n\nfunction WorldInteractionPrompts/);
+assert.match(keyComponent[0], /CortexInteractionKey\.render\(React\.createElement, props\)/);
+assert.match(sharedKey, /cortex-interaction-key-ring-track/);
+assert.match(sharedKey, /cortex-interaction-key-ring-progress/);
+assert.match(sharedKey, /pathLength: '100'/);
+assert.match(sharedKey, /decorative = false/);
+assert.match(sharedKey, /'aria-hidden': decorative \? 'true' : undefined/);
+const screenPrompts = uiSource.match(/function InteractionPrompts\([\s\S]*?\n}\n/);
 assert.ok(screenPrompts, 'screen interaction prompts must remain independently inspectable');
 assert.doesNotMatch(screenPrompts[0], /`Hold \$\{/, 'screen prompts must communicate a key press');
 assert.match(screenPrompts[0], /`Press \$\{block\.item\.key\}/);
 
-const worldPrompts = uiSource.match(/function WorldInteractionPrompts\([\s\S]*?\n}\n\nconst INTERACTION_BASE_FIELDS/);
+const worldPrompts = uiSource.match(/function worldActionText\([\s\S]*?\n}\n/);
 assert.ok(worldPrompts, 'world interaction prompts must remain independently inspectable');
 assert.match(worldPrompts[0], /`Hold \$\{item\.key\}/, 'world holds need an accessible instruction');
 
-const targetPanel = uiSource.match(/function TargetInteractionPanel\([\s\S]*?\n}\n\nfunction InteractionPrompts/);
+const targetPanel = uiSource.match(/function TargetInteractionPanel\([\s\S]*?\n}\n/);
 assert.ok(targetPanel, 'the shared target-panel component must remain discoverable');
 for (const className of [
-    'cortex-target-action-dot',
     'cortex-target-divider',
     'cortex-target-context-label',
     'cortex-target-marker'
@@ -122,84 +143,53 @@ for (const className of [
 }
 assert.match(
     targetPanel[0],
-    /className: 'cortex-target-action-dot'[\s\S]*?React\.createElement\(TargetInteractionKeyLabel, \{ value: item\.key \}\)/,
-    'the caller-provided interaction key must be visible inside each action disc'
+    /React\.createElement\(InteractionKey, \{\s*item,\s*className: 'cortex-interaction-key'/,
+    'target actions use the same key glyph as every other prompt'
 );
 
+// One anatomy: every prompt size derives from --ix (= --u x prompt size).
+assert.match(styles, /\.cortex-interactions,\s*\.cortex-world-interactions\s*\{[^}]*--ix:\s*calc\(var\(--u\) \* var\(--cx-prompt-scale, 1\)\);/,
+    'screen and world prompts scale together with the player prompt size');
+assert.match(styles, /\.cortex-interaction-key,\s*\.cortex-target-marker,\s*\.cortex-world-interaction-key\s*\{[^}]*width:\s*calc\(44 \* var\(--ix\)\);[^}]*height:\s*calc\(44 \* var\(--ix\)\);/,
+    'screen, target and world discs share one 44ix footprint');
+assert.match(styles, /\.cortex-target-panel\s*\{[^}]*width:\s*calc\(300 \* var\(--ix\)\);/);
 assert.match(
     styles,
-    /\.cortex-target-panel\s*\{[\s\S]*?width:\s*calc\(278px \* var\(--cortex-interaction-scale, 1\)\);/,
-    'the target panel must retain the reference-matched width'
+    /\.cortex-target-action-label,\s*\.cortex-target-context-label\s*\{[\s\S]*?box-sizing:\s*border-box;[\s\S]*?max-width:\s*100%;/,
+    'target-panel labels must shrink inside their reserved grid column'
 );
-assert.match(
-    styles,
-    /\.cortex-target-action-label,\s*\.cortex-target-context-label\s*\{[\s\S]*?box-sizing:\s*border-box;[\s\S]*?min-width:\s*0;[\s\S]*?max-width:\s*100%;[\s\S]*?overflow:\s*hidden;[\s\S]*?text-overflow:\s*ellipsis;/,
-    'target-panel labels must shrink and clip inside their reserved grid column'
-);
-assert.match(
-    styles,
-    /\.cortex-target-action-dot\s*\{[\s\S]*?width:\s*calc\(42px \* var\(--cortex-interaction-scale, 1\)\);[\s\S]*?height:\s*calc\(42px \* var\(--cortex-interaction-scale, 1\)\);[\s\S]*?background:\s*var\(--hud-interaction\);[\s\S]*?color:\s*var\(--cortex-black\);/,
-    'target actions must use labeled white key discs'
-);
-assert.match(
-    styles,
-    /\.cortex-target-divider\s*\{[\s\S]*?height:\s*calc\(3px \* var\(--cortex-interaction-scale, 1\)\);[\s\S]*?background:\s*var\(--hud-interaction\);/,
-    'the target context must keep its full white divider'
-);
+assert.match(styles, /\.cortex-interaction-label,\s*\.cortex-target-action-label,\s*\.cortex-target-context-label,\s*\.cx-wp-label\s*\{[^}]*overflow:\s*hidden;[^}]*text-overflow:\s*ellipsis;/,
+    'every prompt label clips with an ellipsis');
+assert.match(styles, /\.is-pill:not\(\.cortex-key-inline\)\s*\{[^}]*aspect-ratio:\s*var\(--cortex-key-span, 1\);/,
+    'long keys grow into a pill of the same height instead of overflowing the disc');
+assert.match(styles, /\.cortex-target-divider\s*\{[^}]*height:\s*calc\(4 \* var\(--ix\)\);[^}]*background:\s*var\(--paper\);/,
+    'the target divider is a >= 3u paper rule');
 assert.match(
     targetPanel[0],
     /React\.createElement\(InteractionKey,\s*\{[\s\S]*?item:\s*\{\s*key:\s*panel\.marker \|\| '\?'\s*\},[\s\S]*?className:\s*'cortex-target-marker',[\s\S]*?decorative:\s*true/,
-    'the STRANGER marker must render a question mark through the shared radial key geometry'
+    'the STRANGER marker must render a question mark through the shared key geometry'
 );
+assert.match(styles, /\.cortex-target-action,\s*\.cortex-target-context\s*\{[^}]*display:\s*flex;[^}]*justify-content:\s*flex-end;/,
+    'target rows end on the shared key edge like screen prompts');
+// Rings stay >= 3u: stroke 4 of a 48 viewBox at 44ix is 3.67ix (3.2u at small).
+assert.match(styles, /--cortex-interaction-ring-stroke:\s*4;/);
+assert.match(styles, /stroke-width:\s*var\(--cortex-interaction-ring-stroke, 3\);/,
+    'external consumers of interaction-key.css keep the default ring');
 assert.match(
     styles,
-    /\.cortex-target-context\s*\{[\s\S]*?--cortex-target-marker-size:\s*calc\(43\.2px \* var\(--cortex-ui-scale\)\);[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) var\(--cortex-target-marker-size\);[\s\S]*?min-height:\s*var\(--cortex-target-marker-size\);/,
-    'the STRANGER row must reserve the world-scaled marker footprint'
+    /\.cortex-interaction-key-value\s*{[\s\S]*?inset:\s*16%;/,
+    'the key disc keeps its inset from the outer ring'
 );
-assert.match(
-    styles,
-    /\.cortex-target-marker\s*\{[\s\S]*?width:\s*var\(--cortex-target-marker-size\);[\s\S]*?height:\s*var\(--cortex-target-marker-size\);[\s\S]*?font-size:\s*calc\(26px \* var\(--cortex-interaction-scale, 1\)\);/,
-    'the STRANGER marker must consume the reserved footprint and size its question mark explicitly'
-);
-assert.match(
-    styles,
-    /\.cortex-interaction-key,\s*\.cortex-target-marker,\s*\.cortex-world-interaction-key,/,
-    'the STRANGER marker must inherit the shared radial key layout'
-);
-
-assert.match(
-    styles,
-    /\.cortex-world-interaction-key\s*{[\s\S]*?width:\s*calc\(54px \* var\(--cortex-ui-scale\)\);[\s\S]*?height:\s*calc\(54px \* var\(--cortex-ui-scale\)\);/,
-    'the world prompt must reserve the larger outer-ring footprint'
-);
-
-const interactionScale = Number(uiSource.match(/const INTERACTION_UI_SCALE = ([\d.]+);/)?.[1]);
-const targetMarkerDiameter = Number(styles.match(/--cortex-target-marker-size:\s*calc\(([\d.]+)px/)?.[1]);
-const worldMarkerDiameter = Number(styles.match(/\.cortex-world-interaction-key\s*\{[\s\S]*?width:\s*calc\(([\d.]+)px/)?.[1]);
-assert.ok(
-    [interactionScale, targetMarkerDiameter, worldMarkerDiameter].every(Number.isFinite),
-    'the interaction scale and radial diameters must remain statically discoverable'
-);
-assert.equal(
-    targetMarkerDiameter,
-    worldMarkerDiameter * interactionScale,
-    'the target marker diameter must equal the correct world ring at the shared reference scale'
-);
-assert.match(
-    styles,
-    /\.cortex-interaction-key-value\s*{[\s\S]*?inset:\s*16%;[\s\S]*?background:\s*var\(--text-primary\);/,
-    'the key disc must keep the reduced gap from the thin outer ring'
-);
-
-const outerTrackInnerRadius = 21.5 - (3 / 2);
-const previousDiscRadius = 24 * (1 - (2 * 0.235));
-const reducedDiscRadius = 24 * (1 - (2 * 0.16));
-const previousGap = outerTrackInnerRadius - previousDiscRadius;
-const reducedGap = outerTrackInnerRadius - reducedDiscRadius;
-assert.ok(
-    Math.abs((reducedGap / previousGap) - 0.5) < 0.02,
-    'the radial gap between the key disc and outer track must be half its previous size'
-);
+// Markers: a 22ix ring with a 10ix dot; growth only animates transform/opacity.
+assert.match(styles, /\.cx-wp-marker\s*\{[^}]*width:\s*calc\(22 \* var\(--ix\)\);[^}]*inset 0 0 0 calc\(3\.5 \* var\(--ix\)\) var\(--paper\)/);
+assert.match(styles, /\.cx-wp-marker::after\s*\{[^}]*width:\s*calc\(10 \* var\(--ix\)\);/);
+assert.match(styles, /\.cx-wp\.is-list \.cx-wp-pip::before\s*\{[^}]*width:\s*calc\(4 \* var\(--ix\)\);/, 'the rail is 4ix');
+// Screen prompts stack above the help legend.
+assert.match(styles, /\.cortex-interactions\s*\{[^}]*var\(--cx-help-legend-height, 0px\)/,
+    'screen prompts lift above the bottom-right help legend');
+const interactionStyles = read('ui', 'surfaces', 'interactions.css');
+assert.doesNotMatch(interactionStyles, /-gradient\(|backdrop-filter|\d+px \*|--cortex-ui-scale/,
+    'no gradients, blur or legacy px scaling in the interaction surface');
 
 assert.match(styles, /@keyframes cortex-interaction-hold[\s\S]*?stroke-dashoffset:\s*0/);
 assert.match(styles, /animation:\s*cortex-interaction-hold var\(--cortex-interaction-hold-duration, 1000ms\) linear forwards/);

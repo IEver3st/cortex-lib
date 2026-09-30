@@ -69,7 +69,6 @@ assertEqual(loaded.registerSettings({ id = 'consumer' }), 'export:registerSettin
 assertEqual(loaded.getSetting('notifyPosition'), 'export:getSetting', 'cold setting read should proxy')
 assertEqual(loaded.clearPool('objects', {}, 10), 'export:clearPool', 'client utility exports should proxy')
 assertEqual(loaded.getPed(), 'export:getPed', 'client getter exports should proxy')
-assertEqual(loaded.registerUiApp('consumer-app', function() end), 'export:registerUiApp', 'UI app ownership should stay in cortex-lib')
 assertEqual(loaded.copyToClipboard('copy me'), 'export:copyToClipboard', 'clipboard should stay in cortex-lib')
 assertEqual(loaded.showDebugPanel({ title = 'debug' }), 'export:showDebugPanel', 'debug panel should stay in cortex-lib')
 
@@ -83,10 +82,6 @@ local utilityProxyCalls = {
     { 'getHeading', {} },
     { 'ensureVehicle', { false } },
     { 'getCamDirection', {} },
-    { 'unregisterUiApp', { 'consumer-app' } },
-    { 'openUiApp', { 'consumer-app', { open = true } } },
-    { 'updateUiApp', { 'consumer-app', { value = 1 } } },
-    { 'closeUiApp', { 'consumer-app' } },
     { 'updateDebugPanel', { { value = 2 } } },
     { 'hideDebugPanel', {} },
     { 'isDebugPanelOpen', {} },
@@ -142,6 +137,13 @@ local facadeCases = {
     { 'registerSettingsScript', table.pack('script', sentinelA) },
     { 'openSettings', table.pack() },
     { 'openSettingsMenu', table.pack() },
+    { 'openPauseMenu', table.pack() },
+    { 'closePauseMenu', table.pack() },
+    { 'isPauseMenuOpen', table.pack() },
+    { 'registerPausePage', table.pack(sentinelA) },
+    { 'unregisterPausePage', table.pack('page') },
+    { 'registerPauseLocation', table.pack(sentinelA) },
+    { 'unregisterPauseLocation', table.pack('location') },
     { 'closeSettings', table.pack() },
     { 'closeSettingsMenu', table.pack() },
     { 'getSetting', table.pack('setting') },
@@ -163,11 +165,6 @@ local facadeCases = {
     { 'ensureVehicle', table.pack(true) },
     { 'getCamDirection', table.pack() },
     { 'copyToClipboard', table.pack('clipboard') },
-    { 'registerUiApp', table.pack('app-id', callbackSentinel) },
-    { 'unregisterUiApp', table.pack('app-id') },
-    { 'openUiApp', table.pack('app-id', sentinelA) },
-    { 'updateUiApp', table.pack('app-id', sentinelA) },
-    { 'closeUiApp', table.pack('app-id') },
     { 'showDebugPanel', table.pack(sentinelA) },
     { 'updateDebugPanel', table.pack(sentinelA) },
     { 'hideDebugPanel', table.pack() },
@@ -234,3 +231,9 @@ assertEqual(loadCounts['imports/localutility/client.lua'], 1, 'cached call synta
 assertEqual(exportCalls[1].resource, 'cortex-lib', 'UI proxies should target cortex-lib')
 
 print('external loader proxy spec: PASS')
+assertEqual(loaded.skillCheck({type='radial'}), 'export:skillCheck', 'skill checks execute in the shared resource')
+assertEqual(loaded('skillCheck'), loaded.skillCheck, 'skill check module remains callable')
+assertEqual(loaded.skillCheckPress('target', true), 'export:skillCheckPress', 'mash edges proxy to their owner')
+assertEqual(loaded.cancelSkillCheck(), 'export:cancelSkillCheck', 'cancel proxies to shared owner')
+assertEqual(loaded.isSkillCheckActive(), 'export:isSkillCheckActive', 'active query proxies to shared owner')
+assertEqual(loadCounts['imports/skillCheck/client.lua'], nil, 'consumer must not execute skill check callbacks')

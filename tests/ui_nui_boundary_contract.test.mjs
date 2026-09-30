@@ -1,10 +1,10 @@
+import { uiSource } from './ui_source.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
-const uiSource = readFileSync(path.join(testDir, '..', 'ui', 'app.js'), 'utf8').replace(/\r\n/g, '\n');
 const notifyClientSource = readFileSync(path.join(testDir, '..', 'imports', 'notify', 'client.lua'), 'utf8').replace(/\r\n/g, '\n');
 
 const isRecordSource = uiSource.match(/function isRecord\(value\) \{[\s\S]*?\n\}/);
@@ -113,8 +113,7 @@ for (const callback of [
     'settingsCancel',
     'settingsAction',
     'alertDialogResult',
-    'contextMenuResult',
-    'cortex:uiEvent'
+    'contextMenuResult'
 ]) {
     const escaped = callback.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     assert.match(
@@ -159,8 +158,6 @@ for (const action of [
     'menuClose',
     'alertDialogClose',
     'contextMenuClose',
-    'uiAppData',
-    'uiAppClose',
     'radialHide',
     'radialRefresh',
     'radialTransitionOut',
@@ -187,7 +184,6 @@ assert.ok(
     (uiSource.match(/sessionRef\.current !== capturedSession/g) || []).length >= 2,
     'stale Save and Cancel responses must not update a replacement settings session'
 );
-assert.match(uiSource, /closeEditor[\s\S]*?response\?\.ok !== true[\s\S]*?\?\.session === normalizeSession\(session\)/);
 assert.match(uiSource, /closeMenu[\s\S]*?response\?\.ok !== true[\s\S]*?prev\.id === id[\s\S]{0,100}?prev\.session === normalizeSession\(session\)/);
 
 const rootListener = uiSource.match(/\/\/ NUI message handler[\s\S]*?window\.addEventListener\('message', handleMessage\);[\s\S]*?\n    \}, \[([^\]]*)\]\);/);

@@ -1,0 +1,62 @@
+[
+  {
+    "scene": "notifications",
+    "path": "C:\\Users\\User\\.t3\\userdata\\browser-artifacts\\browser-screenshot-127-0-0-1-muk3hj17-da9ce517.png",
+    "bounds": {
+      "left": 60,
+      "top": 60,
+      "width": 1080,
+      "height": 834
+    }
+  },
+  {
+    "scene": "menus",
+    "path": "C:\\Users\\User\\.t3\\userdata\\browser-artifacts\\browser-screenshot-127-0-0-1-muk3i8z9-0404fa83.png",
+    "bounds": {
+      "height": 850,
+      "left": 60,
+      "top": 60,
+      "width": 735
+    }
+  },
+  {
+    "scene": "radial",
+    "path": "C:/Users/User/.t3/userdata/browser-artifacts/browser-screenshot-127-0-0-1-muk3kg6a-ead52ed2.png",
+    "bounds": {
+      "height": 850,
+      "left": 60,
+      "top": 60,
+      "width": 850
+    }
+  },
+  {
+    "scene": "dialogs",
+    "path": "C:\\Users\\User\\.t3\\userdata\\browser-artifacts\\browser-screenshot-127-0-0-1-muk3ia3w-0162a5e1.png",
+    "bounds": {
+      "height": 850,
+      "left": 60,
+      "top": 60,
+      "width": 1046
+    }
+  },
+  {
+    "scene": "settings",
+    "path": "C:\\Users\\User\\.t3\\userdata\\browser-artifacts\\browser-screenshot-127-0-0-1-muk4b7x7-4e0e6386.png",
+    "bounds": {
+      "left": 24,
+      "top": 24,
+      "width": 1232,
+      "height": 752
+    }
+  },
+  {
+    "scene": "interactions",
+    "path": "C:\\Users\\User\\.t3\\userdata\\browser-artifacts\\browser-screenshot-127-0-0-1-muk3tkuu-655d5568.png",
+    "bounds": {
+      "height": 476,
+      "left": 60,
+      "top": 60,
+      "width": 827
+    }
+  }
+]

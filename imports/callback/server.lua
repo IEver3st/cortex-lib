@@ -149,10 +149,22 @@ local function validatePackedPayload(values)
     return true
 end
 
+local function isCallable(value)
+    if type(value) == 'function' then return true end
+    if type(value) ~= 'table' then return false end
+    -- Cfx export funcrefs are callable tables whose __index throws.
+    local mt = getmetatable(value)
+    return type(mt) == 'table' and type(rawget(mt, '__call')) == 'function'
+end
+
+local function promiseResolver(value)
+    if type(value) ~= 'table' or isCallable(value) then return nil end
+    local ok, resolve = pcall(function() return value.resolve end)
+    if ok and type(resolve) == 'function' then return resolve end
+end
+
 local function isResponder(value)
-    return value == nil
-        or type(value) == 'function'
-        or (type(value) == 'table' and type(value.resolve) == 'function')
+    return value == nil or isCallable(value) or promiseResolver(value) ~= nil
 end
 
 local function safeErrorText(value)
@@ -183,7 +195,7 @@ local function invokeProtected(handler, ...)
 end
 
 local function settleResponder(responder, results)
-    if type(responder) == 'function' then
+    if isCallable(responder) then
         local ok, err = pcall(responder, table.unpack(results, 1, results.n))
 
         if not ok then
@@ -193,8 +205,9 @@ local function settleResponder(responder, results)
         return
     end
 
-    if type(responder) == 'table' and type(responder.resolve) == 'function' then
-        local ok, err = pcall(responder.resolve, responder, results)
+    local resolve = promiseResolver(responder)
+    if resolve then
+        local ok, err = pcall(resolve, responder, results)
 
         if not ok then
             logError(('^1[cortex-lib] callback promise resolver failed: %s^0'):format(safeErrorText(err)))
@@ -398,7 +411,7 @@ local function registerCallback(name, cb)
         return false, 'invalid_callback_name'
     end
 
-    if type(cb) ~= 'function' then
+    if not isCallable(cb) then
         return false, 'invalid_callback_handler'
     end
 

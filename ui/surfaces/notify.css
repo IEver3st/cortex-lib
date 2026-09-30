@@ -1,0 +1,190 @@
+/* ============================================================================
+   NOTIFICATIONS
+   Frameless callouts over the scene: a 4u severity rule, a display-caps title,
+   Arial body, and a 4u lifetime meter aligned to the text. No card, no plate.
+   ============================================================================ */
+
+#notify-container {
+    --notify-edge-x: calc(var(--cx-safezone-x, 0px) + 40 * var(--u));
+    --notify-edge-y: calc(var(--cx-safezone-y, 0px) + 40 * var(--u));
+    position: fixed;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: calc(16 * var(--u));
+    width: min(calc(380 * var(--u)), calc(100vw - 2 * var(--notify-edge-x)));
+    pointer-events: none;
+    color: var(--paper);
+    font-family: var(--body);
+}
+
+#notify-container.top-right { top: var(--notify-edge-y); right: var(--notify-edge-x); }
+#notify-container.top-left { top: var(--notify-edge-y); left: var(--notify-edge-x); }
+#notify-container.top { top: var(--notify-edge-y); left: 50%; transform: translateX(-50%); }
+#notify-container.bottom-right { bottom: var(--notify-edge-y); right: var(--notify-edge-x); flex-direction: column-reverse; }
+#notify-container.bottom-left { bottom: var(--notify-edge-y); left: var(--notify-edge-x); flex-direction: column-reverse; }
+#notify-container.bottom { bottom: var(--notify-edge-y); left: 50%; transform: translateX(-50%); flex-direction: column-reverse; }
+
+/* One notice: rule | glyph | content | dismiss. The rule stretches to the text. */
+.notify {
+    --notify-tone: var(--info);
+    position: relative;
+    display: grid;
+    grid-template-columns: calc(4 * var(--u)) minmax(0, 1fr) auto;
+    column-gap: calc(12 * var(--u));
+    align-items: start;
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    color: var(--paper);
+    text-shadow: var(--legible);
+    animation: notifyReveal var(--t-enter, 240ms) var(--ease) both;
+}
+.notify::before, .notify::after { content: none; }
+.notify.has-glyph { grid-template-columns: calc(4 * var(--u)) calc(22 * var(--u)) minmax(0, 1fr) auto; column-gap: calc(10 * var(--u)); }
+.notify.exiting { animation: notifyDismiss var(--t-fast, 160ms) ease-in forwards; }
+
+.notify.success { --notify-tone: var(--success); }
+.notify.error { --notify-tone: var(--error); }
+.notify.warning { --notify-tone: var(--warning); }
+.notify.info, .notify.inform { --notify-tone: var(--info); }
+.notify.notify-plain { --notify-tone: var(--muted); }
+
+.notify-rule {
+    align-self: stretch;
+    width: calc(4 * var(--u));
+    min-height: calc(24 * var(--u));
+    border-radius: calc(1 * var(--u));
+    background: var(--notify-tone);
+    box-shadow: 0 calc(1 * var(--u)) 0 rgba(8, 9, 11, 0.55);
+}
+
+.notify-icon {
+    width: calc(22 * var(--u));
+    height: calc(22 * var(--u));
+    margin-top: calc(-1 * var(--u));
+    color: var(--notify-tone);
+    filter: drop-shadow(0 calc(1 * var(--u)) 0 rgba(8, 9, 11, 0.7));
+}
+.notify-icon svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.notify-headline .notify-icon { margin-top: 0; }
+
+.notify-content { min-width: 0; padding-top: calc(1 * var(--u)); }
+
+.notify-title {
+    color: var(--paper);
+    font: italic 800 calc(21 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+}
+
+.notify-description {
+    margin-top: calc(5 * var(--u));
+    color: var(--paper);
+    font: 400 calc(16 * var(--u) * var(--cx-text, 1)) / 1.38 var(--body);
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+}
+.notify-description:first-child { margin-top: 0; }
+
+/* A title-free short line reads as the headline. */
+.notify-headline .notify-description {
+    font: italic 800 calc(21 * var(--u)) / 1.05 var(--display);
+    font-synthesis: style;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.notify-description .notify-key { margin: 0 calc(3 * var(--u)); font-size: calc(14 * var(--u)); vertical-align: calc(-3 * var(--u)); }
+
+/* Lifetime: a 4u meter under the text, never a hairline. */
+.notify-duration {
+    position: relative;
+    display: block;
+    width: calc(72 * var(--u));
+    height: calc(4 * var(--u));
+    margin-top: calc(10 * var(--u));
+    overflow: hidden;
+    border-radius: calc(1 * var(--u));
+    background: var(--rule);
+}
+.notify-duration-fill {
+    position: absolute;
+    inset: 0;
+    background: var(--notify-tone);
+    transform-origin: left center;
+}
+
+/* Persistent: a small dismiss keycap. It only takes clicks when the cursor is up. */
+.notify-close {
+    display: grid;
+    place-items: center;
+    width: calc(28 * var(--u));
+    height: calc(28 * var(--u));
+    margin: calc(-2 * var(--u)) calc(-2 * var(--u)) 0 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    pointer-events: auto;
+}
+.notify-close-cap {
+    display: grid;
+    place-items: center;
+    width: calc(22 * var(--u));
+    height: calc(22 * var(--u));
+    border-radius: var(--r-sm);
+    background: var(--paper);
+    color: var(--ink);
+    box-shadow: var(--shadow-drop, 0 calc(2 * var(--u)) 0 rgba(8, 12, 11, 0.45));
+    transition: transform var(--t-fast, 160ms) var(--ease), background var(--t-fast, 160ms), color var(--t-fast, 160ms);
+}
+.notify-close-cap svg { width: calc(12 * var(--u)); height: calc(12 * var(--u)); fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; }
+.notify-close:hover .notify-close-cap,
+.notify-close:focus-visible .notify-close-cap { background: var(--ink); color: var(--paper); box-shadow: inset 0 0 0 calc(3 * var(--u)) var(--accent); }
+.notify-close:active .notify-close-cap { transform: translateY(calc(2 * var(--u))); box-shadow: none; }
+
+/* Persistent notices held past the player's visible limit. */
+.notify-overflow {
+    align-self: flex-start;
+    padding-left: calc(16 * var(--u));
+    color: var(--paper);
+    font: italic 800 calc(14 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-shadow: var(--legible);
+}
+
+@keyframes notifyReveal {
+    from { opacity: 0; transform: translateY(calc(6 * var(--u))); }
+    to { opacity: 1; transform: none; }
+}
+@keyframes notifyDismiss {
+    from { opacity: 1; transform: none; }
+    to { opacity: 0; transform: translateY(calc(-4 * var(--u))); }
+}
+@keyframes notifyLifetime { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* Reduced motion: no rise, no draining meter (it would read as empty). */
+.cortex-reduced-motion .notify, html[data-cx-motion='reduced'] .notify { animation: none; }
+.cortex-reduced-motion .notify-duration, html[data-cx-motion='reduced'] .notify-duration { display: none; }
+@media (prefers-reduced-motion: reduce) {
+    .notify, .notify.exiting { animation: none; }
+    .notify-duration { display: none; }
+}

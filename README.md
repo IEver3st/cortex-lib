@@ -1,521 +1,266 @@
 # cortex-lib
 
-<p align="center">
-  <img src="https://img.shields.io/badge/version-2.2.1-blue?style=flat-square" alt="Version 2.2.1" />
-  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License MIT" />
-  <img src="https://img.shields.io/badge/FiveM-cerulean-0ea5e9?style=flat-square" alt="FiveM cerulean" />
-  <img src="https://img.shields.io/badge/Lua-5.4-2C2D72?style=flat-square&logo=lua&logoColor=white" alt="Lua 5.4" />
-  <img src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React 18" />
-</p>
+Shared settings, notifications, menus and UI utilities for Cortex FiveM scripts.
 
-<p align="center">
-  Lightweight, modular UI and utility library for the <strong>Cortex</strong> ecosystem on FiveM.<br />
-  Shared client / server helpers, NUI components, and game utilities through a single <code>lib</code> global.
-</p>
+![Version 3.0.0](https://img.shields.io/badge/version-3.0.0-blue?style=flat-square)
+![License MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 
-<p align="center">
-  <sub>Not affiliated with Cfx, FiveM, Rockstar Games, Take-Two Interactive, or any related entity.</sub>
-</p>
+If a script you bought requires **cortex-lib**, install it once on your server and start it before that script. You do not need to edit Lua, install Node.js, or build the interface.
 
----
+This guide covers **3.0.0**. Use the matching ZIP from [Releases](https://github.com/IEver3st/cortex-lib/releases), or the dependency package supplied with your script. The main branch may contain work that has not been released yet.
 
-## Overview
+[Installation](#installation) · [PolCam](#using-cortex-lib-with-polcam) · [Settings](#player-settings) · [Configuration](#server-configuration) · [Updating](#updating) · [Troubleshooting](#troubleshooting)
 
-**cortex-lib** is the shared foundation for Cortex resources. It lazy-loads only what you use, exposes a consistent `lib` API on both client and server, and ships a vendored React 18 NUI bundle so your UI never depends on a CDN.
+## What it provides
 
-Use it for notifications, progress bars, menus, radial menus, zones, callbacks, interactions, settings, and common game utilities without reimplementing the same helpers in every resource.
+- Notifications, progress indicators, dialogs and menus.
+- On-screen and world interaction prompts.
+- A settings menu with pages for compatible scripts.
+- Shared appearance and automatic placement for participating overlays.
+- An optional quick menu for the map, settings and key bindings.
+- Developer utilities, including callbacks, zones and skill checks.
 
-The `cortex-lib` resource is the sole owner of shared NUI rendering and focus. The external loader proxies UI-backed calls into that running resource; consumer-local helpers such as zones and points still execute in the consumer so their callbacks and lifecycle remain correctly owned.
+Gameplay, jobs and permissions belong to the script using the library. Installing cortex-lib does not make an unrelated script compatible with it or replace `ox_lib`, ESX or QBCore when another resource requires them.
 
-```lua
--- any resource that includes @cortex-lib/init.lua
-lib.notify({ type = 'success', description = 'Hello from cortex-lib!' })
+## Browser UI development
 
-lib.zones.box({
-  coords = GetEntityCoords(PlayerPedId()),
-  size = vector3(10, 10, 5),
-  onEnter = function() print('entered') end,
-  onExit  = function() print('exited') end,
-})
-```
+In a source checkout, run `bun run dev` and open **http://127.0.0.1:5196**.
+No install or build step is needed. The browser lab loads the real UI with named
+scenarios, editable NUI messages, mock callbacks, settings persistence, failure
+injection, viewport presets, and automatic reload on edits.
 
----
-
-## Features
-
-| Module | Context | What it does |
-| :--- | :---: | :--- |
-| `notify` | client | HUD toasts, progress bars, alert dialogs, text UI and helpers (`success`, `error`, `info`) |
-| `callback` | shared | Promise-style client ↔ server RPC with `await` support |
-| `menu` | client | Keyboard and mouse NUI menus with nested options |
-| `radial` | client | Pie / radial menu with nested submenus |
-| `zones` | client | Poly, box and sphere zones — `onEnter`, `onExit`, `inside` |
-| `points` | client | Distance-based point triggers — `onEnter`, `onExit`, `nearby` |
-| `raycast` | client | Camera and coordinate raycasts |
-| `getters` | client | Closest / nearby player, vehicle, ped and object queries |
-| `disablecontrols` | client | Instance-based control locks (movement, combat, vehicle, mouse) |
-| `help` | client | Persistent key-hint bar at the bottom of the screen |
-| `interaction` | client | Owner-scoped screen and world prompt registry + 3D NUI renderer |
-| `settings` | client | KVP-backed settings registry with built-in NUI settings menu |
-| `timer` | shared | Pausable / resumable timer class |
-| `waitFor` | shared | `waitFor(condition, timeout)` helper |
-| `utils` | shared | JSON, KVP, distance, table and number utilities |
-| `cache` | client | Live `ped`, `playerId`, `serverId`, `vehicle`, `seat` cache updated every 100ms |
-
-> Client utilities from `client/utils.lua` and `client/debug_panel.lua` are also available (pool clearing, ped/vehicle helpers, camera direction, clipboard, debug panel).
-
----
+See [the browser lab guide](docs/browser-lab.md) for controls, coverage, and the
+FiveM-only acceptance cases. This is development tooling; customer ZIPs keep
+the existing offline UI payload.
 
 ## Requirements
 
-- **FiveM** `cerulean` (fx_version `cerulean`, game `gta5`)
-- **Lua 5.4** — every dependent resource must have `lua54 'yes'` in its `fxmanifest.lua`
-- **cortex-lib must start first** — before any resource that uses `lib`
+| Requirement | Details |
+| --- | --- |
+| FiveM server | GTA V / `cerulean` runtime. Follow the server requirements supplied with your purchased script. |
+| Folder name | Exactly `cortex-lib`. |
+| Start order | Before every script that depends on it. |
+| Framework or database | None required by cortex-lib itself. |
+| Frontend tools | None. The interface, React and fonts are bundled. |
 
----
+OneSync, game-build, framework and access requirements for a consumer such as PolCam still apply. The library does not configure them for you.
 
 ## Installation
 
-**1. Install the resource**
+### 1. Extract the resource
 
-Copy or clone into your server's resources, e.g.:
+Download the version your script requires from [Releases](https://github.com/IEver3st/cortex-lib/releases). Use the named `cortex-lib-v<version>.zip` release asset when available.
 
+Extract it into your server's `resources` directory. A category such as `[cortex]` is optional:
+
+```text
+resources/
+└── [cortex]/
+    ├── cortex-lib/
+    │   ├── fxmanifest.lua
+    │   ├── init.lua
+    │   ├── client/
+    │   ├── imports/
+    │   ├── resource/
+    │   └── ui/
+    └── your-cortex-script/
 ```
-resources/[eco]/cortex-lib
-```
 
-**2. Ensure start order**
+This example shows only part of the library. Keep every file in the release ZIP.
 
-In `server.cfg` — before any dependent resource:
+`fxmanifest.lua` must be directly inside `cortex-lib`. Avoid nested folders such as `cortex-lib/cortex-lib/fxmanifest.lua`. Rename `cortex-lib-main` to `cortex-lib` if you downloaded the source archive.
+
+### 2. Set the start order
+
+Add these entries to `server.cfg`, replacing the second resource name with your script's actual folder name:
 
 ```cfg
 ensure cortex-lib
+ensure your-cortex-script
 ```
 
-**3. Load it in each dependent resource**
+Install only one copy of cortex-lib, even when several scripts use it. Check for duplicate copies in other resource categories.
 
-In your resource's `fxmanifest.lua`:
+### 3. Choose the Escape behavior
 
-```lua
-fx_version 'cerulean'
-game 'gta5'
-lua54 'yes'
+The **quick menu is off by default**. Escape keeps GTA's native pause menu or the menu supplied by another resource. No configuration is required.
 
-shared_script '@cortex-lib/init.lua'
+Only the server owner can enable the quick menu. To use it, place this before `ensure cortex-lib`:
+
+```cfg
+setr cortex_pause_replace_native 1
+ensure cortex-lib
+ensure your-cortex-script
 ```
 
-That's it. `lib` and `cache` are now available globally in that resource.
+Set the value to `0` to disable it again. Players cannot change this option in Cortex Settings. Shared settings remain available through `/cortexsettings` either way.
 
-> [!CAUTION]
-> If `lua54 'yes'` is missing, cortex-lib will throw on load.
+### 4. Start and check
 
----
-
-## Quick Start
-
-### Notifications
-
-```lua
-lib.notify({ type = 'info', title = 'Hello', description = 'World!' })
-lib.notify({ type = 'success', description = 'Saved!' })
-lib.notify({ type = 'error', title = 'Failed', description = 'Try again.' })
-
--- server -> client
-TriggerClientEvent('cortex-lib:notify', source, {
-  type = 'info', description = 'Sent from server!'
-})
-```
-
-### Callbacks
-
-```lua
--- server
-lib.callback.register('myResource:getData', function(source, key)
-  -- Treat source/key as hostile input. Revalidate permissions, session state,
-  -- ownership and gameplay prerequisites on the server before any mutation.
-  return { source = source, key = key }
-end)
-
--- client
-CreateThread(function()
-  local data = lib.callback.await('myResource:getData', false, 'test')
-  print(json.encode(data))
-end)
-```
-
-### Zones & Points
-
-```lua
--- box zone
-lib.zones.box({
-  coords = vector3(0, 0, 0),
-  size = vector3(10, 10, 5),
-  debug = false,
-  onEnter = function() print('entered') end,
-  onExit  = function() print('exited') end,
-})
-
--- distance point
-lib.points.new({
-  coords = vector3(100.0, 200.0, 30.0),
-  distance = 3.0,
-  onEnter = function() lib.notify({ description = 'Near point' }) end,
-})
-```
-
-### Menus & Radial
-
-```lua
-lib.registerMenu({
-  id = 'actions',
-  title = 'Actions',
-  options = {
-    { label = 'Repair', icon = 'wrench', args = { action = 'repair' } },
-    { label = 'Clean', args = { action = 'clean' } },
-  }
-}, function(selected, _, args)
-  print(('selected %d: %s'):format(selected, args.action))
-end)
-lib.showMenu('actions')
-
-lib.registerRadial({
-  id = 'doors',
-  items = {
-    { id = 'door_fl', label = 'Front Left', onSelect = function() print('front left') end },
-  }
-})
-
-lib.registerRadial({
-  id = 'vehicle',
-  items = {
-    { id = 'engine', label = 'Engine', icon = 'engine', onSelect = function() print('engine') end },
-    { id = 'doors', label = 'Doors', menu = 'doors' },
-  }
-})
-lib.showRadial('vehicle')
-```
-
----
-
-## Interaction Prompts
-
-Display-only prompts. Your resource owns the input — cortex-lib only renders.
-
-```lua
-RegisterKeyMapping('+exampleAction', 'Example action', 'keyboard', 'E')
-RegisterCommand('+exampleAction', function()
-  -- your own distance / state / permission checks here
-end, false)
-
-lib.showInteraction({
-  id = 'example-action',
-  label = 'INTERACT',
-  key = 'E',
-  priority = 10,
-})
-
--- replace all prompts owned by this resource
-lib.setInteractions({
-  { id = 'throw', label = 'THROW', key = 'G', priority = 20 },
-  { id = 'aim',   label = 'AIM',   key = 'RMB', priority = 10 },
-})
-
--- GTA-style target context: actions sharing this validated panel render as
--- labeled key discs, a divider, and one filled-center context marker.
-local targetPanel = {
-  id = 'social-target',
-  label = 'STRANGER',
-  variant = 'target',
-}
-
-lib.setInteractions({
-  { id = 'greet', label = 'GREET', key = 'G', priority = 20, panel = targetPanel },
-  { id = 'taunt', label = 'TAUNT', key = 'H', priority = 19, panel = targetPanel },
-})
-
-lib.hideInteraction('example-action')
-lib.clearInteractions()
-```
-
-Screen interactions are press-only: perform the action once from the mapped
-`+command` after checking `lib.isInteractionActive(id)`. Supplying
-`holdDuration` without a world anchor is rejected so the input behavior cannot
-contradict the one-press screen UI.
-
-`panel` is optional and screen-only. The supported `target` variant shows each
-caller-supplied key label inside its white action disc and uses an outer ring with a
-filled center for the context marker. Optional `panel.marker` accepts one letter,
-digit, or `?` and defaults to `?`; for example, equipment can supply `marker = 'A'`.
-Numpad action discs stack a small `NUM` caption over the digit or Enter arrow,
-while the original key string remains the arbitration and accessible identity.
-`id` and `label` are bounded and sanitized
-at the registry boundary; panel data is copied in public snapshots so callers
-cannot mutate live renderer state.
-
-<details>
-<summary><strong>World anchors (position / entity / bone)</strong></summary>
-
-Follow a bone-less or moving object's root transform:
-
-```lua
-lib.showInteraction({
-  id = 'wallet-pickup',
-  label = 'PICK UP WALLET',
-  key = 'E',
-  holdDuration = 350,
-  anchor = {
-    type = 'entity',
-    entity = wallet,
-    model = GetEntityModel(wallet), -- optional handle-reuse guard
-    offset = { z = 0.08 },
-    maxDistance = 2.0,
-  },
-})
-```
-
-Use a named entity bone when the exact moving part matters:
-
-```lua
-lib.showInteraction({
-  id = 'vehicle-door',
-  label = 'OPEN',
-  key = 'E',
-  priority = 100,
-  holdDuration = 1200,
-  anchor = {
-    type = 'entity-bone',
-    entity = vehicle,
-    bone = 'door_dside_f',
-    offset = { z = 0.08 },
-    maxDistance = 2.0,
-  },
-})
-
--- static world position
-lib.showInteraction({
-  id = 'stash',
-  label = 'OPEN',
-  key = 'E',
-  anchor = { type = 'world', x = 0, y = 0, z = 0 },
-})
-```
-
-- For `world` anchors, `anchor.offset` follows world axes. For `entity` and `entity-bone` anchors, it follows the entity's local axes.
-- The renderer revalidates entity existence, the optional expected model, range, and screen projection every frame. Bone indices are cached per entity/model pair and rebuilt automatically if the handle resolves to a different model.
-- World anchors use the same key disc and may opt into the outer hold-progress ring with `holdDuration` (**100-600000 ms**).
-- Start and cancel that ring from the owning `+command` / `-command` pair with `lib.startInteractionHold(id)` and `lib.cancelInteractionHold(id)`. The ring is presentation only; the resource still measures elapsed time, revalidates the target, and owns the action.
-- `lib.getInteractionState(id)` returns an owner-scoped copy with `active`, `visible`, and (for a visible world prompt) `distance`. `lib.isInteractionVisible(id)` is the cheap boolean form. Check it before starting an anchored action, then revalidate entity identity and gameplay rules again before mutating anything.
-
-</details>
-
-**Rules**
-
-- IDs are scoped to the invoking resource.
-- Max **8 prompts per resource**, **16 total** in the client registry.
-- Prompts are removed automatically when their owner resource stops.
-- When keys collide, only the highest `priority` prompt is active. Gate gameplay mutations with `lib.isInteractionActive(id)`.
-- A world prompt is `visible` only while its winning entry is in range and successfully projected on screen; callers cannot set renderer-owned visibility.
-- `lib.startInteractionHold(id)` and `lib.cancelInteractionHold(id)` are owner-scoped and require a world prompt that defines `holdDuration`.
-
-Available via `lib`, `lib.interaction`, and `exports['cortex-lib']`.
-
-### Performance pattern
-
-Register prompts on state transitions, not in a permanent `Wait(0)` loop. This keeps the export boundary and input normalization off the frame path. Repeating an identical `showInteraction` or `setInteractions` call is an optimized no-op, but event-driven ownership is still cheaper and easier to reason about.
-
-| Hot path | Previous work | Current work |
-| :--- | :--- | :--- |
-| `isInteractionActive` | Deep-copy and sort the full registry per query | Direct owner/id lookup against mutation-time arbitration |
-| Capacity checks | Rebuild the snapshot and scan owners | Constant-time total and per-owner counters |
-| Stable visible entity-bone prompt | Resolve the bone and send NUI every frame | Revalidate the model, reuse the bone index, and skip an unchanged NUI frame |
-| Moving world prompt in React | Update the root app state | Coalesce to one animation-frame update in an isolated interaction surface |
-| Stable vehicle seat cache | Scan fixed seats every 100 ms | Check the cached seat once; scan the vehicle's real seat range only after a change |
-| Points with nothing nearby | Resume an empty coroutine every frame | No frame coroutine until the detector finds a nearby point |
-
-```lua
-local benchPoint = lib.points.new({
-  coords = vector3(-347.14, -133.42, 39.01),
-  distance = 2.0,
-
-  onEnter = function()
-    lib.showInteraction({
-      id = 'mechanic-bench',
-      label = 'USE BENCH',
-      key = 'E',
-      priority = 50,
-    })
-  end,
-
-  onExit = function()
-    lib.hideInteraction('mechanic-bench')
-  end,
-
-  nearby = function(self)
-    if self.currentDistance <= 1.5
-      and IsControlJustReleased(0, 38)
-      and lib.isInteractionActive('mechanic-bench')
-    then
-      -- The server must revalidate the job, inventory and bench proximity.
-      TriggerServerEvent('mechanic:server:openBench')
-    end
-  end,
-})
-```
-
-Key arbitration is recomputed only when the registry changes, so `lib.isInteractionActive(id)` is a direct owner-scoped lookup. World projection remains frame-bound only while a prompt is visible; distant anchors use an adaptive wait, stable entity bones reuse their lookup, unchanged frames do not cross the NUI bridge, and the React interaction surface is isolated from unrelated UI.
-
-The scheduling follows the [Cfx `Citizen.Wait` guidance](https://docs.fivem.net/docs/scripting-reference/runtimes/lua/functions/Citizen.Wait): reserve `Wait(0)` for genuinely frame-bound work, adapt idle waits, and cache infrequently changing native results. The cache and points lifecycles are adapted from proven [ox_lib cache](https://github.com/overextended/ox_lib/blob/main/resource/cache/client.lua) and [points](https://github.com/overextended/ox_lib/blob/main/imports/points/client.lua) patterns while retaining cortex-lib's existing public values and callback timing.
-
----
-
-## Settings
-
-Settings are stored per-client with `SetResourceKvp` / `GetResourceKvpString`. Built-ins:
-
-| Key | Type | Description |
-| :--- | :--- | :--- |
-| `notifySound` | boolean | Master toggle for notification audio |
-| `notifySoundPreset` | string | Default sound preset |
-| `notifyPosition` | string | Default toast position (`top-right`, `top`, `bottom`, …) |
-
-Register your own tab:
-
-```lua
--- lazy-load to avoid paying for what you don't use
-local settings = lib('settings')
-local soundOn = settings.getSetting('notifySound')
-
--- from another resource via exports
-exports['cortex-lib']:registerSettings(
-  'myResource',
-  'My Resource',
-  'myResource:',
-  {
-    { key = 'enabled', type = 'toggle', label = 'Enabled', default = true },
-  },
-  { enabled = true }
-)
-```
-
-The third argument is either the legacy icon value or a validated KVP namespace ending in `:`. Built-in Cortex settings keep their existing `cortex:` keys; consumer tabs should use a stable resource-specific namespace such as `myResource:`. Duplicate tab IDs, field keys, and cross-resource registrations are rejected instead of silently overwriting another owner. Registration also rejects any concrete KVP key that would overlap a built-in field or a field owned by another registered tab; a prefix may be shared only when the resulting field keys remain distinct.
-
-### Shared UI Applications
-
-`registerUiApp`, `openUiApp`, `updateUiApp`, and `closeUiApp` let a consumer drive a renderer hosted by cortex-lib without adding another React root. Registrations are owner-scoped and are removed when the consumer stops; NUI events are accepted only for the active owner/session.
-
-The bundled `weatherzonesEditor` renderer is optional and exists for the external `es_weatherzones` integration. It is inert until that resource explicitly registers and opens the app; cortex-lib does not treat `es_weatherzones` as a dependency.
-
----
-
-## How It Works
-
-**Lazy loading** — `lib` is a metatable with `__index` / `__call`. Consumer-local modules are loaded from `imports/<module>/<context>.lua` once and cached; shared files (`shared.lua`) are prepended automatically. UI-backed modules and direct client utilities resolve to cortex-lib exports so callbacks, NUI messages, focus and owner cleanup stay in the resource that owns the shared UI.
-
-```
-fxmanifest.lua          →  cerulean, gta5, lua54
-resource/init.lua       →  internal lib / cache bootstrap
-init.lua                →  external loader for other resources (@cortex-lib/init.lua)
-imports/                →  modular lazy-loaded modules (client / server / shared)
-client/                 →  directly loaded helpers + interaction renderer + debug panel
-ui/                     →  React 18 NUI bundle (index.html, app.js, style.css) + vendored React
-tests/                  →  in-game /cortex test menu and specs
-```
-
-Public functions are available through the global `lib`. Cortex-owned functions are also exported for explicit cross-resource use:
-
-```lua
--- inside a dependent resource
-lib.notify({ type = 'success', description = 'Hello!' })
-local notify = lib('notify')
-notify({ type = 'success', description = 'Hello!' })
-
--- cross-resource
-exports['cortex-lib']:notify({ type = 'success', description = 'Hello!' })
-```
-
----
-
-## Development & Testing
-
-Enable the in-game test menu:
-
-```lua
--- in fxmanifest.lua (development only)
-client_scripts {
-  'client/utils.lua',
-  'client/interaction_renderer.lua',
-  'client/debug_panel.lua',
-  'tests/client/debug_commands.lua',
-}
-```
-
-Restart the resource and run `/cortex` in-game. Covers notifications, progress bars, menus, radial, dialogs, text UI, debug panel and utilities.
-
-Quick console checks (F8):
-
-```lua
-lib.notify({ type = 'success', title = 'Success', description = 'Works!' })
-lib.progress({ label = 'Test', duration = 3000 })
-lib.clearNotifications()
-```
-
-Node contract tests:
-
-```bash
-node --test tests/*.test.mjs
-```
-
-Full static gates (with a Lua 5.4 executable installed):
-
-```powershell
-node --check ui/app.js
-node --test tests/*.test.mjs
-Get-ChildItem tests\*_spec.lua | ForEach-Object { lua $_.FullName }
-.\scripts\validate-resource.ps1 -Path .
-git diff --check
-```
-
-The release workflow runs the same checks before packaging, builds the ZIP from tracked files only, writes a SHA-256 checksum, extracts the exact archive, and repeats the manifest, JavaScript, Node, and Lua gates before publishing.
-
-For an interaction performance comparison, restart `cortex-lib`, let each state settle for 10-15 seconds, and record the same route and camera movement before and after the change:
+Restart the server, or enter these commands in the **server console** after a new installation:
 
 ```text
-resmon 1
-profiler record 500
-profiler saveJSON cortex-lib-interactions.json
+refresh
+ensure cortex-lib
+ensure your-cortex-script
 ```
 
-Capture at least: no prompts, one screen prompt, four static world prompts, four moving entity-bone prompts, and the 16-prompt collision limit. The Cfx profiler identifies resource threads and source lines; `resmon`/profiler results from a live FiveM client are the release measurement, while the repository tests only prove static contracts and deterministic operation counts.
+Join and enter `/cortexsettings` in chat. Confirm that settings open and close, then check the dependent script's main feature. Check the server console and the player's F8 console for errors.
 
-See the official [Cfx profiler workflow](https://docs.fivem.net/docs/scripting-manual/debugging/using-profiler/) for `profiler status`, `profiler view`, and loading saved captures.
+Purchased scripts should already include their library integration. Do not add `@cortex-lib/init.lua` to them yourself unless their author instructs you to.
 
-> [!NOTE]
-> `tests/client/debug_commands.lua` is for development — don't ship it enabled in production.
+## Using cortex-lib with PolCam
 
----
+The PolCam 1.0.2 code prepared with this library requires **cortex-lib 2.2.1**. The older 2.2.0 release does not contain its shared presentation files. Install the matching library package before updating PolCam.
 
-## Configuration Reference
+Keep both resource names unchanged:
 
-cortex-lib itself has no `config.lua`. Behaviour is driven by KVP settings and module options passed at call time. To add resource-specific settings, use `lib.registerSettings` as shown above.
+```cfg
+# Default: keep the Cortex quick menu disabled.
+setr cortex_pause_replace_native 0
 
----
+ensure cortex-lib
+ensure cortex-polcam
+```
+
+Configure helicopters, access, camera controls and optional integrations in PolCam's own configuration and documentation. Its **PolCam** settings page provides high-contrast and target-label preferences. Camera operation and key mappings remain part of PolCam.
+
+When updating both, restart cortex-lib first and PolCam second. If its settings page is missing, check both resources' startup errors and the installed library version.
+
+## Player settings
+
+Enter `/cortexsettings`. Cortex Settings opens over a darkened, heavily blurred view of the game, with tabs for the library and compatible scripts. It has no quick-menu back arrow, game-settings tab or keybinding link. A script appears when it registers a settings page; installing a resource does not automatically give it a page.
+
+### Save, Apply and Discard
+
+- **Apply** saves changes and keeps the menu open.
+- **Save & Resume** saves changes and closes the menu.
+- **Discard & Resume** restores the values from when the menu opened, or from the most recent Apply, then closes it.
+- Unsaved changes may preview immediately. Closing without saving rolls them back.
+
+Escape closes an open dropdown first, then closes settings and discards unsaved changes. This works the same way whether the quick menu is enabled or disabled.
+
+Preferences are stored on each player's computer using FiveM client storage. They are not shared between players or synchronized to another computer. Updating the resource does not reset them, so returning players may see different values from a fresh installation.
+
+### Cortex options
+
+The **CORTEX** tab is grouped into Interface, Notifications, Prompts and Progress. Changes preview immediately (Interface size and Text size resize the open menu too); each changed row shows a mint mark and a reset-to-default button.
+
+| Section | Setting | Default | Control | Purpose |
+| --- | --- | --- | --- | --- |
+| Interface | Interface size (`uiScale`) | 100 % | Slider 80-130 % | Scales every Cortex prompt, menu and notification. Previews on release. |
+| Interface | Text size (`textSize`) | Standard | Standard / Large | Larger body text in menus, dialogs and notifications. |
+| Interface | Shared accent (`dynamic_accent`) | Mint | Colour swatches | Highlight colour in every Cortex interface. |
+| Interface | Surface opacity (`dynamic_opacity`) | 92 % | Slider 65-100 % | How solid menus and panels look. |
+| Interface | Motion (`dynamic_motion`) | System | System / Reduced / Full | Follows the OS preference or forces reduced/full animation. |
+| Interface | Avoid overlapping overlays (`dynamic_layout`) | On | Toggle | Moves notifications and prompts aside from chat, the HUD and each other. |
+| Interface | Control hints (`controlHints`) | On | Toggle | Key hints under menus and prompts; a hint that is the only instruction stays. |
+| Notifications | Position (`notifyPosition`) | Top right | Dropdown (6) | Where notifications appear. |
+| Notifications | Display time (`notifyDuration`) | Standard | Short / Standard / Long | Lifetime multiplier 0.75 / 1 / 1.5. |
+| Notifications | Visible at once (`notifyLimit`) | 5 | 3 / 5 / 8 | Most notifications shown together. |
+| Notifications | Sound (`notifySound`) | On | Toggle | Plays a sound when a notification arrives. |
+| Notifications | Sound preset (`notifySoundPreset`) | MP Idle Kick | Dropdown + play | Shown while Sound is on; choosing one plays it. |
+| Prompts | Distant interaction markers (`promptMarkers`) | On | Toggle | Small marker for interactions that are near but not yet in reach. |
+| Prompts | Prompt size (`promptScale`) | Standard | Small / Standard / Large | Size of world and screen prompts. |
+| Prompts | Invert list scroll (`invertScroll`) | Off | Toggle | Flips the wheel direction in stacked prompt lists. |
+| Progress | Show percentage (`showPercent`) | On | Toggle | Percent readout on progress bars and circles. |
+
+Scripts can supply their own notification options, so these defaults do not override every notification.
+
+Shared accent, surface opacity, motion and overlap avoidance apply to every participating Cortex resource. The former **Dynamic UI** tab and its per-resource "independent appearance" switches were removed; saved values for the four kept settings move to the Cortex tab automatically. Automatic placement does not overwrite saved positions, and crowded screens may still have overlaps. These controls cannot reposition every third-party interface on your server.
+
+## Commands and key bindings
+
+Enter player commands in chat with the slash shown:
+
+| Command | Purpose |
+| --- | --- |
+| `/cortexsettings` | Opens shared settings. |
+| `/cortexpause` | Opens the quick menu if the server enables it; otherwise opens Cortex Settings. |
+| `/cortexnative` | Opens GTA's native map/pause frontend when no conflicting menu owns input. |
+
+Use GTA's native keybinding menu for GTA and FiveM script mappings, including PolCam's registered controls. If the server enables the quick menu, its **Key bindings** action also opens this native editor.
+
+The library does not include a separate binding editor. Scripts own their controls and register them with FiveM.
+
+Saved FiveM bindings take precedence over a script's original default keys. Reinstalling cortex-lib does not reset them.
+
+## Server configuration
+
+Configure the library in `server.cfg` **before** it starts. You do not need to edit the resource's Lua files:
+
+```cfg
+# Default 0: retain the native/other pause menu. Set 1 to enable Cortex.
+setr cortex_pause_replace_native 0
+
+# Quick-menu title, up to 48 bytes.
+setr cortex_pause_title "CORTEX"
+
+# Keep development diagnostics disabled on a normal server.
+setr cortex_debug 0
+
+ensure cortex-lib
+```
+
+The quick-menu switch can also be changed immediately in the **server console** with `setr cortex_pause_replace_native 1` or `setr cortex_pause_replace_native 0`. Keep the same value in `server.cfg` so it survives a server restart. These replicated settings are controlled by the server; there is no player quick-menu preference. Disabling the quick menu while it is open switches it to Cortex Settings.
+
+For a controlled troubleshooting session, `setr cortex_debug 1` enables `/cortexdebug` after a restart. It exposes interactive test actions. Disable it afterward. Normal use does not require it, and the legacy `/cortex` test menu is not shipped.
+
+## Updating
+
+1. Check each dependent script's required version and read the release notes.
+2. Back up the library folder and any local modifications.
+3. Stop dependent scripts before replacing files. Schedule updates when players are not using their interfaces.
+4. Replace the complete `cortex-lib` folder. Do not mix files from different releases.
+5. Start cortex-lib, then its dependent scripts.
+6. Check settings, notifications and each script's main feature. Confirm that closing menus returns control to the game.
+
+For an installed PolCam pair, server-console restart order is:
+
+```text
+restart cortex-lib
+restart cortex-polcam
+```
+
+Restart other cortex-lib consumers afterward. This version needs no SQL migration. Keep previous library and consumer versions together if you need to roll back.
 
 ## Troubleshooting
 
-| Symptom | Cause / Fix |
-| :--- | :--- |
-| `Lua 5.4 is required` error | Add `lua54 'yes'` to the **calling** resource, not just cortex-lib |
-| `cortex-lib must be started before this resource` | Move `ensure cortex-lib` above dependents in `server.cfg` |
-| NUI not showing | Check `ui_page` loads and `ui/app.js` + `ui/vendor/` are in `files` |
-| Prompts not visible | Max 16 total — check `lib.clearInteractions()` and owner scoping |
-| Settings not persisting | KVP is per-client and per-machine — not synced between players |
+| Problem | What to check |
+| --- | --- |
+| Server cannot find cortex-lib | Use the exact folder name, with `fxmanifest.lua` directly inside. Run `refresh` after installation. |
+| A script says cortex-lib must start first | Place its `ensure` after the library, then restart in that order. |
+| Missing export or `presentation-client.lua` | Check the required version and replace the whole library folder. PolCam's current shared UI needs 2.2.1. |
+| `Lua 5.4 is required` | The script using the library facade must declare `lua54 'yes'` in its manifest. The loader checks this metadata. Ask its author for a compatible build. |
+| Blank or missing interface | Check F8 errors. Keep `ui/`, `ui/vendor/` and the manifest from the same package; do not remove runtime assets. |
+| Escape opens an unexpected menu | Check `server.cfg` for `cortex_pause_replace_native 1`. Set it to `0` to disable Cortex's quick menu; check other pause-menu resources too. |
+| A menu will not open | Close another focused interface or native pause menu first, then retry. Cortex avoids taking focus from another menu. |
+| A script's settings page is missing | Confirm it supports shared settings and started successfully. Restart it after cortex-lib. |
+| A preference reverted | Use Apply or Save & Resume. Discard and unsaved close paths restore earlier values. |
+| Old settings remain after an update | Client preferences and bindings survive updates. Change them in settings or the native binding editor. |
+| Controls stay stuck after closing | Note the menu and closing action, check F8 errors, then restart the library and affected script. Reconnect if necessary. |
+| Unexpected overlay position or appearance | Check the Interface section of the Cortex tab, the script's appearance options and GTA's safe-zone/display settings. Other UI resources may have separate controls. |
 
----
+Avoid deleting a player's entire FiveM storage to fix one preference. Change the relevant setting or binding through its menu first.
 
-## License
+## Getting help
 
-MIT — see [LICENSE](LICENSE).
+Open a [GitHub issue](https://github.com/IEver3st/cortex-lib/issues) for library problems. Include:
 
-Copyright (c) 2026 Ever3st
+- cortex-lib's version from `fxmanifest.lua` and the affected script's version.
+- The relevant `server.cfg` start order and Cortex settings.
+- Steps to reproduce and the menu or gameplay action involved.
+- Exact F8/server errors; for layout issues, a screenshot, resolution and safe-zone setting.
+- Whether it happens after a fresh connection, a resource restart, or both.
 
-The embedded **Barlow Condensed** interaction font is distributed under the SIL Open Font License — see `ui/barlow-condensed-OFL.txt`.
+Remove license keys, tokens, player identifiers and private server details before posting logs. Contact the purchased script's author for its gameplay, permissions or configuration issues.
+
+## For script developers
+
+The [developer API reference](https://github.com/IEver3st/cortex-lib/blob/main/docs/api.md) covers the loader, exports, callbacks, interaction prompts and settings registration. Source checks and developer documentation are excluded from the customer ZIP.
+
+## License and credits
+
+cortex-lib uses the [MIT license](LICENSE), copyright 2026 Ever3st. Dependent scripts may have different licenses and purchase terms.
+
+React and Barlow Condensed are bundled with their licenses; see [Third-party notices](THIRD_PARTY_NOTICES.md). FiveM, GTA V and related marks belong to their respective owners. This project is not affiliated with or endorsed by Cfx.re, Rockstar Games or Take-Two Interactive.

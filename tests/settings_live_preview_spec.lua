@@ -175,6 +175,37 @@ assert(kvp['cortex:hud:hud_strength'] == '25', 'Save must persist numeric values
 assert(kvp['cortex:hud_enabled'] == nil, 'Save must not mirror consumer values into the legacy global namespace')
 assert(focusState == false, 'Save must release NUI focus')
 
+api.openSettings()
+assert(callNui('settingsReady').ok == true)
+callNui('settingsPreview', { tabId = 'hud', key = 'hud_strength', value = 65 })
+local beforeApply = #sentMessages
+local badApply = callNui('settingsSave', { keepOpen = 'true', tabs = { hud = { hud_strength = 65 } } })
+assert(badApply.ok == false and kvp['cortex:hud:hud_strength'] == '25',
+    'malformed Apply must not commit')
+local applyReply = callNui('settingsSave', { keepOpen = true, tabs = { hud = { hud_strength = 65 } } })
+assert(applyReply.ok == true and applyReply.applied == true, 'Apply must commit successfully')
+assert(kvp['cortex:hud:hud_strength'] == '65' and api.getSetting('hud_strength') == 65,
+    'Apply must persist and retain the latest value')
+assert(focusState == true and #sentMessages == beforeApply,
+    'Apply must keep the current menu and focus without closing or reopening it')
+callNui('settingsPreview', { tabId = 'hud', key = 'hud_strength', value = 80 })
+assert(callNui('settingsCancel').ok == true)
+assert(api.getSetting('hud_strength') == 65 and kvp['cortex:hud:hud_strength'] == '65',
+    'Discard after Apply must restore the newly applied baseline')
+assert(focusState == false, 'Discard after Apply must still release focus')
+
+api.openSettings()
+assert(callNui('settingsReady').ok == true)
+callNui('settingsPreview', { tabId = 'hud', key = 'hud_strength', value = 90 })
+writeAttempts = 0
+failWriteAt = 1
+local failedApply = callNui('settingsSave', { keepOpen = true, tabs = { hud = { hud_strength = 90 } } })
+assert(failedApply.ok == false and failedApply.error == 'commit_failed' and focusState == true,
+    'failed Apply must report failure and retain focus for retry')
+assert(kvp['cortex:hud:hud_strength'] == '65' and api.getSetting('hud_strength') == 65,
+    'failed Apply must preserve the persisted and runtime baseline')
+assert(callNui('settingsCancel').ok == true)
+
 assert(type(eventHandlers.onResourceStop) == 'function', 'resource-stop cleanup must be registered')
 eventHandlers.onResourceStop('hud')
 api.openSettings()

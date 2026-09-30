@@ -1,0 +1,494 @@
+/* ============================================================================
+   DIALOGS: alert + input form
+   One 520u slip, centre-low, over a light ink scrim (36%) that exists only
+   while a dialog owns focus. SlipHeader title, Arial body copy, eyebrow field
+   labels, wells with a 3u bottom rule, keycap actions. Sizes in --u only.
+   ============================================================================ */
+
+.cx-dialog-layer {
+    --cx-dialog-pad: calc(28 * var(--u));
+    --cx-dialog-fade: calc(28 * var(--u));
+    position: fixed;
+    inset: 0;
+    z-index: 9996;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    /* Centre-low: more room above than below pushes the slip under the midline. */
+    padding: calc(176 * var(--u)) calc(16 * var(--u)) calc(72 * var(--u));
+    pointer-events: auto;
+    color: var(--paper);
+    font-family: var(--body);
+    text-shadow: none;
+    animation: cx-dialog-fade-in var(--t-enter) var(--ease) both;
+}
+
+/* The scrim: ink at 36%, never blurred. */
+.cx-dialog-layer::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--ink);
+    opacity: 0.36;
+    pointer-events: none;
+}
+
+.cx-dialog {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(calc(520 * var(--u)), 100%);
+    min-width: 0;
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: var(--r);
+    background: var(--slip);
+    color: var(--paper);
+    pointer-events: auto;
+    animation: cx-dialog-rise var(--t-enter) var(--ease) both;
+}
+
+.cx-dialog-layer.is-leaving { pointer-events: none; animation: cx-dialog-fade-out var(--t-fast) var(--ease) forwards; }
+.cx-dialog-layer.is-leaving .cx-dialog { animation: cx-dialog-sink var(--t-fast) var(--ease) forwards; }
+
+@keyframes cx-dialog-fade-in { from { opacity: 0; } }
+@keyframes cx-dialog-fade-out { to { opacity: 0; } }
+@keyframes cx-dialog-rise { from { opacity: 0; transform: translateY(calc(6 * var(--u))); } }
+@keyframes cx-dialog-sink { to { opacity: 0; transform: translateY(calc(4 * var(--u))); } }
+
+/* ---------------------------------------------------------------- header --- */
+.cx-dialog-head {
+    flex: none;
+    padding: calc(26 * var(--u)) var(--cx-dialog-pad) 0;
+}
+
+/* Dialog questions wrap instead of truncating. */
+.cx-dialog .cx-slip-title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1;
+    padding-right: 0.08em;
+}
+
+.cx-dialog .cx-slip-title-row { align-items: flex-start; }
+.cx-dialog .cx-slip-meta { padding-top: calc(8 * var(--u)); }
+
+.cx-dialog-legend {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(7 * var(--u));
+    color: var(--dim);
+    font: 700 calc(11 * var(--u) * var(--cx-text)) / 1 var(--body);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+/* ------------------------------------------------------------ scroll body --- */
+.cx-dialog-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: calc(16 * var(--u)) var(--cx-dialog-pad) calc(6 * var(--u));
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+/* Fading edges: a stepped alpha mask (discrete bands, not a gradient) fades the
+   content only, so the slip itself keeps one even surface. */
+.cx-dialog-scroll.fade-top,
+.cx-dialog-scroll.fade-bottom {
+    --cx-fade-solid: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1' preserveAspectRatio='none'%3E%3Crect width='1' height='1'/%3E%3C/svg%3E");
+    --cx-fade-top: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 7' preserveAspectRatio='none' shape-rendering='crispEdges'%3E%3Crect width='1' height='1' fill-opacity='.06'/%3E%3Crect y='1' width='1' height='1' fill-opacity='.18'/%3E%3Crect y='2' width='1' height='1' fill-opacity='.32'/%3E%3Crect y='3' width='1' height='1' fill-opacity='.48'/%3E%3Crect y='4' width='1' height='1' fill-opacity='.64'/%3E%3Crect y='5' width='1' height='1' fill-opacity='.8'/%3E%3Crect y='6' width='1' height='1' fill-opacity='.93'/%3E%3C/svg%3E");
+    --cx-fade-bottom: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 7' preserveAspectRatio='none' shape-rendering='crispEdges'%3E%3Crect width='1' height='1' fill-opacity='.93'/%3E%3Crect y='1' width='1' height='1' fill-opacity='.8'/%3E%3Crect y='2' width='1' height='1' fill-opacity='.64'/%3E%3Crect y='3' width='1' height='1' fill-opacity='.48'/%3E%3Crect y='4' width='1' height='1' fill-opacity='.32'/%3E%3Crect y='5' width='1' height='1' fill-opacity='.18'/%3E%3Crect y='6' width='1' height='1' fill-opacity='.06'/%3E%3C/svg%3E");
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+}
+
+.cx-dialog-scroll.fade-top {
+    -webkit-mask-image: var(--cx-fade-top), var(--cx-fade-solid);
+    mask-image: var(--cx-fade-top), var(--cx-fade-solid);
+    -webkit-mask-size: 100% var(--cx-dialog-fade), 100% calc(100% - var(--cx-dialog-fade));
+    mask-size: 100% var(--cx-dialog-fade), 100% calc(100% - var(--cx-dialog-fade));
+    -webkit-mask-position: top, bottom;
+    mask-position: top, bottom;
+}
+
+.cx-dialog-scroll.fade-bottom {
+    -webkit-mask-image: var(--cx-fade-solid), var(--cx-fade-bottom);
+    mask-image: var(--cx-fade-solid), var(--cx-fade-bottom);
+    -webkit-mask-size: 100% calc(100% - var(--cx-dialog-fade)), 100% var(--cx-dialog-fade);
+    mask-size: 100% calc(100% - var(--cx-dialog-fade)), 100% var(--cx-dialog-fade);
+    -webkit-mask-position: top, bottom;
+    mask-position: top, bottom;
+}
+
+.cx-dialog-scroll.fade-top.fade-bottom {
+    -webkit-mask-image: var(--cx-fade-top), var(--cx-fade-solid), var(--cx-fade-bottom);
+    mask-image: var(--cx-fade-top), var(--cx-fade-solid), var(--cx-fade-bottom);
+    -webkit-mask-size: 100% var(--cx-dialog-fade), 100% calc(100% - 2 * var(--cx-dialog-fade)), 100% var(--cx-dialog-fade);
+    mask-size: 100% var(--cx-dialog-fade), 100% calc(100% - 2 * var(--cx-dialog-fade)), 100% var(--cx-dialog-fade);
+    -webkit-mask-position: top, center, bottom;
+    mask-position: top, center, bottom;
+}
+
+/* -------------------------------------------------------------- alert copy --- */
+.cx-dialog-copy p {
+    margin: 0;
+    color: var(--muted);
+    font: 400 calc(16 * var(--u) * var(--cx-text)) / 1.55 var(--body);
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    user-select: text;
+}
+
+.cx-dialog-copy p + p { margin-top: calc(12 * var(--u)); }
+/* The first paragraph is the statement; the rest is supporting detail. */
+.cx-dialog-copy p:first-child { color: var(--paper); }
+
+/* ------------------------------------------------------------------ fields --- */
+.cx-dialog-form {
+    display: flex;
+    flex-direction: column;
+    gap: calc(22 * var(--u));
+    padding: calc(8 * var(--u)) 0 calc(4 * var(--u));
+}
+
+.cx-dialog-field {
+    display: flex;
+    flex-direction: column;
+    gap: calc(8 * var(--u));
+    min-width: 0;
+    flex-shrink: 0;
+}
+
+.cx-dialog-field-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: calc(12 * var(--u));
+    min-width: 0;
+}
+
+.cx-dialog-label {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(8 * var(--u));
+    min-width: 0;
+    color: var(--muted);
+    font: 700 calc(12 * var(--u) * var(--cx-text)) / 1.2 var(--body);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    transition: color var(--t-fast);
+}
+
+.cx-dialog-label-text { min-width: 0; overflow-wrap: anywhere; }
+.cx-dialog-field:focus-within .cx-dialog-label { color: var(--paper); }
+.cx-dialog-field.is-invalid .cx-dialog-label { color: var(--error); }
+
+.cx-dialog-required {
+    flex: none;
+    width: calc(6 * var(--u));
+    height: calc(6 * var(--u));
+    border-radius: calc(1 * var(--u));
+    background: var(--error);
+}
+
+.cx-dialog-range {
+    flex: none;
+    color: var(--dim);
+    font: 700 calc(12 * var(--u) * var(--cx-text)) / 1 var(--data);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    text-transform: uppercase;
+}
+
+.cx-dialog-hint {
+    margin: 0;
+    color: var(--dim);
+    font: 400 calc(14 * var(--u) * var(--cx-text)) / 1.45 var(--body);
+    text-transform: none;
+    letter-spacing: 0;
+    overflow-wrap: anywhere;
+}
+
+.cx-dialog-error {
+    margin: 0;
+    color: var(--error);
+    font: 700 calc(14 * var(--u) * var(--cx-text)) / 1.35 var(--body);
+    overflow-wrap: anywhere;
+    animation: cx-dialog-rise var(--t-fast) var(--ease) both;
+}
+
+/* Wells: the kit dropdown recipe (wash + 3u bottom rule, accent on focus), so
+   typed fields and choices read as one family. */
+.cx-dialog-well {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    height: calc(44 * var(--u));
+    border-radius: var(--r-sm);
+    background: var(--wash);
+    box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--rule-strong);
+    transition: background var(--t-fast), box-shadow var(--t-fast);
+}
+
+.cx-dialog-well:hover { background: var(--wash-strong); }
+.cx-dialog-well:focus-within { background: var(--wash-strong); box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--accent); }
+.cx-dialog-well.is-invalid,
+.cx-dialog-well.is-invalid:focus-within { box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--error); }
+
+.cx-dialog-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    margin: 0;
+    padding: 0 calc(14 * var(--u)) calc(3 * var(--u));
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--paper);
+    caret-color: var(--accent);
+    font: 400 calc(16 * var(--u) * var(--cx-text)) / 1 var(--body);
+    -webkit-appearance: none;
+    appearance: none;
+    user-select: text;
+}
+
+.cx-dialog-input::placeholder { color: var(--dim); opacity: 1; }
+.cx-dialog-input::-webkit-search-cancel-button,
+.cx-dialog-input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+.cx-dialog-well.is-number .cx-dialog-input { font-family: var(--data); font-variant-numeric: tabular-nums; }
+
+/* Password reveal: a quiet caps toggle inside the well; mint while shown. */
+.cx-dialog-reveal {
+    flex: none;
+    height: calc(30 * var(--u));
+    margin-right: calc(7 * var(--u));
+    padding: 0 calc(10 * var(--u));
+    border-radius: calc(3 * var(--u));
+    color: var(--muted);
+    font: italic 800 calc(14 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    transition: background var(--t-fast), color var(--t-fast);
+}
+
+.cx-dialog-reveal:hover,
+.cx-dialog-reveal:focus-visible { background: var(--wash-strong); color: var(--paper); }
+.cx-dialog-reveal[aria-pressed='true'] { color: var(--accent); }
+
+/* Number stepper: two square keys inside the well; arrows (Shift = x10) step too. */
+.cx-dialog-stepper {
+    flex: none;
+    display: flex;
+    gap: calc(4 * var(--u));
+    margin-right: calc(7 * var(--u));
+}
+
+.cx-dialog-step {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: calc(30 * var(--u));
+    height: calc(30 * var(--u));
+    border-radius: calc(3 * var(--u));
+    background: var(--wash);
+    color: var(--paper);
+    transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast) var(--ease);
+}
+
+.cx-dialog-step::before,
+.cx-dialog-step--up::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: calc(12 * var(--u));
+    height: calc(3 * var(--u));
+    border-radius: calc(1 * var(--u));
+    background: currentColor;
+    transform: translate(-50%, -50%);
+}
+
+.cx-dialog-step--up::after { width: calc(3 * var(--u)); height: calc(12 * var(--u)); }
+.cx-dialog-step:hover:not(:disabled) { background: var(--wash-strong); }
+.cx-dialog-step:active:not(:disabled) { background: var(--paper); color: var(--ink); transform: translateY(calc(1 * var(--u))); }
+.cx-dialog-step:disabled { color: var(--dim); background: transparent; cursor: default; }
+
+/* Kit dropdown inside the form: full width, same height and error rule as wells. */
+.cx-dialog .cx-dropdown { display: flex; width: 100%; }
+.cx-dialog .cx-dropdown-trigger { height: calc(44 * var(--u)); min-width: 0; }
+.cx-dialog-field.is-unset .cx-dropdown-value { color: var(--dim); }
+.cx-dialog-field.is-invalid .cx-dropdown-trigger { box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--error); }
+
+/* Check rows: a CheckMark and a display-caps label; hover washes the row and
+   wipes the accent bar in from the left; keyboard focus keeps the bar. */
+.cx-dialog-check {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: calc(12 * var(--u));
+    width: calc(100% + 12 * var(--u));
+    margin: calc(-6 * var(--u)) 0 calc(-6 * var(--u)) calc(-12 * var(--u));
+    padding: calc(9 * var(--u)) calc(12 * var(--u));
+    overflow: hidden;
+    border-radius: var(--r-sm);
+    color: var(--paper);
+    text-align: left;
+    transition: background var(--t-fast);
+}
+
+.cx-dialog-check::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: calc(4 * var(--u));
+    background: var(--accent);
+    transform: translateX(-100%);
+    transition: transform var(--t-fast) var(--ease);
+}
+
+.cx-dialog-check:hover { background: var(--wash); }
+.cx-dialog-check:focus-visible { background: var(--wash-strong); }
+.cx-dialog-check:hover::before,
+.cx-dialog-check:focus-visible::before { transform: none; }
+.cx-dialog-check .cx-check { margin-top: calc(-1 * var(--u)); }
+
+.cx-dialog-check-text { display: grid; gap: calc(5 * var(--u)); min-width: 0; padding-top: calc(2 * var(--u)); }
+
+.cx-dialog-check-label {
+    font: italic 800 calc(18 * var(--u)) / 1.05 var(--display);
+    font-synthesis: style;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+}
+
+.cx-dialog-field--check .cx-dialog-error { padding-left: calc(34 * var(--u)); }
+
+/* ----------------------------------------------------------------- actions --- */
+.cx-dialog-failure {
+    flex: none;
+    margin: calc(14 * var(--u)) var(--cx-dialog-pad) 0;
+    padding-left: calc(12 * var(--u));
+    box-shadow: inset calc(4 * var(--u)) 0 0 var(--error);
+    color: var(--error);
+    font: 700 calc(14 * var(--u) * var(--cx-text)) / 1.4 var(--body);
+    overflow-wrap: anywhere;
+}
+
+.cx-dialog-actions {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: calc(8 * var(--u));
+    padding: calc(22 * var(--u)) calc(22 * var(--u)) calc(22 * var(--u));
+}
+
+/* No body (empty form, header-only alert): keep the title clear of the actions. */
+.cx-dialog-head + .cx-dialog-actions { padding-top: calc(30 * var(--u)); }
+
+.cx-dialog-action {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: calc(10 * var(--u));
+    min-width: 0;
+    max-width: 100%;
+    height: calc(44 * var(--u));
+    padding: 0 calc(16 * var(--u)) 0 calc(11 * var(--u));
+    overflow: hidden;
+    border-radius: var(--r-sm);
+    color: var(--paper);
+    font: italic 800 calc(19 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast) var(--ease);
+}
+
+/* The accent bar: wipes in on hover, stays for keyboard focus. */
+.cx-dialog-action::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: calc(4 * var(--u));
+    background: var(--accent);
+    transform: translateX(-100%);
+    transition: transform var(--t-fast) var(--ease);
+}
+
+.cx-dialog-action:hover::before,
+.cx-dialog-action:focus-visible::before { transform: none; }
+
+.cx-dialog-action-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-right: 0.08em;
+}
+
+.cx-dialog-action:hover:not(.is-paper) { background: var(--wash-strong); }
+
+/* Paper face: the action Enter performs (or the focused one). Its keycap turns ink. */
+.cx-dialog-action.is-paper { background: var(--paper); color: var(--ink); }
+.cx-dialog-action.is-paper .cx-key { background: var(--ink); color: var(--paper); box-shadow: none; }
+
+/* Pressed: down 2u, keycap inverts. */
+.cx-dialog-action:active { transform: translateY(calc(2 * var(--u))); }
+.cx-dialog-action:active .cx-key { background: var(--ink); color: var(--paper); box-shadow: none; }
+.cx-dialog-action.is-paper:active .cx-key { background: var(--accent); color: var(--ink); }
+
+.cx-dialog-action.is-pending { cursor: progress; opacity: 0.72; }
+
+/* ---------------------------------------------------------------- centered --- */
+.cx-dialog.is-centered .cx-slip-header {
+    justify-items: center;
+    padding-left: 0;
+    padding-top: calc(16 * var(--u));
+    text-align: center;
+}
+
+.cx-dialog.is-centered .cx-slip-header::before {
+    left: 50%;
+    top: 0;
+    bottom: auto;
+    width: calc(32 * var(--u));
+    height: calc(4 * var(--u));
+    transform: translateX(-50%);
+}
+
+.cx-dialog.is-centered .cx-slip-title-row { justify-content: center; }
+.cx-dialog.is-centered .cx-dialog-copy { text-align: center; }
+.cx-dialog.is-centered .cx-dialog-actions { justify-content: center; }
+
+/* ------------------------------------------------------------- narrow/short --- */
+@media (max-width: 560px) {
+    .cx-dialog-layer { padding-left: calc(10 * var(--u)); padding-right: calc(10 * var(--u)); }
+    .cx-dialog-action { flex: 1 1 auto; justify-content: center; }
+}
+
+@media (max-height: 560px) {
+    .cx-dialog-layer { padding-top: calc(24 * var(--u)); padding-bottom: calc(24 * var(--u)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cx-dialog-layer, .cx-dialog, .cx-dialog-error { animation-name: none; }
+    .cx-dialog-layer.is-leaving, .cx-dialog-layer.is-leaving .cx-dialog { animation-name: cx-dialog-fade-out; }
+}
+
+html[data-cx-motion='reduced'] .cx-dialog-layer,
+html[data-cx-motion='reduced'] .cx-dialog,
+html[data-cx-motion='reduced'] .cx-dialog-error { animation-name: none; }
+html[data-cx-motion='reduced'] .cx-dialog-layer.is-leaving,
+html[data-cx-motion='reduced'] .cx-dialog-layer.is-leaving .cx-dialog { animation-name: cx-dialog-fade-out; }

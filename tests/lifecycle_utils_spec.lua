@@ -61,60 +61,6 @@ assert(ok == false and #messages == before, 'clipboard must reject oversized val
 assert(api.copyToClipboard(42) == true and messages[#messages].data.text == '42', 'clipboard must accept bounded numbers')
 
 invoking = 'owner-a'
-ok, err = api.registerUiApp('unknownRenderer', function() end)
-assert(ok == false and err == 'unsupported_app', 'UI apps must be restricted to bundled renderers')
-
-local circular = {}
-circular.self = circular
-assert(api.registerUiApp('weatherzonesEditor', function() return circular end))
-assert(api.openUiApp('weatherzonesEditor', { zone = 'safe' }) == true and focusState,
-    'successful UI-app open must focus the modal and return true')
-local session = messages[#messages].data.session
-assert(api.updateUiApp('weatherzonesEditor', { zone = 'updated' }) == true,
-    'successful UI-app update must return true')
-local response, replies = nil, 0
-callbacks['cortex:uiEvent']({
-    appId = 'weatherzonesEditor', type = 'save', payload = {}, session = session,
-}, function(value) response = value; replies = replies + 1 end)
-assert(replies == 1 and response.ok == false and response.error == 'invalid_handler_result',
-    'circular handler results must receive one structured serialization error')
-
-assert(api.registerUiApp('weatherzonesEditor', function() return { constructor = 'unsafe' } end))
-assert(messages[#messages].action == 'uiAppClose' and messages[#messages].data.reason == 're_registered',
-    're-registering an open UI app must close the prior session before replacing its handler')
-local outboundBefore = #messages
-ok, err = api.openUiApp('weatherzonesEditor', { constructor = 'unsafe' })
-assert(ok == false and err == 'invalid_payload' and #messages == outboundBefore,
-    'UI-app payloads must reject reserved JavaScript object keys')
-ok, err = api.openUiApp('weatherzonesEditor', { zone = 'line\nbreak' })
-assert(ok == false and err == 'invalid_payload', 'UI-app payloads must reject control characters')
-
-local originalFocus = api._focusModal
-api._focusModal = function() return false end
-ok, err = api.openUiApp('weatherzonesEditor', { zone = 'safe' })
-assert(ok == false and err == 'focus_failed' and messages[#messages].action == 'uiAppClose'
-    and messages[#messages].data.reason == 'focus_failed',
-    'UI-app focus failure must close the emitted session and release its modal state')
-api._focusModal = originalFocus
-
-assert(api.openUiApp('weatherzonesEditor', { zone = 'safe' }) == true)
-session = messages[#messages].data.session
-callbacks['cortex:uiEvent']({
-    appId = 'weatherzonesEditor', type = 'save', payload = {}, session = session,
-}, function(value) response = value end)
-assert(response.ok == false and response.error == 'invalid_handler_result',
-    'handler results must reject reserved JavaScript object keys')
-assert(api.registerUiApp('weatherzonesEditor', function() error(hostileError, 0) end))
-assert(api.openUiApp('weatherzonesEditor', { zone = 'safe' }) == true)
-session = messages[#messages].data.session
-replies = 0
-callbacks['cortex:uiEvent']({
-    appId = 'weatherzonesEditor', type = 'save', payload = {}, session = session,
-}, function(value) response = value; replies = replies + 1 end)
-assert(replies == 1 and response.ok == false and response.error == 'handler_error',
-    'hostile UI-app error tostring handlers must still receive exactly one callback reply')
-assert(api.closeUiApp('weatherzonesEditor') == true, 'successful UI-app close must return true')
-assert(api.unregisterUiApp('weatherzonesEditor'))
 events.onResourceStop('owner-a')
 
 print('shared lifecycle utilities: PASS')

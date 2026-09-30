@@ -1,0 +1,393 @@
+/* Cortex kit. Shared primitives in the Cortex state language. Every size is in
+   --u (1px at 1080p, times the player's UI scale). Nothing visible under 3u. */
+
+:root {
+    /* Player scale multiplies the canonical unit; text size scales body copy. */
+    --u: calc(max(0.72px, 0.0925925926vmin) * var(--cx-scale, 1));
+    --cx-text: 1;
+    /* Shared appearance from dynamic-ui.js: surface opacity and accent. */
+    --slip: rgba(15, 16, 18, var(--cx-surface-alpha, 0.9));
+    --slip-deep: rgba(9, 10, 12, 0.95);
+    --slip-soft: rgba(15, 16, 18, calc(var(--cx-surface-alpha, 0.9) * 0.8));
+    --accent: var(--cx-accent, #8fcbbf);
+    --ink-2: #1a1c1f;
+    --wash-strong: rgba(240, 240, 233, 0.1);
+    --shadow-drop: 0 calc(2 * var(--u)) 0 rgba(8, 12, 11, 0.45);
+    --t-fast: 160ms;
+    --t-enter: 240ms;
+}
+
+/* ---------------------------------------------------------------- type --- */
+.cx-display {
+    font-family: var(--display);
+    font-style: italic;
+    font-weight: 800;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+    font-synthesis: style;
+}
+
+.cx-eyebrow {
+    font: 700 calc(11 * var(--u) * var(--cx-text)) / 1 var(--body);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.cx-data {
+    font-family: var(--data);
+    font-variant-numeric: tabular-nums;
+}
+
+/* -------------------------------------------------------------- keycap --- */
+.cx-key {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
+    min-width: calc(24 * var(--u));
+    height: calc(24 * var(--u));
+    padding: 0 calc(6 * var(--u));
+    border-radius: var(--r-sm);
+    background: var(--paper);
+    color: var(--ink);
+    box-shadow: var(--shadow-drop);
+    font: italic 800 calc(15 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    text-shadow: none;
+    white-space: nowrap;
+    transition: transform var(--t-fast) var(--ease), background var(--t-fast), color var(--t-fast), box-shadow var(--t-fast);
+}
+
+.cx-key--sm { min-width: calc(20 * var(--u)); height: calc(20 * var(--u)); padding: 0 calc(5 * var(--u)); font-size: calc(13 * var(--u)); }
+.cx-key--lg { min-width: calc(32 * var(--u)); height: calc(32 * var(--u)); padding: 0 calc(8 * var(--u)); font-size: calc(20 * var(--u)); }
+.cx-key.is-wide { font-size: calc(12 * var(--u)); letter-spacing: 0.04em; }
+.cx-key--lg.is-wide { font-size: calc(15 * var(--u)); }
+.cx-key.is-glyph { font-style: normal; font-family: var(--body); font-weight: 700; -webkit-text-stroke: calc(0.9 * var(--u)) currentColor; }
+
+.cx-key--ink { background: var(--ink); color: var(--paper); box-shadow: inset 0 0 0 calc(3 * var(--u)) var(--rule-strong); }
+.cx-key--accent { background: var(--accent); color: var(--ink); }
+.cx-key.is-pressed { transform: translateY(calc(2 * var(--u))); box-shadow: none; background: var(--ink); color: var(--paper); }
+
+/* Solid mouse silhouette; seams and the idle wheel are cut in the keycap face. */
+.cx-key { --cx-key-face: var(--paper); --cx-key-lit: var(--accent-deep); }
+.cx-key--ink { --cx-key-face: var(--ink); --cx-key-lit: var(--accent); }
+.cx-key--accent { --cx-key-face: var(--accent); --cx-key-lit: var(--ink); }
+.cx-key.is-mouse { padding: 0 calc(5 * var(--u)); }
+.cx-key-mouse { width: calc(13 * var(--u)); height: calc(18 * var(--u)); overflow: visible; }
+.cx-key--sm .cx-key-mouse { width: calc(11 * var(--u)); height: calc(15 * var(--u)); }
+.cx-key--lg .cx-key-mouse { width: calc(17 * var(--u)); height: calc(24 * var(--u)); }
+.cx-key-mouse-body { fill: currentColor; }
+.cx-key-mouse-seam { fill: none; stroke: var(--cx-key-face); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.cx-key-mouse-wheel { fill: var(--cx-key-face); }
+.cx-key-mouse-lit { fill: var(--cx-key-lit); }
+.cx-key.is-pressed { --cx-key-face: var(--ink); --cx-key-lit: var(--accent); }
+
+/* --------------------------------------------------------- key hints --- */
+.cx-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: calc(8 * var(--u));
+    min-width: 0;
+    color: var(--paper);
+    font: italic 800 calc(15 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.cx-hint-keys { display: inline-flex; align-items: center; gap: calc(4 * var(--u)); }
+/* Ellipsis needs overflow clipping, which would cut a wide scene halo into a
+   grey box; hint labels carry a tight halo inside padded room instead. */
+.cx-hint-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0.12em 0.2em 0.14em 0.12em;
+    margin: -0.12em -0.04em -0.14em -0.12em;
+    text-shadow: 0 1px 0 rgba(11, 12, 14, 0.9), 0 0 calc(3 * var(--u)) rgba(8, 9, 11, 0.8);
+}
+.cx-hint.is-disabled { color: var(--dim); }
+.cx-hint.is-disabled .cx-key { background: var(--dim); }
+
+.cx-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(8 * var(--u)) calc(20 * var(--u));
+    min-width: 0;
+}
+
+.cx-legend--end { justify-content: flex-end; }
+.cx-legend--center { justify-content: center; }
+.cx-legend .cx-hint { font-size: calc(14 * var(--u)); }
+
+html[data-cx-hints='off'] .cx-legend:not(.is-always) { display: none; }
+
+/* ---------------------------------------------------------------- tones --- */
+.cx-tone--accent { --cx-tone: var(--accent); }
+.cx-tone--paper { --cx-tone: var(--paper); }
+.cx-tone--warning { --cx-tone: var(--warning); }
+.cx-tone--error { --cx-tone: var(--error); }
+.cx-tone--info { --cx-tone: var(--info); }
+.cx-tone--success { --cx-tone: var(--success); }
+
+/* --------------------------------------------------------------- meter --- */
+.cx-meter {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: calc(6 * var(--u));
+    overflow: hidden;
+    border-radius: calc(1 * var(--u));
+    background: var(--rule-strong);
+}
+
+.cx-meter--sm { height: calc(4 * var(--u)); }
+.cx-meter--lg { height: calc(8 * var(--u)); }
+
+.cx-meter-fill {
+    position: absolute;
+    inset: 0;
+    background: var(--cx-tone, var(--accent));
+    transform: scaleX(var(--cx-fill, 0));
+    transform-origin: left center;
+}
+
+/* ---------------------------------------------------------------- ring --- */
+.cx-ring {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: calc(64 * var(--u));
+    aspect-ratio: 1;
+}
+
+.cx-ring > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.cx-ring-track { stroke: var(--rule-strong); }
+.cx-ring-fill { stroke: var(--cx-tone, var(--accent)); stroke-linecap: butt; }
+.cx-ring-center { position: relative; display: grid; place-items: center; }
+
+/* --------------------------------------------------------------- slips --- */
+.cx-slip {
+    background: var(--slip);
+    border-radius: var(--r);
+    color: var(--paper);
+    text-shadow: none;
+}
+
+.cx-slip-header {
+    position: relative;
+    display: grid;
+    gap: calc(6 * var(--u));
+    padding-left: calc(14 * var(--u));
+}
+
+/* The accent bar marks the live surface. */
+.cx-slip-header::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: calc(4 * var(--u));
+    border-radius: calc(1 * var(--u));
+    background: var(--accent);
+}
+
+.cx-slip-title-row { display: flex; align-items: baseline; justify-content: space-between; gap: calc(16 * var(--u)); min-width: 0; }
+
+.cx-slip-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-right: 0.16em;
+    font: italic 800 calc(30 * var(--u)) / 0.95 var(--display);
+    font-synthesis: style;
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    color: var(--paper);
+}
+
+.cx-slip-meta {
+    flex: 0 0 auto;
+    color: var(--muted);
+    font: 700 calc(13 * var(--u)) / 1 var(--data);
+    font-variant-numeric: tabular-nums;
+}
+
+/* -------------------------------------------------------------- toggle --- */
+.cx-toggle {
+    position: relative;
+    flex: 0 0 auto;
+    width: calc(46 * var(--u));
+    height: calc(24 * var(--u));
+    border-radius: var(--r-sm);
+    background: var(--rule-strong);
+    transition: background var(--t-fast) var(--ease);
+}
+
+.cx-toggle-knob {
+    position: absolute;
+    top: calc(4 * var(--u));
+    left: calc(4 * var(--u));
+    width: calc(16 * var(--u));
+    height: calc(16 * var(--u));
+    border-radius: calc(2 * var(--u));
+    background: var(--muted);
+    transition: transform var(--t-fast) var(--ease), background var(--t-fast);
+}
+
+.cx-toggle.is-on { background: var(--accent); }
+.cx-toggle.is-on .cx-toggle-knob { transform: translateX(calc(22 * var(--u))); background: var(--ink); }
+.cx-toggle:hover:not(:disabled) .cx-toggle-knob,
+.cx-toggle:focus-visible .cx-toggle-knob { background: var(--paper); }
+.cx-toggle.is-on:hover:not(:disabled) .cx-toggle-knob,
+.cx-toggle.is-on:focus-visible .cx-toggle-knob { background: var(--ink); }
+.cx-toggle:focus-visible { box-shadow: 0 0 0 calc(3 * var(--u)) var(--accent); }
+.cx-toggle.is-on:focus-visible { box-shadow: 0 0 0 calc(3 * var(--u)) var(--paper); }
+.cx-toggle:disabled { opacity: 0.45; cursor: default; }
+
+/* --------------------------------------------------------------- check --- */
+.cx-check {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: calc(22 * var(--u));
+    height: calc(22 * var(--u));
+    border-radius: var(--r-sm);
+    box-shadow: inset 0 0 0 calc(3 * var(--u)) var(--rule-strong);
+    transition: background var(--t-fast), box-shadow var(--t-fast);
+}
+
+.cx-check svg { width: 72%; height: 72%; fill: none; stroke: var(--ink); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
+.cx-check.is-on { background: var(--accent); box-shadow: none; }
+.cx-check.is-on svg { opacity: 1; }
+
+/* ----------------------------------------------------------- segmented --- */
+.cx-segmented {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: calc(4 * var(--u));
+    padding: calc(4 * var(--u));
+    border-radius: var(--r-sm);
+    background: var(--wash);
+}
+
+.cx-segment {
+    min-width: calc(64 * var(--u));
+    padding: calc(7 * var(--u)) calc(12 * var(--u));
+    border-radius: calc(3 * var(--u));
+    color: var(--muted);
+    font: italic 800 calc(14 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    text-transform: uppercase;
+    text-align: center;
+    letter-spacing: 0.02em;
+    transition: background var(--t-fast), color var(--t-fast);
+}
+
+.cx-segment:hover:not(:disabled) { background: var(--wash-strong); color: var(--paper); }
+.cx-segment:focus-visible { box-shadow: inset 0 0 0 calc(3 * var(--u)) var(--accent); color: var(--paper); }
+.cx-segment.is-selected { background: var(--paper); color: var(--ink); }
+.cx-segment.is-selected:focus-visible { box-shadow: inset 0 0 0 calc(3 * var(--u)) var(--accent); }
+
+/* ------------------------------------------------------------ dropdown --- */
+.cx-dropdown { position: relative; display: inline-flex; min-width: 0; }
+
+.cx-dropdown-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: calc(14 * var(--u));
+    width: 100%;
+    min-width: calc(180 * var(--u));
+    height: calc(38 * var(--u));
+    padding: 0 calc(12 * var(--u)) 0 calc(14 * var(--u));
+    border-radius: var(--r-sm);
+    background: var(--wash);
+    box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--rule-strong);
+    color: var(--paper);
+    font: italic 800 calc(16 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    text-align: left;
+    transition: background var(--t-fast), box-shadow var(--t-fast);
+}
+
+.cx-dropdown-trigger:hover:not(:disabled),
+.cx-dropdown-trigger:focus-visible,
+.cx-dropdown-trigger.is-open { background: var(--wash-strong); box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--accent); }
+.cx-dropdown-trigger:disabled { color: var(--dim); cursor: default; }
+
+.cx-dropdown-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 0.16em; }
+
+.cx-dropdown-caret {
+    flex: 0 0 auto;
+    width: calc(9 * var(--u));
+    height: calc(9 * var(--u));
+    margin-top: calc(-4 * var(--u));
+    border-right: calc(3 * var(--u)) solid var(--accent);
+    border-bottom: calc(3 * var(--u)) solid var(--accent);
+    transform: rotate(45deg);
+    transition: transform var(--t-fast) var(--ease);
+}
+
+.cx-dropdown-trigger.is-open .cx-dropdown-caret { transform: translateY(calc(4 * var(--u))) rotate(225deg); }
+
+.cx-dropdown-menu {
+    position: fixed;
+    z-index: 10060;
+    display: flex;
+    flex-direction: column;
+    gap: calc(2 * var(--u));
+    padding: calc(5 * var(--u));
+    overflow-x: hidden;
+    overflow-y: auto;
+    border-radius: var(--r-sm);
+    background: var(--slip-deep);
+    box-shadow: inset 0 calc(3 * var(--u)) 0 var(--accent);
+    pointer-events: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--rule-strong) transparent;
+    animation: cx-drop-in var(--t-fast) var(--ease);
+}
+
+.cx-dropdown-option {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: calc(34 * var(--u));
+    padding: 0 calc(12 * var(--u));
+    border-radius: calc(3 * var(--u));
+    color: var(--muted);
+    font: italic 800 calc(15 * var(--u)) / 1.1 var(--display);
+    font-synthesis: style;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    text-align: left;
+}
+
+.cx-dropdown-option.is-active { background: var(--wash-strong); color: var(--paper); box-shadow: inset calc(4 * var(--u)) 0 0 var(--accent); }
+.cx-dropdown-option.is-selected { background: var(--paper); color: var(--ink); }
+.cx-dropdown-option.is-selected.is-active { box-shadow: inset calc(4 * var(--u)) 0 0 var(--accent); }
+
+@keyframes cx-drop-in {
+    from { opacity: 0; transform: translateY(calc(-4 * var(--u))); }
+    to { opacity: 1; transform: none; }
+}
+
+/* ------------------------------------------------------------- scroll --- */
+.cx-scroll {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--rule-strong) transparent;
+}
+
+.cx-scroll::-webkit-scrollbar { width: calc(4 * var(--u)); }
+.cx-scroll::-webkit-scrollbar-thumb { background: var(--rule-strong); border-radius: calc(2 * var(--u)); }
+.cx-scroll::-webkit-scrollbar-track { background: transparent; }

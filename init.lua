@@ -117,6 +117,7 @@ if context == 'client' then
 end
 
 local clientOwnedModules = {
+    skillCheck = function(self) return self.skillCheck end,
     menu = function(self)
         return {
             registerMenu = self.registerMenu,
@@ -316,6 +317,11 @@ if context == 'client' then
         return callCortexExport('notify', data)
     end
 
+    function lib.skillCheck(data) return callCortexExport('skillCheck', data) end
+    function lib.cancelSkillCheck() return callCortexExport('cancelSkillCheck') end
+    function lib.isSkillCheckActive() return callCortexExport('isSkillCheckActive') end
+    function lib.skillCheckPress(id, down) return callCortexExport('skillCheckPress', id, down) end
+
     function lib.hideNotify(id)
         return callCortexExport('hideNotify', id)
     end
@@ -444,8 +450,8 @@ if context == 'client' then
         return callCortexExport('getCurrentRadialId')
     end
 
-    function lib.showHelp(data)
-        return callCortexExport('showHelp', data)
+    function lib.showHelp(...) -- (items[, options]); forwards the exact argument count
+        return callCortexExport('showHelp', ...)
     end
 
     function lib.hideHelp()
@@ -466,6 +472,34 @@ if context == 'client' then
 
     function lib.openSettingsMenu()
         return callCortexExport('openSettingsMenu')
+    end
+
+    function lib.openPauseMenu()
+        return callCortexExport('openPauseMenu')
+    end
+
+    function lib.closePauseMenu()
+        return callCortexExport('closePauseMenu')
+    end
+
+    function lib.isPauseMenuOpen()
+        return callCortexExport('isPauseMenuOpen')
+    end
+
+    function lib.registerPausePage(definition)
+        return callCortexExport('registerPausePage', definition)
+    end
+
+    function lib.unregisterPausePage(id)
+        return callCortexExport('unregisterPausePage', id)
+    end
+
+    function lib.registerPauseLocation(definition)
+        return callCortexExport('registerPauseLocation', definition)
+    end
+
+    function lib.unregisterPauseLocation(id)
+        return callCortexExport('unregisterPauseLocation', id)
     end
 
     function lib.closeSettings()
@@ -550,26 +584,6 @@ if context == 'client' then
 
     function lib.copyToClipboard(text)
         return callCortexExport('copyToClipboard', text)
-    end
-
-    function lib.registerUiApp(appId, handler)
-        return callCortexExport('registerUiApp', appId, handler)
-    end
-
-    function lib.unregisterUiApp(appId)
-        return callCortexExport('unregisterUiApp', appId)
-    end
-
-    function lib.openUiApp(appId, payload)
-        return callCortexExport('openUiApp', appId, payload)
-    end
-
-    function lib.updateUiApp(appId, payload)
-        return callCortexExport('updateUiApp', appId, payload)
-    end
-
-    function lib.closeUiApp(appId)
-        return callCortexExport('closeUiApp', appId)
     end
 
     function lib.showDebugPanel(data)

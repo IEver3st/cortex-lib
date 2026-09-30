@@ -389,4 +389,34 @@ handlers.onClientResourceStop('resource-cap')
 assert(#exported.getInteractions() == 8, 'owner cleanup must update registry capacity counters')
 assert(exported.showInteraction({ id = 'recovered', label = 'RECOVERED', key = 'HOME' }) == true)
 
+-- Renderer-private list preference: owner/id scoped, anchored only, cleared
+-- with its entry, and never exported to consumers.
+assert(exported._setInteractionPreference == nil and exported.setInteractionPreference == nil,
+    'the list preference must not be a consumer export')
+invokingResource = 'resource-list'
+assert(exported.setInteractions({
+    { id = 'first', label = 'FIRST', key = 'J', priority = 50, anchor = { type = 'world', x = 1, y = 1, z = 1 } },
+    { id = 'second', label = 'SECOND', key = 'J', priority = 10, anchor = { type = 'world', x = 1, y = 1, z = 1 } },
+}))
+assert(exported.isInteractionActive('first') and not exported.isInteractionActive('second'))
+assert(lib._setInteractionPreference('resource-list', 'missing') == false)
+assert(lib._setInteractionPreference(42, 'second') == false)
+local eventsBefore = revisionEvents
+assert(lib._setInteractionPreference('resource-list', 'second') == true)
+assert(revisionEvents == eventsBefore + 1, 'a preference change publishes once')
+assert(lib._setInteractionPreference('resource-list', 'second') == true)
+assert(revisionEvents == eventsBefore + 1, 'repeating the preference is a no-op')
+assert(exported.isInteractionActive('second') and not exported.isInteractionActive('first'),
+    'the preferred row wins its key over higher priority')
+assert(exported.setInteractions({
+    { id = 'first', label = 'FIRST', key = 'J', priority = 50, anchor = { type = 'world', x = 1, y = 1, z = 1 } },
+    { id = 'second', label = 'SECOND RENAMED', key = 'J', priority = 10, anchor = { type = 'world', x = 1, y = 1, z = 1 } },
+}))
+assert(exported.isInteractionActive('second'), 'definition replacement keeps the preference')
+assert(exported.hideInteraction('second'))
+assert(lib._getInteractionPreference() == nil, 'removing the preferred entry clears the preference')
+assert(exported.isInteractionActive('first'))
+assert(lib._setInteractionPreference(nil) == true)
+handlers.onClientResourceStop('resource-list')
+
 print('interaction registry tests passed')

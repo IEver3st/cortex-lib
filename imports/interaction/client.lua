@@ -19,6 +19,7 @@ local MAX_ENTITY_MODEL = 4294967295
 local MAX_WORLD_COORD = 100000.0
 local MAX_ANCHOR_OFFSET = 10.0
 local MIN_HOLD_DURATION_MS = 100
+local MAX_MARKER_DISTANCE = 25.0
 local MAX_HOLD_DURATION_MS = 600000
 
 if not lib.isInternalResource() then
@@ -45,6 +46,11 @@ local sortedEntries = {}
 local totalCount = 0
 local sequence = 0
 local revision = 0
+-- Renderer-private list preference: the selected row of the focused world
+-- list wins its key over same-key rows. Stored by owner/id so definition
+-- replacement keeps it; cleared when the entry disappears.
+local preferredOwner = nil
+local preferredId = nil
 
 local function trim(value)
     return value:match('^%s*(.-)%s*$')
@@ -152,6 +158,12 @@ local function validateFiniteNumber(value, field, minimum, maximum)
     return value
 end
 
+-- Markers are the distant presentation tier: a small dot shown between
+-- maxDistance and markerDistance. They never make an entry visible.
+local function defaultMarkerDistance(maxDistance)
+    return math.min(MAX_MARKER_DISTANCE, math.max(maxDistance + 4.0, maxDistance * 2.5))
+end
+
 local function normalizeOffset(value)
     if value == nil then
         return { x = 0.0, y = 0.0, z = 0.0 }
@@ -196,6 +208,18 @@ local function normalizeAnchor(value)
     )
     if not maxDistance then return nil, distanceError end
 
+    local markerDistance = defaultMarkerDistance(maxDistance)
+    if value.markerDistance ~= nil then
+        local markerError
+        markerDistance, markerError = validateFiniteNumber(
+            value.markerDistance,
+            'anchor.markerDistance',
+            0.0,
+            MAX_MARKER_DISTANCE
+        )
+        if not markerDistance then return nil, markerError end
+    end
+
     local offset, offsetError = normalizeOffset(value.offset)
     if not offset then return nil, offsetError end
 
@@ -216,6 +240,7 @@ local function normalizeAnchor(value)
             z = z,
             offset = offset,
             maxDistance = maxDistance,
+            markerDistance = markerDistance,
         }
     end
 
@@ -244,6 +269,7 @@ local function normalizeAnchor(value)
             model = model,
             offset = offset,
             maxDistance = maxDistance,
+            markerDistance = markerDistance,
         }
     end
 
@@ -260,12 +286,14 @@ local function normalizeAnchor(value)
         bone = bone,
         offset = offset,
         maxDistance = maxDistance,
+        markerDistance = markerDistance,
     }
 end
 
 local function anchorsEqual(left, right)
     if left == nil or right == nil then return left == right end
     if left.type ~= right.type or left.maxDistance ~= right.maxDistance then return false end
+    if left.markerDistance ~= right.markerDistance then return false end
     if left.offset.x ~= right.offset.x or left.offset.y ~= right.offset.y or left.offset.z ~= right.offset.z then
         return false
     end
@@ -285,6 +313,7 @@ local function copyAnchor(anchor)
     local copy = {
         type = anchor.type,
         maxDistance = anchor.maxDistance,
+        markerDistance = anchor.markerDistance,
         offset = {
             x = anchor.offset.x,
             y = anchor.offset.y,
@@ -333,6 +362,64 @@ local function copySnapshotEntry(entry)
         }
 end
 
+local function resolvePreferredEntry()
+    if not preferredOwner then return nil end
+
+    local entries = ownerEntries[preferredOwner]
+    local preferred = entries and entries[preferredId] or nil
+    if not preferred or not preferred.anchor then return nil end
+
+    -- A preference only reorders anchored rows. If a screen prompt is the
+    -- natural owner of this key, the list cannot claim it.
+    local key = preferred.key:upper()
+    for index = 1, #sortedEntries do
+        local entry = sortedEntries[index]
+        if entry.key:upper() == key then
+            if not entry.anchor then return nil end
+            break
+        end
+    end
+
+    return preferred
+end
+
+-- Key arbitration: the preferred entry (if any) claims its key first, then
+-- higher priority, then earlier registration. Runs only on mutation.
+local function arbitrate()
+    local preferred = resolvePreferredEntry()
+    if not preferred then
+        preferredOwner = nil
+        preferredId = nil
+    end
+
+    local claimedKeys = {}
+    if preferred then claimedKeys[preferred.key:upper()] = preferred end
+
+    for index = 1, #sortedEntries do
+        local entry = sortedEntries[index]
+        local key = entry.key:upper()
+        local wasActive = entry.active == true
+        local claimant = claimedKeys[key]
+
+        if claimant == nil then
+            entry.active = true
+            claimedKeys[key] = entry
+        else
+            entry.active = claimant == entry
+        end
+
+        if not entry.active then
+            entry.visible = false
+            entry.distance = nil
+
+            if wasActive and entry.holdActive then
+                entry.holdActive = false
+                entry.holdRevision = (entry.holdRevision or 0) + 1
+            end
+        end
+    end
+end
+
 local function rebuildSortedEntries()
     local nextSortedEntries = {}
 
@@ -356,25 +443,8 @@ local function rebuildSortedEntries()
         return left.id < right.id
     end)
 
-    local claimedKeys = {}
-    for index = 1, #nextSortedEntries do
-        local entry = nextSortedEntries[index]
-        local key = entry.key:upper()
-        local wasActive = entry.active == true
-        entry.active = claimedKeys[key] == nil
-        if not entry.active then
-            entry.visible = false
-            entry.distance = nil
-
-            if wasActive and entry.holdActive then
-                entry.holdActive = false
-                entry.holdRevision = (entry.holdRevision or 0) + 1
-            end
-        end
-        claimedKeys[key] = true
-    end
-
     sortedEntries = nextSortedEntries
+    arbitrate()
 end
 
 local function buildSnapshot()
@@ -555,6 +625,9 @@ local function rawAnchorMatches(current, value)
     if current == nil or value == nil then return current == nil and value == nil end
     if type(value) ~= 'table' or value.type ~= current.type then return false end
     if defaultNumber(value.maxDistance, 3.0) ~= current.maxDistance then return false end
+    if defaultNumber(value.markerDistance, defaultMarkerDistance(current.maxDistance)) ~= current.markerDistance then
+        return false
+    end
     if not rawOffsetMatches(current.offset, value.offset) then return false end
 
     if current.type == 'world' then
@@ -917,6 +990,47 @@ local function setInteractionPresentationState(owner, id, visible, distance)
     return true
 end
 
+-- Renderer-private: the selected row of the focused world list. The entry
+-- then wins its key over every same-key entry, so isInteractionActive keeps
+-- answering "who owns this key" for consumers unchanged. Passing nil clears
+-- it. Re-arbitration cancels the presentation hold of any entry that loses.
+local function setInteractionPreference(owner, id)
+    if owner == nil then
+        if preferredOwner == nil then return true end
+        preferredOwner = nil
+        preferredId = nil
+        arbitrate()
+        publish(false)
+        return true
+    end
+
+    if type(owner) ~= 'string' or owner == '' or type(id) ~= 'string' then return false end
+
+    local entries = ownerEntries[owner]
+    local entry = entries and entries[id] or nil
+    if not entry or not entry.anchor then return false end
+    if preferredOwner == owner and preferredId == id then return true end
+
+    local previousOwner, previousId = preferredOwner, preferredId
+    preferredOwner = owner
+    preferredId = id
+    arbitrate()
+
+    if preferredOwner == nil then
+        -- The key belongs to a screen prompt; nothing changed but the request.
+        if previousOwner == nil then return false end
+        publish(false)
+        return false
+    end
+
+    if previousOwner ~= owner or previousId ~= id then publish(false) end
+    return true
+end
+
+local function getInteractionPreference()
+    return preferredOwner, preferredId
+end
+
 local function setInteractionHold(id, active)
     if type(active) ~= 'boolean' then
         return false, 'hold state must be a boolean'
@@ -989,6 +1103,15 @@ lib.isInteractionVisible = isInteractionVisible
 lib.startInteractionHold = startInteractionHold
 lib.cancelInteractionHold = cancelInteractionHold
 lib._setInteractionPresentationState = setInteractionPresentationState
+-- Renderer-private list selection. Never exported to consumer resources.
+lib._setInteractionPreference = setInteractionPreference
+lib._getInteractionPreference = getInteractionPreference
+-- Internal read-only access: skill checks share the renderer's visibility and
+-- detect definition replacement without allocating a registry snapshot per tick.
+lib._getInteractionForSkillCheck = function(owner, id)
+    local entries = ownerEntries[owner]
+    return entries and entries[id] or nil
+end
 
 return {
     show = showInteraction,

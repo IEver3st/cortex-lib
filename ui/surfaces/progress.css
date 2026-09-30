@@ -1,0 +1,149 @@
+/* ============================================================================
+   PROGRESS
+   Frameless over the scene. Bar: label + tabular percent over an 8u meter.
+   Ring: 116u, stroke 12 of 100, percent inside, label under. Mint while live,
+   a paper pulse on completion, sand when cancelled.
+   ============================================================================ */
+
+.progress-container {
+    --progress-edge-y: calc(var(--cx-safezone-y, 0px) + 148 * var(--u));
+    position: fixed;
+    left: 50%;
+    z-index: 9998;
+    width: min(calc(400 * var(--u)), calc(100vw - 48 * var(--u)));
+    transform: translateX(-50%);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    color: var(--paper);
+    font-family: var(--body);
+    transition: opacity var(--t-fast, 160ms) ease-in, visibility 0s linear var(--t-fast, 160ms);
+}
+
+.progress-container.active {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity var(--t-enter, 240ms) var(--ease), visibility 0s;
+}
+
+.progress-container.bottom { bottom: var(--progress-edge-y); }
+.progress-container.top { top: clamp(calc(24 * var(--u)), var(--progress-edge-y), 30vh); }
+.progress-container.middle { top: 50%; transform: translate(-50%, -50%); }
+
+.progress-wrapper {
+    display: grid;
+    gap: calc(10 * var(--u));
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    text-shadow: var(--legible);
+    transform: translateY(calc(6 * var(--u)));
+    transition: transform var(--t-fast, 160ms) ease-in;
+}
+.progress-container.active .progress-wrapper { transform: none; transition: transform var(--t-enter, 240ms) var(--ease); }
+
+/* ------------------------------------------------------------------ bar --- */
+.progress-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: calc(16 * var(--u));
+    min-width: 0;
+}
+
+.progress-label {
+    min-width: 0;
+    color: var(--paper);
+    font: italic 800 calc(22 * var(--u)) / 1.02 var(--display);
+    font-synthesis: style;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+}
+
+.progress-value {
+    flex: 0 0 auto;
+    color: var(--paper);
+    font: italic 800 calc(22 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.progress-meter { box-shadow: 0 calc(1 * var(--u)) 0 rgba(8, 9, 11, 0.55); }
+.progress-meter .cx-meter-fill { transition: background var(--t-fast, 160ms); }
+
+/* Completion: a paper pulse over the full fill, then the surface leaves. */
+.progress-meter::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--paper);
+    opacity: 0;
+}
+.progress-container.is-complete .progress-meter::after { animation: progressPulse 420ms var(--ease) forwards; }
+
+.progress-container.is-cancel .progress-value { color: var(--warning); }
+.progress-container.is-cancel .progress-label { color: var(--muted); }
+
+/* -------------------------------------------------------------- hint row --- */
+.progress-cancel { gap: calc(8 * var(--u)) calc(16 * var(--u)); }
+.progress-cancel .cx-hint {
+    gap: calc(8 * var(--u));
+    color: var(--paper);
+    font-size: calc(15 * var(--u));
+    text-shadow: var(--legible);
+}
+
+/* ----------------------------------------------------------------- ring --- */
+.progress-container:has(.is-circle) { width: min(calc(320 * var(--u)), calc(100vw - 48 * var(--u))); }
+
+.progress-wrapper.is-circle {
+    justify-items: center;
+    gap: calc(12 * var(--u));
+    text-align: center;
+}
+
+.progress-ring {
+    width: calc(116 * var(--u));
+    filter: drop-shadow(0 calc(1 * var(--u)) 0 rgba(8, 9, 11, 0.55));
+}
+.progress-ring .cx-ring-track { stroke: var(--rule-strong); }
+.progress-ring .cx-ring-fill { transition: stroke var(--t-fast, 160ms); }
+.progress-ring-flash { stroke: var(--paper); opacity: 0; }
+.progress-container.is-complete .progress-ring-flash { animation: progressPulse 420ms var(--ease) forwards; }
+
+.progress-circle-text {
+    color: var(--paper);
+    font: italic 800 calc(34 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+}
+.progress-circle-text.is-word { color: var(--warning); font-size: calc(17 * var(--u)); letter-spacing: 0.04em; text-transform: uppercase; }
+
+.progress-wrapper.is-circle .progress-label { max-width: 100%; font-size: calc(21 * var(--u)); text-align: center; }
+.progress-wrapper.is-circle .progress-cancel { justify-content: center; }
+
+@keyframes progressPulse {
+    0% { opacity: 0; }
+    35% { opacity: 1; }
+    100% { opacity: 0.85; }
+}
+
+/* Reduced motion: no rise; outcomes still read through colour and text. */
+.cortex-reduced-motion .progress-wrapper,
+html[data-cx-motion='reduced'] .progress-wrapper { transform: none; }
+.cortex-reduced-motion .progress-container.is-complete .progress-ring-flash,
+html[data-cx-motion='reduced'] .progress-container.is-complete .progress-ring-flash { animation: none; opacity: 0.85; }
+html[data-cx-motion='reduced'] .progress-container.is-complete .progress-meter::after,
+.cortex-reduced-motion .progress-container.is-complete .progress-meter::after { animation: none; opacity: 0.85; }
+@media (prefers-reduced-motion: reduce) {
+    .progress-wrapper { transform: none; }
+    .progress-container.is-complete .progress-meter::after,
+    .progress-container.is-complete .progress-ring-flash { animation: none; opacity: 0.85; }
+}

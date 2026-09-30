@@ -1,0 +1,159 @@
+/* Skill checks in the cortex-minigames language (cortex-minigames/DESIGN.md is the reference):
+   a compact slip lower-centre that opens only as big as the mechanic, thick strokes, keycaps,
+   mint = the player's live marker, targets paper, misses soft red. Tokens and --u only. */
+
+.skill-slip {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(150 * var(--u));
+    z-index: 1300;
+    display: grid;
+    gap: calc(12 * var(--u));
+    width: calc(480 * var(--u));
+    margin-inline: auto;
+    padding: calc(16 * var(--u)) calc(20 * var(--u)) calc(14 * var(--u));
+    border-radius: var(--r);
+    background: var(--slip);
+    color: var(--paper);
+    pointer-events: none;
+    user-select: none;
+    outline: none;
+    animation: skill-rise 260ms var(--ease) both;
+}
+.skill-slip:focus, .skill-slip:focus-visible { outline: none; }
+
+.skill-head { display: flex; align-items: flex-start; justify-content: space-between; gap: calc(12 * var(--u)); }
+.skill-title {
+    margin: 0;
+    min-width: 0;
+    font-size: calc(28 * var(--u));
+    line-height: 0.95;
+    letter-spacing: 0.01em;
+    overflow-wrap: anywhere;
+}
+.skill-meta { flex: 0 0 auto; font-size: calc(20 * var(--u)); line-height: 1; color: var(--muted); }
+
+/* Time left: paper, then sand, then soft red. Driven per frame from JS (transform only). */
+.skill-clock { height: calc(4 * var(--u)); border-radius: calc(2 * var(--u)); background: var(--rule); overflow: hidden; }
+.skill-clock i { display: block; height: 100%; background: var(--paper); transform-origin: 0 50%; }
+.skill-clock i[data-level='low'] { background: var(--warning); }
+.skill-clock i[data-level='critical'] { background: var(--error); }
+
+.skill-mechanic {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    min-height: calc(64 * var(--u));
+    padding: calc(4 * var(--u)) 0;
+}
+.skill-slip:not(.is-ready) .skill-mechanic > :not(.skill-outcome) { opacity: 0.55; }
+
+/* Big keycaps inside the mechanic (kit anatomy, larger face like the minigames QTE). */
+.skill-mechanic .cx-key--lg {
+    min-width: calc(46 * var(--u));
+    height: calc(46 * var(--u));
+    padding: 0 calc(10 * var(--u));
+    font-size: calc(24 * var(--u));
+}
+.skill-mechanic .cx-key--lg.is-wide { font-size: calc(18 * var(--u)); }
+
+/* ----------------------------------------------------------------- hints --- */
+.skill-hints { display: flex; flex-wrap: wrap; align-items: center; gap: calc(8 * var(--u)) calc(16 * var(--u)); }
+.skill-hints .cx-hint { gap: calc(6 * var(--u)); }
+.skill-hints .cx-hint-label {
+    font: 700 calc(12 * var(--u)) / 1 var(--body);
+    font-style: normal;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.skill-hint-cancel { margin-left: auto; opacity: 0.75; }
+.skill-hints .skill-mousecap { min-width: calc(20 * var(--u)); height: calc(20 * var(--u)); padding: 0 calc(5 * var(--u)); }
+.skill-hints .skill-mousecap .cx-key-mouse { width: calc(10 * var(--u)); height: calc(14 * var(--u)); }
+
+/* ---------------------------------------------------------------- radial --- */
+.skill-dial { position: relative; width: calc(190 * var(--u)); aspect-ratio: 1; }
+.skill-dial svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.skill-ring { fill: none; stroke: var(--rule-strong); stroke-width: 10; }
+.skill-target-arc { fill: none; stroke: var(--paper); stroke-width: 18; }
+.skill-marker { fill: var(--accent); stroke: var(--ink); stroke-width: 2.5; }
+.is-miss > .skill-marker { fill: var(--error); }
+.skill-dial-key { position: absolute; inset: 0; display: grid; place-items: center; }
+
+/* ------------------------------------------------------------------ hold --- */
+.skill-hold-row { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: calc(18 * var(--u)); width: 100%; padding: calc(10 * var(--u)) calc(4 * var(--u)); }
+.skill-sweep { position: relative; height: calc(18 * var(--u)); border-radius: calc(3 * var(--u)); background: var(--rule); }
+.skill-sweep-fill { position: absolute; inset: 0; border-radius: inherit; background: var(--rule-strong); transform-origin: 0 50%; }
+.skill-zone { position: absolute; top: calc(-5 * var(--u)); bottom: calc(-5 * var(--u)); border-radius: calc(3 * var(--u)); box-shadow: inset 0 0 0 calc(4 * var(--u)) var(--paper); }
+.skill-cursor {
+    position: absolute;
+    top: calc(-9 * var(--u));
+    bottom: calc(-9 * var(--u));
+    width: calc(8 * var(--u));
+    margin-left: calc(-4 * var(--u));
+    border-radius: calc(2 * var(--u));
+    background: var(--accent);
+    box-shadow: 0 0 0 calc(2 * var(--u)) var(--ink);
+}
+.skill-cursor.is-miss { background: var(--error); }
+
+/* -------------------------------------------------------------- sequence --- */
+.skill-keys { display: flex; flex-wrap: wrap; justify-content: center; gap: calc(10 * var(--u)); padding: calc(10 * var(--u)) 0; }
+.skill-keyslot { display: inline-grid; border-radius: var(--r-sm); }
+.skill-keyslot .cx-key--lg { min-width: calc(50 * var(--u)); height: calc(50 * var(--u)); }
+.skill-keyslot.is-current .cx-key { box-shadow: 0 0 0 calc(4 * var(--u)) var(--accent); }
+.skill-keyslot.is-current .cx-key.is-pressed { box-shadow: 0 0 0 calc(4 * var(--u)) var(--accent); }
+.skill-keyslot.is-done .cx-key { color: var(--muted); }
+.skill-keyslot.is-later { opacity: 0.5; }
+.skill-keyslot.is-miss .cx-key { background: var(--error); color: var(--ink); }
+
+/* ----------------------------------------------------------------- trace --- */
+.skill-arc { position: relative; width: calc(260 * var(--u)); }
+.skill-arc svg { display: block; width: 100%; height: auto; overflow: visible; }
+.skill-arc-track { fill: none; stroke: var(--rule-strong); stroke-width: 14; }
+.skill-arc-fill { fill: none; stroke: var(--accent); stroke-width: 14; }
+.skill-arc-goal { fill: var(--paper); }
+.skill-arc-arrow { fill: var(--muted); }
+.skill-arc-knob { fill: var(--accent); stroke: var(--ink); stroke-width: 3.5; }
+.skill-arc.is-invalid .skill-arc-knob { fill: var(--error); }
+.skill-arc-cap { position: absolute; left: 50%; transform: translate(-50%, -50%); }
+.skill-arc-cap.is-upper { top: 64%; }
+.skill-arc-cap.is-lower { top: 34%; }
+.skill-arc-cap .skill-mousecap { min-width: calc(34 * var(--u)); height: calc(40 * var(--u)); }
+.skill-arc-cap .cx-key-mouse { width: calc(16 * var(--u)); height: calc(22 * var(--u)); }
+
+/* --------------------------------------------------------------- outcome --- */
+.skill-outcome {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    border-radius: var(--r-sm);
+    background: var(--slip-deep);
+    animation: skill-fade 160ms var(--ease) both;
+}
+.skill-tag { display: inline-flex; overflow: hidden; border-radius: var(--r-sm); font-size: calc(24 * var(--u)); line-height: 1; }
+.skill-tag > span { padding: calc(5 * var(--u)) calc(12 * var(--u)); }
+.skill-tag-state { background: var(--accent); color: var(--ink); }
+.skill-tag-value { background: var(--paper); color: var(--ink); }
+.skill-outcome.is-failed .skill-tag-state { background: var(--error); }
+.skill-outcome.is-quiet .skill-tag-state { background: var(--muted); }
+
+/* ------------------------------------------------------------------ mash --- */
+/* World disc (frameless over the scene): the prompt keycap in a thick mint ring. */
+/* Sized to the prompt's disc slot (--ix = unit x prompt size) so the label never
+   moves; the TAP cue hangs below without taking layout space. */
+.skill-mash { position: relative; display: grid; place-items: center; flex: 0 0 auto; }
+.skill-mash-ring { width: calc(50 * var(--ix, var(--u))); }
+.skill-mash-ring .cx-key { min-width: calc(26 * var(--ix, var(--u))); height: calc(26 * var(--ix, var(--u))); font-size: calc(17 * var(--ix, var(--u))); }
+.skill-mash-hint { position: absolute; top: calc(100% + 4 * var(--ix, var(--u))); left: 50%; transform: translateX(-50%); white-space: nowrap; }
+.skill-mash-ring .cx-ring-track { stroke: var(--slip); }
+.skill-mash-hint { font-size: calc(15 * var(--u)); line-height: 1; color: var(--paper); text-shadow: var(--legible); }
+
+@keyframes skill-rise { from { opacity: 0; transform: translateY(calc(6 * var(--u))); } to { opacity: 1; transform: none; } }
+@keyframes skill-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .skill-slip, .skill-outcome { animation: none; } }
+html[data-cx-motion='reduced'] .skill-slip, html[data-cx-motion='reduced'] .skill-outcome,
+html.cortex-reduced-motion .skill-slip, html.cortex-reduced-motion .skill-outcome { animation: none; }
+@media (max-height: 560px) { .skill-slip { bottom: calc(96 * var(--u)); } }

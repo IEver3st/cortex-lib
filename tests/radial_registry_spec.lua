@@ -47,6 +47,12 @@ api.addRadialItem({
 })
 local invalidColor = pcall(api.addRadialItem, { id = 'bad-color', label = 'Bad', iconColor = 'red;position:fixed' })
 assert(invalidColor == false, 'radial icon colors must reject arbitrary CSS')
+assert(pcall(api.addRadialItem, { id = 'bad-desc', label = 'Bad', description = 42 }) == false,
+    'radial descriptions must be strings')
+assert(pcall(api.addRadialItem, { id = 'bad-desc-long', label = 'Bad', description = ('x'):rep(257) }) == false,
+    'radial descriptions are bounded')
+assert(pcall(api.addRadialItem, { id = 'bad-disabled', label = 'Bad', disabled = 'yes' }) == false,
+    'radial disabled must be boolean')
 local invalidAppearance, invalidAppearanceError = api.registerRadial({ id = 'bad-appearance', appearance = 'unknown', items = {} })
 assert(invalidAppearance == false and invalidAppearanceError == 'invalid_appearance',
     'radial menus must reject unsupported nonnil appearances')
@@ -95,6 +101,9 @@ assert(hostileReplies == 1 and response.ok == false and response.error == 'handl
 
 callbacks.radialClick({ index = 1, itemId = 'to-sub', menuId = nil, session = session }, function(value) response = value end)
 assert(response and response.ok == true, 'root submenu transition must succeed')
+local entered = messages[#messages]
+assert(entered.action == 'radialTransitionIn' and #entered.data.trail == 1 and entered.data.trail[1] == 'Submenu',
+    'entering a submenu must send the breadcrumb of the item that opened it')
 callbacks.radialBack({ menuId = nil, session = session }, function(value) response = value end)
 assert(response and response.ok == false and api.getCurrentRadialId() == 'sub',
     'queued same-session events from the prior radial menu must be rejected')
@@ -103,6 +112,23 @@ assert(response and response.ok == true, 'submenu back must succeed')
 local transition = messages[#messages]
 assert(transition.action == 'radialTransitionIn' and transition.data.menuId == nil,
     'root sentinel must return to the shared root instead of a fake menu ID')
+assert(transition.data.focusIndex == 1 and #transition.data.trail == 0,
+    'back must re-select the zero-based item that opened the submenu and clear the breadcrumb')
+
+api.hideRadial(true)
+local disabledHits = 0
+api.addRadialItem({ id = 'locked', label = 'Locked', disabled = true, description = 'Hands full',
+    onSelect = function() disabledHits = disabledHits + 1 end })
+assert(api.showRadial())
+session = messages[#messages].data.session
+local lockedIndex
+for index, item in ipairs(messages[#messages].data.items) do
+    if item.id == 'locked' then lockedIndex = index - 1; assert(item.disabled == true and item.description == 'Hands full') end
+end
+assert(lockedIndex, 'disabled items and descriptions must be forwarded to NUI')
+callbacks.radialClick({ index = lockedIndex, itemId = 'locked', menuId = nil, session = session }, function(value) response = value end)
+assert(response.ok == false and response.error == 'disabled_item' and disabledHits == 0 and api.isRadialOpen(),
+    'a disabled item must never run its handler, even from a forged NUI click')
 
 api.hideRadial(true)
 focusSucceeds = false

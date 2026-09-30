@@ -66,6 +66,13 @@ else {
         }
     }
 
+    # Packfile assets include fonts, images and license files, not just scripts.
+    foreach ($relativePath in $declaredFiles.Keys) {
+        if (-not (Test-Path -LiteralPath (Join-Path $root $relativePath) -PathType Leaf)) {
+            $errors += "Manifest reference missing: $relativePath"
+        }
+    }
+
     if ($uiPage -and -not $declaredFiles.ContainsKey($uiPage)) {
         $errors += "NUI page is not listed in files: $uiPage"
     }
@@ -82,20 +89,42 @@ if ($declaredFiles.Count -gt 0) {
 }
 
 if ($uiPage) {
-    $uiPagePath = Join-Path $root $uiPage
-    if (Test-Path -LiteralPath $uiPagePath -PathType Leaf) {
-        $uiDirectory = Split-Path -Parent $uiPage
-        $uiText = Get-Content -Raw -LiteralPath $uiPagePath
-        $assetReferences = [regex]::Matches($uiText, '(?:src|href)\s*=\s*[''"]([^''"]+)[''"]') |
+    # Cfx HTTPS resource URLs are local packfile references, not CDN assets.
+    foreach ($assetFile in @($declaredFiles.Keys | Where-Object { $_ -match '\.(html|css)$' })) {
+        $assetFilePath = Join-Path $root $assetFile
+        if (-not (Test-Path -LiteralPath $assetFilePath -PathType Leaf)) { continue }
+        $uiDirectory = Split-Path -Parent $assetFile
+        $uiText = Get-Content -Raw -LiteralPath $assetFilePath
+        $pattern = if ($assetFile -match '\.css$') {
+            'url\(\s*[''"]?([^''"\s)]+)[''"]?\s*\)'
+        }
+        else { '(?:src|href)\s*=\s*[''"]([^''"]+)[''"]' }
+        $assetReferences = [regex]::Matches($uiText, $pattern) |
             ForEach-Object { $_.Groups[1].Value } |
-            Where-Object { $_ -notmatch '^(?:data:|https?://|#)' }
+            Where-Object { $_ -notmatch '^(?:data:|#)' }
 
         foreach ($assetReference in $assetReferences) {
-            $relativePath = if ($uiDirectory) {
+            # Cache-busting queries and fragments are URL components, not packfile paths.
+            $assetReference = ($assetReference -split '[?#]', 2)[0]
+            $relativePath = if ($assetReference -match '^https://cfx-nui-cortex-lib/(.+)$') {
+                $Matches[1]
+            }
+            elseif ($assetReference -match '^(?:https?://|//)') {
+                $errors += "NUI asset must be offline and owned by cortex-lib: $assetReference"
+                continue
+            }
+            elseif ($uiDirectory) {
                 (Join-Path $uiDirectory $assetReference).Replace('\', '/')
             }
             else {
                 $assetReference.Replace('\', '/')
+            }
+
+            $absolutePath = [System.IO.Path]::GetFullPath((Join-Path $root $relativePath))
+            $relativePath = [System.IO.Path]::GetRelativePath($root, $absolutePath).Replace('\', '/')
+            if ($relativePath -match '^\.\.(?:/|$)') {
+                $errors += "NUI asset escapes resource: $assetReference"
+                continue
             }
 
             if (-not (Test-Path -LiteralPath (Join-Path $root $relativePath) -PathType Leaf)) {

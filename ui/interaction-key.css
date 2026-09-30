@@ -1,0 +1,89 @@
+/* Shared geometry and animation for screen and world key glyphs. */
+.cortex-key-inline {
+    position: relative; display: inline-flex; align-items: center; justify-content: center;
+    width: 100%; height: 100%; font: inherit; text-shadow: none;
+}
+.cortex-interaction-key-ring {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    filter: drop-shadow(0 1px 1px var(--shadow-color));
+    pointer-events: none;
+}
+
+.cortex-interaction-key-ring-track,
+.cortex-interaction-key-ring-progress {
+    fill: none;
+    stroke: var(--hud-interaction);
+    /* Hosts may thicken the ring (cortex-lib keeps it >= 3u); default 3. */
+    stroke-width: var(--cortex-interaction-ring-stroke, 3);
+}
+
+.cortex-interaction-key-ring-track {
+    transition: opacity 0.12s ease-out;
+}
+
+.cortex-interaction-key-ring-progress {
+    stroke: var(--state-focus);
+    stroke-width: var(--cortex-interaction-ring-progress-stroke, 3.4);
+    stroke-linecap: round;
+    stroke-dasharray: 100;
+    stroke-dashoffset: 100;
+    animation: cortex-interaction-hold var(--cortex-interaction-hold-duration, 1000ms) linear forwards;
+}
+
+.is-holding > .cortex-interaction-key-ring > .cortex-interaction-key-ring-track {
+    opacity: 0.28;
+}
+
+.cortex-interaction-key-value {
+    position: absolute;
+    inset: 16%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.14em;
+    border-radius: 999px;
+    background: var(--text-primary);
+    box-shadow: 0 1px 2px var(--shadow-color);
+    color: var(--text-inverse);
+    font: inherit;
+    line-height: 1;
+}
+
+/* A pill keeps its height and grows sideways by the glyph's span (width/48).
+   Hosts that fix only the height get the right width without new CSS. */
+.is-pill:not(.cortex-key-inline) {
+    width: auto !important;
+    aspect-ratio: var(--cortex-key-span, 1);
+}
+
+.cortex-interaction-key-part { display: inline-flex; align-items: center; white-space: nowrap; }
+/* Optical centring, measured at 4x: the italic caps lean right and the
+   display face sits its caps below the em-box centre. */
+.cortex-interaction-key-part.is-text { transform: translate(var(--cortex-key-text-dx, -0.09em), var(--cortex-key-text-dy, -0.07em)); }
+.is-dense .cortex-interaction-key-part.is-text,
+.is-pill .cortex-interaction-key-part.is-text { --cortex-key-text-dy: -0.022em; }
+.cortex-interaction-key-part.is-mouse { transform: translate(0.03em, 0.03em); }
+.cortex-interaction-key-part.is-plus { opacity: 0.7; font-size: 0.86em; font-style: normal; }
+.cortex-interaction-key-mouse { width: 0.72em; height: 1.02em; overflow: visible; }
+.cortex-interaction-key-mouse-body { fill: currentColor; }
+.cortex-interaction-key-mouse-seam { fill: none; stroke: var(--text-primary, #f0f0e9); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.cortex-interaction-key-mouse-wheel { fill: var(--text-primary, #f0f0e9); }
+.cortex-interaction-key-mouse-lit { fill: var(--accent-deep, #2f6e62); }
+
+@keyframes cortex-interaction-hold {
+    from { stroke-dashoffset: 100; }
+    to { stroke-dashoffset: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cortex-interaction-key-ring-progress { animation-timing-function: steps(20, end); }
+}
+/* Essential elapsed-time feedback must retain its actual duration. */
+.cortex-reduced-motion .cortex-interaction-key-ring-progress {
+    animation-duration: var(--cortex-interaction-hold-duration, 1000ms) !important;
+    animation-timing-function: steps(20, end) !important;
+}

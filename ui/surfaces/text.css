@@ -1,0 +1,299 @@
+/* ============================================================================
+   TEXT UI
+   A contextual instruction over the scene: keycaps + display-caps action, or
+   an Arial sentence with inline keycaps. Frameless unless `backdrop` asks for
+   a slip. Edges follow the runtime safe zone (--cx-safezone-x/y).
+   ============================================================================ */
+
+#textui {
+    --textui-edge-x: calc(var(--cx-safezone-x, 0px) + 40 * var(--u));
+    --textui-edge-y: calc(var(--cx-safezone-y, 0px) + 40 * var(--u));
+    position: fixed;
+    z-index: 9997;
+    display: flex;
+    align-items: center;
+    gap: calc(12 * var(--u));
+    max-width: min(calc(640 * var(--u)), calc(100vw - 2 * var(--textui-edge-x)));
+    padding: 0;
+    color: var(--paper);
+    text-shadow: var(--legible);
+    pointer-events: none;
+    animation: textuiEnter var(--t-enter, 240ms) var(--ease) both;
+}
+
+#textui.is-leaving { animation: textuiLeave var(--t-fast, 160ms) ease-in forwards; }
+
+/* Frameless by default: consumer plate styles only apply with a backdrop. */
+#textui:not(.textui-backdrop) {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.textui-text { min-width: 0; overflow-wrap: anywhere; }
+
+/* Action: "[E] Open trunk" -> keycap + italic caps. */
+#textui.textui--action .textui-text {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(8 * var(--u)) calc(12 * var(--u));
+    font: italic 800 calc(26 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+#textui.textui--action .textui-keys.after-text { margin-left: calc(14 * var(--u)); }
+
+/* Sentence: long copy stays in Arial with keycaps inline in the flow. */
+#textui.textui--sentence { align-items: flex-start; }
+#textui.textui--sentence .textui-text {
+    font: 400 calc(18 * var(--u) * var(--cx-text, 1)) / 1.5 var(--body);
+    white-space: pre-wrap;
+}
+#textui.textui--sentence .textui-keys { display: inline-flex; gap: calc(4 * var(--u)); margin: 0 calc(3 * var(--u)); vertical-align: calc(-4 * var(--u)); }
+
+.textui-keys { display: inline-flex; align-items: center; gap: calc(5 * var(--u)); }
+
+.textui-icon {
+    flex: 0 0 auto;
+    width: calc(26 * var(--u));
+    height: calc(26 * var(--u));
+    color: var(--paper);
+    filter: drop-shadow(0 calc(1 * var(--u)) 0 rgba(8, 9, 11, 0.7));
+}
+.textui-icon svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; }
+#textui.textui--sentence .textui-icon { margin-top: calc(2 * var(--u)); }
+
+/* Backdrop: the text becomes a slip with the accent bar. */
+#textui.textui-backdrop {
+    padding: calc(12 * var(--u)) calc(18 * var(--u)) calc(12 * var(--u)) calc(22 * var(--u));
+    border-radius: var(--r);
+    background: var(--slip);
+    text-shadow: none;
+}
+#textui.textui-backdrop::before {
+    content: '';
+    position: absolute;
+    left: calc(8 * var(--u));
+    top: calc(12 * var(--u));
+    bottom: calc(12 * var(--u));
+    width: calc(4 * var(--u));
+    border-radius: calc(1 * var(--u));
+    background: var(--accent);
+}
+#textui.textui-backdrop .textui-icon { filter: none; }
+
+/* Positions. Centring uses auto margins: transform animates the entrance and
+   the shared layout adapter owns `translate` for collision avoidance. */
+#textui.top-center, #textui.bottom-center { left: 0; right: 0; width: fit-content; margin-inline: auto; }
+#textui.top-center { top: calc(var(--textui-edge-y) + 80 * var(--u)); }
+#textui.bottom-center { bottom: calc(var(--cx-safezone-y, 0px) + 96 * var(--u)); }
+#textui.top-left { top: calc(var(--textui-edge-y) + 80 * var(--u)); left: var(--textui-edge-x); }
+#textui.top-right { top: calc(var(--textui-edge-y) + 80 * var(--u)); right: var(--textui-edge-x); }
+/* Bottom-left clears the radar and the vitals under it. */
+#textui.bottom-left { bottom: calc(var(--cx-safezone-y, 0px) + 300 * var(--u)); left: var(--textui-edge-x); }
+#textui.bottom-right { bottom: calc(var(--textui-edge-y) + 64 * var(--u)); right: var(--textui-edge-x); }
+
+@keyframes textuiEnter {
+    from { opacity: 0; transform: translateY(calc(6 * var(--u))); }
+    to { opacity: 1; transform: none; }
+}
+@keyframes textuiLeave {
+    from { opacity: 1; transform: none; }
+    to { opacity: 0; transform: translateY(calc(-4 * var(--u))); }
+}
+
+
+/* ============================================================================
+   HELP: THE CONTROLS LEGEND
+   GTA-style bottom-right legend. Label first, keycaps after, right aligned,
+   wrapping upward-right inside the safe zone. Always shown: it carries the
+   only instruction for the mode that opened it.
+   ============================================================================ */
+
+.cortex-help-bar {
+    --help-edge-x: calc(var(--cx-safezone-x, 0px) + 40 * var(--u));
+    --help-edge-y: calc(var(--cx-safezone-y, 0px) + 36 * var(--u));
+    position: fixed;
+    right: var(--help-edge-x);
+    bottom: var(--help-edge-y);
+    z-index: 900;
+    max-width: min(calc(1120 * var(--u)), calc(100vw - 2 * var(--help-edge-x)));
+    gap: calc(12 * var(--u)) calc(30 * var(--u));
+    padding: 0;
+    background: transparent;
+    pointer-events: none;
+    animation: textuiEnter var(--t-enter, 240ms) var(--ease) both;
+}
+.cortex-help-bar.is-leaving { animation: textuiLeave var(--t-fast, 160ms) ease-in forwards; }
+
+.cortex-help-bar .cortex-help-item {
+    gap: calc(11 * var(--u));
+    color: var(--paper);
+    font-size: calc(22 * var(--u));
+    letter-spacing: 0.03em;
+    text-shadow: var(--legible);
+}
+
+.cortex-help-label { max-width: calc(260 * var(--u)); }
+
+.cortex-help-values { gap: calc(6 * var(--u)); }
+
+/* The prompt glyph (interaction-key.js): a disc that grows into a pill. */
+.cortex-help-bar {
+    --cortex-interaction-ring-stroke: 4;
+    --help-key: calc(38 * var(--u));
+}
+.cortex-help-key-slot { display: inline-flex; }
+.cortex-help-key {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--help-key);
+    height: var(--help-key);
+    color: var(--ink);
+    font: italic 800 calc(var(--help-key) * 0.46) / 1 var(--display);
+    font-synthesis: style;
+    text-transform: uppercase;
+    text-shadow: none;
+}
+.cortex-help-key.is-dense,
+.cortex-help-key.is-pill { font-size: calc(var(--help-key) * 0.36); letter-spacing: 0.03em; }
+.cortex-help-key .cortex-interaction-key-ring-track { stroke: var(--paper); }
+.cortex-help-key .cortex-interaction-key-value { background: var(--paper); color: var(--ink); }
+
+.cortex-help-sep {
+    color: var(--paper);
+    font: italic 800 calc(17 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+}
+
+.cortex-help-text {
+    color: var(--paper);
+    opacity: 0.86;
+    font: italic 800 calc(18 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+/* Compact: long control strips (showHelp options.compact). */
+.cortex-help-bar--compact { gap: calc(8 * var(--u)) calc(22 * var(--u)); }
+.cortex-help-bar--compact .cortex-help-item { gap: calc(8 * var(--u)); font-size: calc(17 * var(--u)); }
+.cortex-help-bar--compact .cortex-help-values { gap: calc(4 * var(--u)); }
+.cortex-help-bar--compact { --help-key: calc(30 * var(--u)); --cortex-interaction-ring-stroke: 5; }
+.cortex-help-bar--compact .cortex-help-sep { font-size: calc(14 * var(--u)); }
+.cortex-help-bar--compact .cortex-help-text { font-size: calc(15 * var(--u)); }
+
+
+/* ============================================================================
+   DEBUG PANEL
+   A developer slip: SlipHeader, label/value rows in the data face, spacing and
+   a faint wash instead of rule lines.
+   ============================================================================ */
+
+.cortex-debug-root {
+    --debug-edge-x: calc(var(--cx-safezone-x, 0px) + 40 * var(--u));
+    --debug-edge-y: calc(var(--cx-safezone-y, 0px) + 40 * var(--u));
+    position: fixed;
+    z-index: 9994;
+    max-width: calc(100vw - 2 * var(--debug-edge-x));
+    pointer-events: none;
+    text-shadow: none;
+    animation: textuiEnter var(--t-enter, 240ms) var(--ease) both;
+}
+.cortex-debug-root.is-leaving { animation: textuiLeave var(--t-fast, 160ms) ease-in forwards; }
+
+.cortex-debug-root.top-left { top: calc(var(--debug-edge-y) + 80 * var(--u)); left: var(--debug-edge-x); }
+/* Centred on the right edge so it never sits under top-right notifications. */
+.cortex-debug-root.top-right { top: 50%; right: var(--debug-edge-x); translate: 0 -50%; }
+.cortex-debug-root.bottom-left { bottom: calc(var(--cx-safezone-y, 0px) + 300 * var(--u)); left: var(--debug-edge-x); }
+.cortex-debug-root.bottom-right { bottom: calc(var(--debug-edge-y) + 80 * var(--u)); right: var(--debug-edge-x); }
+
+.cortex-debug-panel {
+    display: flex;
+    flex-direction: column;
+    width: calc(380 * var(--u));
+    max-width: 100%;
+    max-height: calc(100vh - 2 * var(--debug-edge-y) - 80 * var(--u));
+    overflow: hidden;
+    border-radius: var(--r);
+    background: var(--slip);
+}
+
+.cortex-debug-header { flex: 0 0 auto; padding: calc(18 * var(--u)) calc(20 * var(--u)) calc(14 * var(--u)); }
+.cortex-debug-header .cx-slip-header::before { background: var(--debug-accent, var(--accent)); }
+.cortex-debug-header .cx-slip-title { font-size: calc(26 * var(--u)); }
+.cortex-debug-header .cx-eyebrow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.cortex-debug-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 0 calc(10 * var(--u)) calc(12 * var(--u));
+    overflow: hidden;
+}
+
+.cortex-debug-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: calc(14 * var(--u));
+    flex-shrink: 0;
+    padding: calc(7 * var(--u)) calc(10 * var(--u));
+    border-radius: var(--r-sm);
+    color: var(--paper);
+}
+.cortex-debug-line[data-row='even'] { background: var(--wash); }
+.cortex-debug-line.is-text {
+    color: var(--muted);
+    font: 400 calc(13 * var(--u)) / 1.45 var(--data);
+    overflow-wrap: anywhere;
+}
+
+.cortex-debug-label {
+    flex: 0 1 46%;
+    min-width: 0;
+    color: var(--muted);
+    font: 700 calc(12 * var(--u)) / 1.3 var(--body);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+}
+
+.cortex-debug-value {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--paper);
+    font: 400 calc(14 * var(--u)) / 1.3 var(--data);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cortex-debug-json {
+    margin: calc(8 * var(--u)) 0 0;
+    padding: calc(10 * var(--u));
+    max-height: calc(180 * var(--u));
+    overflow: hidden;
+    border-radius: var(--r-sm);
+    background: var(--slip-deep);
+    color: var(--muted);
+    font: 400 calc(12 * var(--u)) / 1.45 var(--data);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Reduced motion: overlays appear and leave without the rise. */
+.cortex-reduced-motion :is(#textui, .cortex-help-bar, .cortex-debug-root),
+html[data-cx-motion='reduced'] :is(#textui, .cortex-help-bar, .cortex-debug-root) { animation: none; }
+.cortex-reduced-motion :is(#textui, .cortex-help-bar, .cortex-debug-root).is-leaving,
+html[data-cx-motion='reduced'] :is(#textui, .cortex-help-bar, .cortex-debug-root).is-leaving { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+    #textui, .cortex-help-bar, .cortex-debug-root { animation: none; }
+    :is(#textui, .cortex-help-bar, .cortex-debug-root).is-leaving { opacity: 0; }
+}

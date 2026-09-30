@@ -273,6 +273,38 @@ local falseSelectValues = lib.contextMenu({
 assert(falseSelectReply.ok == true and falseSelectValues
     and type(falseSelectValues.choice) == 'boolean' and falseSelectValues.choice == false,
     'table-form false select options must remain selectable at the NUI result boundary')
+local boundedReplies = {}
+awaitHook = function()
+    local sent = messages[#messages].data.fields
+    assert(sent[1].min == 1 and sent[1].max == 10 and sent[1].step == 0.5 and sent[2].min == nil,
+        'declared number bounds must reach NUI and stay absent when undeclared')
+    for _, candidate in ipairs({ '11', 'abc', '0.5', '' , '4.5' }) do
+        callbacks.contextMenuResult({ session = activeSession, result = 'confirm', values = { count = candidate, free = 'x' } },
+            function(value) boundedReplies[#boundedReplies + 1] = value end)
+    end
+end
+local boundedValues = lib.contextMenu({ title = 'Bounds', timeout = 1000, fields = {
+    { name = 'count', type = 'input', inputType = 'number', label = 'Count', min = 1, max = 10, step = 0.5 },
+    { name = 'free', type = 'input', inputType = 'number', label = 'Free' },
+} })
+assert(boundedReplies[1].error == 'invalid_values' and boundedReplies[2].error == 'invalid_values'
+    and boundedReplies[3].error == 'invalid_values' and boundedReplies[4].ok == true
+    and boundedValues and boundedValues.count == '' and boundedValues.free == 'x',
+    'bounded number results must be numeric and within min/max; undeclared number fields keep the string contract')
+for _, badField in ipairs({
+    { name = 'n', type = 'input', inputType = 'number', min = 5, max = 1 },
+    { name = 'n', type = 'input', inputType = 'number', step = 0 },
+    { name = 'n', type = 'input', inputType = 'number', min = '1' },
+    { name = 'n', type = 'input', inputType = 'number', max = 0 / 0 },
+    { name = 'n', type = 'input', inputType = 'number', max = math.huge },
+}) do
+    assert(lib.contextMenu({ title = 'Bad bounds', fields = { badField } }) == nil,
+        'invalid number bounds must be rejected before reaching NUI')
+end
+assert(lib.contextMenu({ title = 'Bad initial', fields = {
+    { name = 'n', type = 'input', inputType = 'number', min = 1, max = 3 },
+}, values = { n = '9' } }) == nil, 'initial values must respect declared number bounds')
+
 assert(lib.contextMenu({ title = 'Unsafe', fields = { { name = '__proto__', type = 'input' } } }) == nil
     and lib.contextMenu({ title = 'Unsafe', fields = { { name = 'line\nbreak', type = 'input' } } }) == nil,
     'context field names must reject reserved JavaScript keys and control characters')
@@ -340,11 +372,17 @@ local stoppedBeforeProgressStop = stoppedAnimTasks
 local dictsBeforeProgressStop = removedAnimDicts
 events.onResourceStop('cortex-lib')
 local progressEndCount = 0
+local stopEndMessage
 for index = messagesBeforeProgressStop + 1, #messages do
-    if messages[index].action == 'progressEnd' then progressEndCount = progressEndCount + 1 end
+    if messages[index].action == 'progressEnd' then
+        progressEndCount = progressEndCount + 1
+        stopEndMessage = messages[index]
+    end
 end
 assert(progressEndCount == 1 and not lib.isProgressActive(),
     'cortex-lib stop must synchronously end active progress without waiting for its worker')
+assert(stopEndMessage.data and stopEndMessage.data.completed == false,
+    'an interrupted progress must tell the NUI it did not complete')
 assert(stoppedAnimTasks == stoppedBeforeProgressStop + 1
     and removedAnimDicts == dictsBeforeProgressStop + 1
     and deletedProps == 1 and releasedModels == 1 and not propExists,
@@ -355,6 +393,18 @@ assert(coroutine.resume(progressThread) == true and coroutine.status(progressThr
 assert(progressResult == false and stoppedAnimTasks == stoppedBeforeProgressStop + 1
     and removedAnimDicts == dictsBeforeProgressStop + 1 and deletedProps == 1 and releasedModels == 1,
     'late worker cleanup must be an idempotent no-op after synchronous stop cleanup')
+
+-- A timer that runs out completes, and the NUI is told so (paper pulse).
+local originalWait = Wait
+Wait = function() now = now + 25 end
+local messagesBeforeComplete = #messages
+assert(lib.progress({ duration = 50, label = 'Complete me' }) == true, 'a progress that runs its duration completes')
+Wait = originalWait
+local completeEnd
+for index = messagesBeforeComplete + 1, #messages do
+    if messages[index].action == 'progressEnd' then completeEnd = messages[index] end
+end
+assert(completeEnd and completeEnd.data.completed == true, 'a completed progress must report completed = true')
 
 invoking = 'owner-stop'
 lib.notify({ id = 'persistent', description = 'stop cleanup', persistent = true, sound = false })

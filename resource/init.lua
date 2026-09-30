@@ -209,6 +209,7 @@ local coreModules = {
     'callback',
     'help',
     'interaction',
+    'skillCheck',
     'getters',
 }
 

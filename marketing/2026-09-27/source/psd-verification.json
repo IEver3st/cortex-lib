@@ -1,0 +1,66 @@
+[
+  {
+    "file": "01-cortex-lib.psd",
+    "layers": 15,
+    "editableTextLayers": 5,
+    "maxVisibleCompositePixelDifference": 0,
+    "maxAlphaDifference": 0,
+    "sha256": "dd62d1e99cc93546df33a6a2191eeb53f61b705a4ccfbeab4085ad9038b52ca2"
+  },
+  {
+    "file": "02-notifications.psd",
+    "layers": 12,
+    "editableTextLayers": 4,
+    "maxVisibleCompositePixelDifference": 0,
+    "maxAlphaDifference": 0,
+    "sha256": "3983d0330b3de56fd909255ffbc2ea807ee8cdd758db5300c2f5ef1e081e1fc9"
+  },
+  {
+    "file": "03-menus-and-radial.psd",
+    "layers": 14,
+    "editableTextLayers": 5,
+    "maxVisibleCompositePixelDifference": 0,
+    "maxAlphaDifference": 0,
+    "sha256": "1634ea749838b4fda7002518def862d0d0c93f6735c68929c99c4dba552edfce"
+  },
+  {
+    "file": "04-input-dialogs.psd",
+    "layers": 12,
+    "editableTextLayers": 4,
+    "maxVisibleCompositePixelDifference": 0,
+    "maxAlphaDifference": 0,
+    "sha256": "58979471dc48989cbcf97cb562062ab4c5825a4daf26db8374ba2c0afeb9729b"
+  },
+  {
+    "file": "05-shared-settings.psd",
+    "layers": 11,
+    "editableTextLayers": 3,
+    "maxVisibleCompositePixelDifference": 0,
+    "maxAlphaDifference": 0,
+    "sha256": "199b5264a56db9b29e2016ac651413ea8e545d62406ce5cf5d281ceae005884f"
+  },
+  {
+    "file": "06-interaction-prompts.psd",
+    "layers": 13,
+    "editableTextLayers": 5,
+    "maxVisibleCompositePixelDifference": 0,
+    "maxAlphaDifference": 0,
+    "sha256": "c75a33bccc03c8d30a5b6b85330eb07e02c04e4e6e68c4f521d6d99a7bf97e8a"
+  },
+  {
+    "file": "cortex-lib-frame.psd",
+    "layers": 3,
+    "editableTextLayers": 0,
+    "maxVisibleCompositePixelDifference": 1.301960784313735,
+    "maxAlphaDifference": 0,
+    "sha256": "dd92e3494b1cd65c9791e2b4d1eb3e70bfdebf08c72b97c318d9edcc8da1192e"
+  },
+  {
+    "file": "cortex-lib-title.psd",
+    "layers": 11,
+    "editableTextLayers": 1,
+    "maxVisibleCompositePixelDifference": 1.301960784313735,
+    "maxAlphaDifference": 0,
+    "sha256": "a94775f738af90a903dd18e72a02b6b905d302d1c105d39c401ac2aaa6ec73bb"
+  }
+]

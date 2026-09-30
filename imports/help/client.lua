@@ -38,7 +38,8 @@ local function normalizeItems(items)
     return normalized
 end
 
-local function showHelp(items)
+-- options.compact = true draws smaller keys for long control strips.
+local function showHelp(items, options)
     local normalized = normalizeItems(items)
     if not normalized then return false end
     local owner = getInvokingOwner()
@@ -46,7 +47,8 @@ local function showHelp(items)
 
     helpState.open = true
     helpState.owner = owner
-    SendNUIMessage({ action = 'helpShow', data = { items = normalized } })
+    local compact = type(options) == 'table' and options.compact == true
+    SendNUIMessage({ action = 'helpShow', data = { items = normalized, compact = compact or nil } })
     return true
 end
 

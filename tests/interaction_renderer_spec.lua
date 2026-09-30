@@ -285,6 +285,12 @@ ok, err = pcall(threads[2])
 assert(not ok and tostring(err):find('__frame_complete__', 1, true), tostring(err))
 assert(countWorldMessages() == worldMessages + 1, 'a moved projected frame must be sent to NUI')
 
+projectedX = 0.56 + (0.2 / 1920)
+ok, err = pcall(threads[2])
+assert(not ok and tostring(err):find('__frame_complete__', 1, true), tostring(err))
+assert(countWorldMessages() == worldMessages + 1, 'sub-pixel projection jitter must not be resent to NUI')
+projectedX = 0.56
+
 assert(type(handlers['cortex-lib:interaction:changed']) == 'function')
 handlers['cortex-lib:interaction:changed']()
 assert(

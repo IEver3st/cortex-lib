@@ -109,6 +109,7 @@ local function releaseSettingsFocus()
     else
         SetNuiFocus(false, false)
     end
+    if rawget(lib, '_settingsVisibilityChanged') then lib._settingsVisibilityChanged(false) end
 end
 
 ---@type { value: string, label: string, name: string, set: string }[]
@@ -181,40 +182,147 @@ local function normalizeSoundOptions(options)
     return normalized
 end
 
+-- Built-in player preferences. Every key is per-client KVP under `cortex:<key>`,
+-- readable through lib.getSetting and announced through cortex-lib:settingChanged.
+-- The four dynamic_* keys keep their historical names so shared appearance
+-- (client/presentation.lua) and existing player values carry over unchanged.
 local cortexDefaults = {
+    uiScale = 100,
+    textSize = 'standard',
+    dynamic_accent = '#8fcbbf',
+    dynamic_opacity = 92,
+    dynamic_motion = 'system',
+    dynamic_layout = true,
+    controlHints = true,
+    notifyPosition = 'top-right',
+    notifyDuration = 'standard',
+    notifyLimit = 5,
     notifySound = true,
     notifySoundPreset = DEFAULT_NOTIFY_SOUND_PRESET,
-    notifyPosition = 'top-right'
+    promptMarkers = true,
+    promptScale = 'standard',
+    invertScroll = false,
+    showPercent = true,
 }
+
+local SECTION_INTERFACE = 'Interface'
+local SECTION_NOTIFICATIONS = 'Notifications'
+local SECTION_PROMPTS = 'Prompts'
+local SECTION_PROGRESS = 'Progress'
 
 local cortexFields = {
     {
-        key = 'notifySound',
-        label = 'Notification sounds',
-        description = 'Master toggle for default notification audio',
-        type = 'toggle',
+        key = 'uiScale', section = SECTION_INTERFACE, type = 'slider',
+        label = 'Interface size', min = 80, max = 130, step = 5, suffix = '%',
+        description = 'Makes every Cortex prompt, menu and notification larger or smaller.',
     },
     {
-        key = 'notifySoundPreset',
-        label = 'Sound preset',
-        description = 'Default audio when a notification uses built-in sound; Preview plays immediately',
-        type = 'soundList',
-        options = catalogToFieldOptions(),
+        key = 'textSize', section = SECTION_INTERFACE, type = 'select', label = 'Text size',
+        description = 'Larger body text in menus, dialogs and notifications.',
+        options = { { value = 'standard', label = 'Standard' }, { value = 'large', label = 'Large' } },
     },
     {
-        key = 'notifyPosition',
-        label = 'Notification Position',
-        description = 'Where notifications appear on screen',
-        type = 'select',
+        key = 'dynamic_accent', section = SECTION_INTERFACE, type = 'color', label = 'Shared accent',
+        description = 'The highlight colour for selected and active items in every Cortex interface.',
         options = {
-            { value = 'top-right', label = 'Top Right' },
-            { value = 'top-left', label = 'Top Left' },
-            { value = 'top', label = 'Top Center' },
-            { value = 'bottom-right', label = 'Bottom Right' },
-            { value = 'bottom-left', label = 'Bottom Left' },
-            { value = 'bottom', label = 'Bottom Center' },
+            { value = '#8fcbbf', label = 'Mint' }, { value = '#9bbcd3', label = 'Blue' },
+            { value = '#bea9de', label = 'Lavender' }, { value = '#d8ba82', label = 'Amber' },
+            { value = '#ebe9e6', label = 'Paper' },
         },
     },
+    {
+        key = 'dynamic_opacity', section = SECTION_INTERFACE, type = 'slider', label = 'Surface opacity',
+        min = 65, max = 100, step = 1, suffix = '%',
+        description = 'How solid menus and panels look over the game.',
+    },
+    {
+        key = 'dynamic_motion', section = SECTION_INTERFACE, type = 'select', label = 'Motion',
+        description = 'Follow your system setting, keep animation to a minimum, or always animate.',
+        options = {
+            { value = 'system', label = 'System' }, { value = 'reduced', label = 'Reduced' },
+            { value = 'full', label = 'Full' },
+        },
+    },
+    {
+        key = 'dynamic_layout', section = SECTION_INTERFACE, type = 'toggle', label = 'Avoid overlapping overlays',
+        description = 'Moves notifications and prompts aside so they do not cover chat, the HUD or each other.',
+    },
+    {
+        key = 'controlHints', section = SECTION_INTERFACE, type = 'toggle', label = 'Control hints',
+        description = 'Show key hints under menus and prompts. A hint that is the only instruction always stays.',
+    },
+    {
+        key = 'notifyPosition', section = SECTION_NOTIFICATIONS, type = 'select', label = 'Position',
+        description = 'Where notifications appear on screen.',
+        options = {
+            { value = 'top-right', label = 'Top right' },
+            { value = 'top-left', label = 'Top left' },
+            { value = 'top', label = 'Top centre' },
+            { value = 'bottom-right', label = 'Bottom right' },
+            { value = 'bottom-left', label = 'Bottom left' },
+            { value = 'bottom', label = 'Bottom centre' },
+        },
+    },
+    {
+        key = 'notifyDuration', section = SECTION_NOTIFICATIONS, type = 'select', label = 'Display time',
+        description = 'How long notifications stay on screen before they leave.',
+        options = {
+            { value = 'short', label = 'Short' }, { value = 'standard', label = 'Standard' },
+            { value = 'long', label = 'Long' },
+        },
+    },
+    {
+        key = 'notifyLimit', section = SECTION_NOTIFICATIONS, type = 'select', label = 'Visible at once',
+        description = 'The most notifications shown at the same time.',
+        options = { { value = 3, label = '3' }, { value = 5, label = '5' }, { value = 8, label = '8' } },
+    },
+    {
+        key = 'notifySound', section = SECTION_NOTIFICATIONS, type = 'toggle', label = 'Sound',
+        description = 'Play a sound when a notification arrives.',
+    },
+    {
+        key = 'notifySoundPreset', section = SECTION_NOTIFICATIONS, type = 'soundList', label = 'Sound preset',
+        description = 'The sound notifications use. Choosing one plays it.',
+        options = catalogToFieldOptions(),
+        showWhen = { notifySound = true },
+    },
+    {
+        key = 'promptMarkers', section = SECTION_PROMPTS, type = 'toggle', label = 'Distant interaction markers',
+        description = 'Show a small marker where you can interact before you are close enough to use it.',
+    },
+    {
+        key = 'promptScale', section = SECTION_PROMPTS, type = 'select', label = 'Prompt size',
+        description = 'Size of interaction prompts in the world and on screen.',
+        options = {
+            { value = 'small', label = 'Small' }, { value = 'standard', label = 'Standard' },
+            { value = 'large', label = 'Large' },
+        },
+    },
+    {
+        key = 'invertScroll', section = SECTION_PROMPTS, type = 'toggle', label = 'Invert list scroll',
+        description = 'Flip the mouse wheel direction when choosing between stacked prompts.',
+    },
+    {
+        key = 'showPercent', section = SECTION_PROGRESS, type = 'toggle', label = 'Show percentage',
+        description = 'Show how far along an action is next to progress bars and circles.',
+    },
+}
+
+-- Enum values stay readable through lib.getSetting; the NUI receives multipliers.
+local NOTIFY_DURATION_SCALE = { short = 0.75, standard = 1.0, long = 1.5 }
+local PREF_KEYS = {
+    uiScale = true, textSize = true, notifyDuration = true, notifyLimit = true, showPercent = true,
+    promptMarkers = true, promptScale = true, controlHints = true, invertScroll = true,
+}
+
+-- The retired "Dynamic UI" tab stored under its own registry prefix. Its four
+-- kept settings move to the Cortex namespace once; its per-resource
+-- "independent appearance" switches no longer exist and are removed.
+local LEGACY_DYNAMIC_PREFIX = SETTINGS_PREFIX .. 'cortex-dynamic:'
+local MIGRATED_DYNAMIC_KEYS = { 'dynamic_accent', 'dynamic_opacity', 'dynamic_motion', 'dynamic_layout' }
+local RETIRED_DYNAMIC_KEYS = {
+    'cortex-lib', 'cortex-chat', 'cortex-hud', 'cortex-polcam', 'cortex-rewind', 'cortex-admin',
+    'cortex-emotemenu', 'cortex_mdtsv', 'cortex_soundtool', 'cortex-death', 'gsd-arges', 'opticom',
 }
 
 local cortexSettings = {}
@@ -298,9 +406,27 @@ local function saveTabStoredValue(tab, key, value)
     return saveStoredValue(tab.kvpPrefix, key, value)
 end
 
-local function reloadCortexSettings()
-    for key, defaultValue in pairs(cortexDefaults) do
-        cortexSettings[key] = loadStoredValue(SETTINGS_PREFIX, key, defaultValue, false)
+local function migrateRetiredDynamicTab()
+    for index = 1, #MIGRATED_DYNAMIC_KEYS do
+        local key = MIGRATED_DYNAMIC_KEYS[index]
+        local legacyOk, legacy = readStoredValue(LEGACY_DYNAMIC_PREFIX .. key)
+        if legacyOk and legacy ~= nil then
+            local currentOk, current = readStoredValue(SETTINGS_PREFIX .. key)
+            local moved = currentOk and current ~= nil
+            if currentOk and current == nil then
+                -- Copy the raw string; reloadCortexSettings validates it against the field.
+                moved = pcall(SetResourceKvp, SETTINGS_PREFIX .. key, legacy)
+            end
+            if moved and type(DeleteResourceKvp) == 'function' then
+                pcall(DeleteResourceKvp, LEGACY_DYNAMIC_PREFIX .. key)
+            end
+        end
+    end
+    if type(DeleteResourceKvp) ~= 'function' then return end
+    for index = 1, #RETIRED_DYNAMIC_KEYS do
+        local storageKey = LEGACY_DYNAMIC_PREFIX .. 'dynamic_independent_' .. RETIRED_DYNAMIC_KEYS[index]
+        local ok, value = readStoredValue(storageKey)
+        if ok and value ~= nil then pcall(DeleteResourceKvp, storageKey) end
     end
 end
 
@@ -452,6 +578,7 @@ local function sanitizeModernField(field)
         or not boundedString(fieldType, 32, false)
         or (field.description ~= nil and not boundedString(field.description, 512, true))
         or (field.section ~= nil and not boundedString(field.section, 128, true))
+        or (field.advanced ~= nil and type(field.advanced) ~= 'boolean')
     then
         return nil
     end
@@ -462,7 +589,24 @@ local function sanitizeModernField(field)
         description = field.description,
         type = fieldType,
         section = field.section,
+        advanced = field.advanced == true,
     }
+
+    if field.showWhen ~= nil then
+        if type(field.showWhen) ~= 'table' then return nil end
+        normalized.showWhen = {}
+        local count = 0
+        for key, value in pairs(field.showWhen) do
+            count = count + 1
+            if count > 8 or not safeObjectKey(key, 128)
+                or not (type(value) == 'boolean'
+                    or (type(value) == 'string' and boundedString(value, 128, true))
+                    or (type(value) == 'number' and isFiniteNumber(value)))
+            then return nil end
+            normalized.showWhen[key] = value
+        end
+        if count == 0 then return nil end
+    end
 
     if fieldType == 'select' or fieldType == 'color' then
         normalized.options = normalizeOptions(field.options)
@@ -512,6 +656,8 @@ local function normalizeLegacyField(setting, section)
         type = fieldType,
         section = section,
         hidden = setting.hidden == true,
+        advanced = setting.advanced,
+        showWhen = setting.showWhen,
     }
 
     if fieldType == 'select' or fieldType == 'color' then
@@ -682,6 +828,23 @@ local function fieldAcceptsValue(field, value)
         return boundedString(value, maxLength, true)
     end
     return field.type == 'buttons' and value == nil
+end
+
+local function findCortexField(key)
+    for index = 1, #cortexFields do
+        if cortexFields[index].key == key then return cortexFields[index] end
+    end
+    return nil
+end
+
+-- Stored values are untrusted: an edited or stale KVP falls back to the default.
+local function reloadCortexSettings()
+    for key, defaultValue in pairs(cortexDefaults) do
+        local value = loadStoredValue(SETTINGS_PREFIX, key, defaultValue, false)
+        local field = findCortexField(key)
+        if field and not fieldAcceptsValue(field, value) then value = defaultValue end
+        cortexSettings[key] = value
+    end
 end
 
 local function validateTab(tab)
@@ -1087,12 +1250,39 @@ local function normalizeNuiSettingValue(tabId, key, value)
     return true, value
 end
 
+local function buildUiPrefs()
+    local scale = tonumber(cortexSettings.uiScale) or cortexDefaults.uiScale
+    local limit = math.tointeger(tonumber(cortexSettings.notifyLimit)) or cortexDefaults.notifyLimit
+    return {
+        scale = math.floor(math.max(80, math.min(130, scale)) + 0.5) / 100,
+        textSize = cortexSettings.textSize == 'large' and 'large' or 'standard',
+        notifyDuration = NOTIFY_DURATION_SCALE[cortexSettings.notifyDuration] or 1.0,
+        notifyLimit = limit,
+        showPercent = cortexSettings.showPercent ~= false,
+        promptMarkers = cortexSettings.promptMarkers ~= false,
+        promptScale = (cortexSettings.promptScale == 'small' or cortexSettings.promptScale == 'large')
+            and cortexSettings.promptScale or 'standard',
+        controlHints = cortexSettings.controlHints ~= false,
+        invertScroll = cortexSettings.invertScroll == true,
+    }
+end
+
+-- The runtime (preview-inclusive) values drive the shared NUI. Rollback and
+-- Save both flow through here, so the NUI always matches lib.getSetting.
+local function pushUiPrefs()
+    SendNUIMessage({ action = 'cortex:prefs', data = { prefs = buildUiPrefs() } })
+end
+lib._getUiPrefs = buildUiPrefs
+
 local function notifyCortexRuntimeChanges(changes)
     if changes.notifyPosition then
         SendNUIMessage({
             action = 'notifySetPosition',
             data = { position = changes.notifyPosition }
         })
+    end
+    for key in pairs(changes) do
+        if PREF_KEYS[key] then pushUiPrefs(); break end
     end
 end
 
@@ -1194,25 +1384,26 @@ local function resolveTabForKey(key)
     return nil, nil
 end
 
+-- A consumer tab that declares a key with the same name as a built-in Cortex
+-- preference keeps its own value; built-ins answer everyone else.
+local function ownsTabKey(key)
+    if getInvokingOwner() == CURRENT_RESOURCE then return false end
+    local _, tab = resolveTabForKey(key)
+    return tab ~= nil
+end
+
 local function setTrackedSetting(key, value)
     if not safeObjectKey(key, 128) then return false end
 
-    if cortexDefaults[key] ~= nil then
+    if cortexDefaults[key] ~= nil and not ownsTabKey(key) then
         local valid, normalized = normalizeNuiSettingValue(CORTEX_TAB_ID, key, value)
         if not valid then return false end
 
         local stored = saveStoredValue(SETTINGS_PREFIX, key, normalized)
         if not stored then return false end
         cortexSettings[key] = normalized
+        notifyCortexRuntimeChanges({ [key] = normalized })
         emitSettingChanged(key, normalized, CORTEX_TAB_ID)
-
-        if key == 'notifyPosition' then
-            SendNUIMessage({
-                action = 'notifySetPosition',
-                data = { position = normalized }
-            })
-        end
-
         return true
     end
 
@@ -1384,7 +1575,7 @@ local function validatePreviewSubmission(tabs)
 end
 
 function lib.getSetting(key)
-    if cortexDefaults[key] ~= nil then
+    if cortexDefaults[key] ~= nil and not ownsTabKey(key) then
         return cortexSettings[key]
     end
 
@@ -1438,7 +1629,10 @@ function lib.getNotifySoundCatalog()
 end
 
 function lib.onSettingChange(key, callback)
-    if not safeObjectKey(key, 128) or type(callback) ~= 'function' then
+    local mt = type(callback) == 'table' and getmetatable(callback)
+    local callable = type(callback) == 'function'
+        or type(mt) == 'table' and type(rawget(mt,'__call')) == 'function'
+    if not safeObjectKey(key, 128) or not callable then
         return false
     end
 
@@ -1514,10 +1708,12 @@ function lib.registerSettings(tabId, tabLabel, kvpPrefix, fields, defaults)
     return registerTab(tab, getRegistrationOwner(tabId))
 end
 
-function lib.openSettings()
+local function openSettingsSurface(page)
     if settingsOpen then
-        return
+        return false
     end
+
+    if type(IsPauseMenuActive) == 'function' and IsPauseMenuActive() then return false end
 
     local tabs = buildTabsPayload()
     local owner = getInvokingOwner()
@@ -1529,22 +1725,41 @@ function lib.openSettings()
     settingsSession = session
     settingsOwner = owner
     settingsReady = false
+    if rawget(lib, '_settingsVisibilityChanged') then lib._settingsVisibilityChanged(true) end
 
     SendNUIMessage({
         action = 'settingsOpen',
-        data = { tabs = tabs, session = session }
+        data = { tabs = tabs, session = session, page = page or 'settings',
+            pause = rawget(lib, '_getPausePayload') and lib._getPausePayload() or nil }
     })
     if type(SetTimeout) == 'function' then
         SetTimeout(SETTINGS_READY_TIMEOUT, function()
             if settingsOpen and settingsSession == session and not settingsReady then
                 rollbackPreviewValues()
                 releaseSettingsFocus()
+                if rawget(lib, '_pauseReadinessFailed') then lib._pauseReadinessFailed() end
                 SendNUIMessage({ action = 'settingsClose', data = {
                     session = session, reason = 'settings_ready_timeout',
                 } })
             end
         end)
     end
+    return true
+end
+
+-- Private entry points share the existing preview and modal lifecycle. A native
+-- handoff must discard previews before another UI can take focus.
+lib._openSettingsSurface = openSettingsSurface
+lib._closeSettingsForPause = function(session)
+    if not matchesSettingsModal({ session = session }) then return false end
+    rollbackPreviewValues()
+    releaseSettingsFocus()
+    SendNUIMessage({ action = 'settingsClose', data = { session = session } })
+    return true
+end
+
+function lib.openSettings()
+    return openSettingsSurface('settings')
 end
 
 function lib.openSettingsMenu()
@@ -1567,7 +1782,16 @@ function lib.closeSettingsMenu()
     return lib.closeSettings()
 end
 
+migrateRetiredDynamicTab()
 reloadCortexSettings()
+
+-- The shared NUI asks for preferences once it has mounted (and again after a
+-- cortex-lib restart reloads the page). No session: prefs are not modal state.
+RegisterNUICallback('cortexPrefsReady', function(_, cb)
+    pushUiPrefs()
+    SendNUIMessage({ action = 'notifySetPosition', data = { position = cortexSettings.notifyPosition } })
+    cb({ ok = true })
+end)
 
 RegisterNUICallback('settingsReady', function(data, cb)
     if not matchesSettingsModal(data) then cb({ ok = false, error = 'stale_session' }); return end
@@ -1586,6 +1810,11 @@ end)
 RegisterNUICallback('settingsSave', function(data, cb)
     if not matchesSettingsModal(data) or not previewSnapshot or type(data.tabs) ~= 'table' then
         cb({ ok = false, error = 'stale_session' })
+        return
+    end
+
+    if data.keepOpen ~= nil and type(data.keepOpen) ~= 'boolean' then
+        cb({ ok = false, error = 'invalid_settings' })
         return
     end
 
@@ -1610,6 +1839,13 @@ RegisterNUICallback('settingsSave', function(data, cb)
         beginPreviewSession()
         pcall(print, ('^1[cortex-lib]^7 settings save failed: %s'):format(safeErrorText(committed)))
         cb({ ok = false, error = 'commit_failed', persistedRestored = persistedRestored })
+        return
+    end
+
+    if data.keepOpen == true then
+        -- Apply commits a new rollback baseline without releasing this session.
+        beginPreviewSession()
+        cb({ ok = true, committed = committed, applied = true })
         return
     end
 
@@ -1710,6 +1946,7 @@ local function closeSettingsForModal(generation, reason)
     settingsSession = nil
     settingsOwner = nil
     settingsReady = false
+    if rawget(lib, '_settingsVisibilityChanged') then lib._settingsVisibilityChanged(false) end
     SendNUIMessage({ action = 'settingsClose', data = { session = generation, reason = reason } })
 end
 local pendingModalSurfaces = rawget(lib, '_pendingModalSurfaces') or {}
