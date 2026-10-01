@@ -77,6 +77,7 @@ files {
     'imports/points/client.lua',
     'imports/raycast/client.lua',
     'imports/getters/client.lua',
+    'imports/vehicleReplay/client.lua',
     'imports/disablecontrols/client.lua',
     'imports/help/client.lua',
     'imports/interaction/client.lua',
