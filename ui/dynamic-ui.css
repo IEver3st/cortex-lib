@@ -144,9 +144,6 @@
 .cortex-modal-active[data-cortex-resource="cortex-lib"] #textui { visibility: hidden; pointer-events: none; }
 .cortex-shared-style[data-cortex-resource="cortex_mdtsv"] body { font-family: var(--cx-body); }
 .cortex-shared-style[data-cortex-resource="cortex_mdtsv"] .topo-vignette { display: none; }
-.cortex-shared-style[data-cortex-resource="cortex-emotemenu"] .menu-shell {
-    background: var(--cx-panel);
-}
 .cortex-shared-style[data-cortex-resource="cortex-rewind"] .rewind-instrument {
     --rewind-paper: var(--cx-paper); --rewind-accent: var(--cx-accent); --rewind-body: var(--cx-body);
 }

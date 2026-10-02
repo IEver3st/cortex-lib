@@ -222,8 +222,8 @@ local cortexFields = {
         options = { { value = 'standard', label = 'Standard' }, { value = 'large', label = 'Large' } },
     },
     {
-        key = 'dynamic_accent', section = SECTION_INTERFACE, type = 'color', label = 'Shared accent',
-        description = 'The highlight colour for selected and active items in every Cortex interface.',
+        key = 'dynamic_accent', section = SECTION_INTERFACE, type = 'color', label = 'Shared accent', custom = true,
+        description = 'The highlight colour for selected and active items in every Cortex interface. Pick one, or type a hex colour.',
         options = {
             { value = '#8fcbbf', label = 'Mint' }, { value = '#9bbcd3', label = 'Blue' },
             { value = '#bea9de', label = 'Lavender' }, { value = '#d8ba82', label = 'Amber' },
@@ -486,6 +486,12 @@ local function resourceHasRegisteredTab(resourceName)
     return false
 end
 
+-- A colour field marked `custom` also takes any #rrggbb value, stored lowercase.
+local function customColor(field, value)
+    if not field or field.type ~= 'color' or field.custom ~= true or type(value) ~= 'string' then return nil end
+    return value:match('^#%x%x%x%x%x%x$') and value:lower() or nil
+end
+
 local function normalizeFieldType(fieldType)
     if fieldType == 'checkbox' then
         return 'toggle'
@@ -579,6 +585,7 @@ local function sanitizeModernField(field)
         or (field.description ~= nil and not boundedString(field.description, 512, true))
         or (field.section ~= nil and not boundedString(field.section, 128, true))
         or (field.advanced ~= nil and type(field.advanced) ~= 'boolean')
+        or (field.custom ~= nil and type(field.custom) ~= 'boolean')
     then
         return nil
     end
@@ -590,6 +597,7 @@ local function sanitizeModernField(field)
         type = fieldType,
         section = field.section,
         advanced = field.advanced == true,
+        custom = fieldType == 'color' and field.custom == true or nil,
     }
 
     if field.showWhen ~= nil then
@@ -817,6 +825,7 @@ local function fieldAcceptsValue(field, value)
         return isFiniteNumber(value) and value >= field.min and value <= field.max
     end
     if field.type == 'select' or field.type == 'color' or field.type == 'soundList' then
+        if customColor(field, value) then return true end
         for index = 1, #(field.options or {}) do
             local optionValue = field.options[index].value
             if type(optionValue) == type(value) and optionValue == value then return true end
@@ -1210,6 +1219,8 @@ local function normalizeNuiSettingValue(tabId, key, value)
             end
         end
 
+        local custom = customColor(field, value)
+        if custom then return true, custom end
         return false, nil
     end
 

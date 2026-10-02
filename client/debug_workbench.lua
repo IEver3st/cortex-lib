@@ -350,8 +350,10 @@ for _, kind in ipairs({'radial', 'trace_upper', 'trace_lower', 'hold', 'sequence
         return (passed and 'Passed: ' or 'Ended: ') .. tostring(reason)
     end)
 end
--- Debug-only native mapping. It is inert outside this specimen and follows the
--- same press/release contract as consumer-owned gameplay bindings.
+-- Debug-only native mapping. The convar gate above keeps it out of players'
+-- key binding list unless development diagnostics are enabled. It is inert
+-- outside this specimen and follows the same press/release contract as
+-- consumer-owned gameplay bindings.
 RegisterCommand('+cortexdebug_mash', function()
     if mashInputId and lib.isInteractionVisible(mashInputId) and not IsNuiFocused() and not IsPauseMenuActive() then
         lib.skillCheckPress(mashInputId, true)
@@ -360,7 +362,7 @@ end, false)
 RegisterCommand('-cortexdebug_mash', function()
     if mashInputId then lib.skillCheckPress(mashInputId, false) end
 end, false)
-RegisterKeyMapping('+cortexdebug_mash', 'Cortex debug: reactive mash', 'keyboard', 'R')
+RegisterKeyMapping('+cortexdebug_mash', 'Cortex: debug reactive mash', 'keyboard', 'R')
 
 add('skill_mash', 'Skill checks', '3D reactive mash',
     'Tap the debug mash binding (default R) to fill the world arc. Leaving range or looking away cancels.', function(_, token)

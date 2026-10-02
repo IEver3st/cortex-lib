@@ -179,10 +179,21 @@ function SettingsSlider({ field, value, inputId, labelId, descriptionId, onCommi
 }
 
 /** Colour choice as a radio row of chips; the selected chip flips to paper. */
-function SettingsSwatches({ options, value, onChange, labelledBy }) {
+function SettingsSwatches({ options, value, onChange, labelledBy, custom }) {
     const refs = useRef([]);
-    const selectedIndex = Math.max(0, options.findIndex(option => Object.is(option.value, value)));
+    const found = options.findIndex(option => Object.is(option.value, value));
+    // A custom colour matches no swatch: none is selected, the first still takes Tab.
+    const isCustom = custom && found < 0 && typeof value === 'string' && SETTINGS_HEX_COLOR.test(value);
+    const selectedIndex = isCustom ? -1 : Math.max(0, found);
     const selected = options[selectedIndex];
+    const [draft, setDraft] = useState(null);
+    const shown = draft ?? (typeof value === 'string' ? value.toUpperCase() : '');
+    const typeHex = event => {
+        const typed = event.target.value.trim();
+        const next = (typed.startsWith('#') ? typed : `#${typed}`).slice(0, 7);
+        setDraft(next.toUpperCase());
+        if (SETTINGS_HEX_COLOR.test(next)) onChange(next.toLowerCase());
+    };
     const move = index => {
         const next = (index + options.length) % options.length;
         onChange(options[next].value);
@@ -199,7 +210,7 @@ function SettingsSwatches({ options, value, onChange, labelledBy }) {
                 'aria-checked': index === selectedIndex,
                 'aria-label': option.label,
                 title: option.label,
-                tabIndex: index === selectedIndex ? 0 : -1,
+                tabIndex: index === Math.max(0, selectedIndex) ? 0 : -1,
                 style: { '--swatch': option.value },
                 onClick: () => onChange(option.value),
                 onKeyDown: event => {
@@ -208,7 +219,21 @@ function SettingsSwatches({ options, value, onChange, labelledBy }) {
                 }
             }, React.createElement('i', { 'aria-hidden': 'true' })))
         ),
-        React.createElement('span', { className: 'cx-settings-swatch-name', 'aria-hidden': 'true' }, selected?.label || '')
+        custom && React.createElement('input', {
+            className: `cx-settings-hex${isCustom ? ' is-selected' : ''}`,
+            type: 'text',
+            value: shown,
+            maxLength: 7,
+            spellCheck: false,
+            autoComplete: 'off',
+            'aria-label': 'Custom colour, hex',
+            placeholder: '#8FCBBF',
+            style: { '--swatch': isCustom ? value : 'transparent' },
+            onChange: typeHex,
+            onBlur: () => setDraft(null),
+            onKeyDown: event => { if (event.key !== 'Escape' && event.key !== 'Tab') event.stopPropagation(); }
+        }),
+        React.createElement('span', { className: 'cx-settings-swatch-name', 'aria-hidden': 'true' }, isCustom ? 'Custom' : (selected?.label || ''))
     );
 }
 
@@ -268,7 +293,7 @@ function SettingsField({ field, value, defaultValue, hasDefault, dirty, tabId, o
             case 'color': {
                 const kind = settingsChoiceKind(field);
                 if (kind === 'swatches') {
-                    return React.createElement(SettingsSwatches, { options: field.options, value, onChange: set, labelledBy: labelId });
+                    return React.createElement(SettingsSwatches, { options: field.options, value, onChange: set, labelledBy: labelId, custom: field.custom === true });
                 }
                 if (kind === 'segmented') {
                     return React.createElement(Kit.Segmented, { options: field.options, value, onChange: set, labelledBy: labelId });

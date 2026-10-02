@@ -27,8 +27,9 @@ function IsDisabledControlPressed() return false end
 function GetCurrentResourceName() return 'cortex-lib' end
 function RegisterNUICallback(name, fn) callbacks[name] = fn end
 function RegisterCommand(name, fn) commands[name] = fn end
-function RegisterKeyMapping(command, _, mapper, key)
+function RegisterKeyMapping(command, description, mapper, key)
     assert(command == '+cortexdebug_mash' and mapper == 'keyboard' and key == 'R')
+    assert(description == 'Cortex: debug reactive mash', 'mapping descriptions share the Cortex prefix')
 end
 function AddEventHandler(name, fn) events[name] = fn end
 function SendNUIMessage(data) messages[#messages+1] = data end

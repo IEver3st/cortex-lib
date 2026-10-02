@@ -513,6 +513,24 @@
 .cx-settings-swatch.is-selected:focus-visible { box-shadow: inset 0 0 0 calc(3 * var(--u)) var(--accent); }
 .cx-settings-swatch:active { transform: translateY(calc(2 * var(--u))); }
 
+/* Hex well for a custom colour: the typed colour marks its left edge. */
+.cx-settings-hex {
+    width: calc(118 * var(--u));
+    height: calc(42 * var(--u));
+    padding: 0 calc(10 * var(--u)) 0 calc(16 * var(--u));
+    border: 0;
+    border-radius: var(--r-sm);
+    background: var(--wash);
+    color: var(--paper);
+    font: calc(16 * var(--u)) / 1 var(--data);
+    text-transform: uppercase;
+    box-shadow: inset calc(6 * var(--u)) 0 0 var(--swatch);
+}
+.cx-settings-hex::placeholder { color: var(--dim); }
+.cx-settings-hex:hover { background: var(--wash-strong); }
+.cx-settings-hex:focus { box-shadow: inset calc(6 * var(--u)) 0 0 var(--swatch), inset 0 0 0 calc(3 * var(--u)) var(--paper); }
+.cx-settings-hex.is-selected { background: var(--paper); color: var(--ink); }
+
 .cx-settings-swatch-name {
     min-width: 7ch;
     color: var(--muted);

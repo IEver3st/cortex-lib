@@ -53,6 +53,15 @@ local profile = api.getPresentation().profile
 assert(profile.accent == '#9bbcd3' and profile.opacity == 65 and profile.motion == 'reduced' and profile.layout == false,
     'profile follows the Cortex tab values and clamps opacity')
 assert(profile.independent == nil, 'retired independent keys are ignored')
+-- A custom accent is used as typed when ink reads on it, and lightened when it would not.
+lib.getSetting = function(key) if key == 'dynamic_accent' then return '#ff5a36' end end
+events['cortex-lib:settingChanged']('dynamic_accent')
+assert(api.getPresentation().profile.accent == '#ff5a36')
+lib.getSetting = function(key) if key == 'dynamic_accent' then return '#10204a' end end
+events['cortex-lib:settingChanged']('dynamic_accent')
+local lightened = api.getPresentation().profile.accent
+assert(lightened ~= '#10204a' and lightened:match('^#%x%x%x%x%x%x$') and tonumber(lightened:sub(6, 7), 16) > 0x4a,
+    'a dark custom accent is lightened until ink text reads on it')
 lib.getSetting = function() return nil end
 events['cortex-lib:settingChanged']('dynamic_accent')
 assert(api.getPresentation().profile.accent == '#8fcbbf', 'discard must restore profile')

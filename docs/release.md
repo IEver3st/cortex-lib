@@ -1,49 +1,41 @@
-# Release preparation: 2.2.1
+# Runtime acceptance
 
-This is a local release candidate from the working tree. No commit, tag or public release was created during this preparation. On September 24, 2026, GitHub's latest published library release was 2.2.0; 2.2.1 was available as a new version. Recheck tags before publishing.
+The release workflow validates source, runs Node contract tests and Lua specs, packages the runtime and customer docs, then checks the extracted ZIP before publishing. It also downloads the published assets and verifies their checksum and bytes. See [automatic releases](automatic-releases.md) for versioning and publication rules.
 
-PolCam's current 1.0.2 source needs this candidate's `presentation-client.lua`, shared Dynamic UI assets and font. Those files are absent from the library's 2.2.0 tag. Publish or supply the matching library package with PolCam; do not direct these customers to an older dependency ZIP.
+FiveM, CEF, native input, multiplayer and resource performance remain user-run checks. No static test or browser fixture establishes those results.
 
-## Defaults
+## Install the artifact
 
-- Quick menu: disabled. Only the server can enable it with `setr cortex_pause_replace_native 1`; use `0` to disable it. No player preference can override the server. The command also takes effect live.
-- Notification position: top-right. Notification audio: enabled, MP Idle Kick preset.
-- Diagnostic workbench and its server callback: disabled. Enable only for development with `setr cortex_debug 1` before startup; remove the override after testing.
-- The legacy `/cortex` demo script is excluded from the manifest and runtime archive.
+Download `cortex-lib.zip` and `cortex-lib.zip.sha256` from the release being tested. Verify SHA-256, extract the single `cortex-lib` folder onto a test server, and follow the shipped README. Start the library before consumers. Use the complete archive, not files from the development checkout.
 
-Saved client KVP preferences and FiveM keybindings take precedence over defaults. Installing an archive does not erase them. Use a fresh client profile when checking first-install defaults, or adjust preferences in `/cortexsettings`. No database migration is required.
+Default configuration:
 
-## Install
+```cfg
+setr cortex_pause_replace_native 0
+setr cortex_debug 0
+ensure cortex-lib
+ensure your-resource
+```
 
-Extract the archive as one `cortex-lib` folder. Add `ensure cortex-lib` before its consumers. The bundled HTML, JavaScript, CSS, React runtime and font are ready to serve; there is no frontend build or CDN dependency.
+Saved client preferences and FiveM bindings survive updates. Check first-install defaults with a fresh client profile, or record which preferences were already saved.
 
-Runtime archives contain the manifest, Lua entrypoints/modules, UI, customer README files and license notices. Developer documentation, tests, tools, agent context, package-manager files and Git metadata are excluded. Source checks run before packaging; the extracted archive is checked separately.
+## Acceptance checklist
 
-The custom binding editor, metadata bridge, managed-binding APIs and control catalog have been removed. Cortex Settings contains only library and script preferences. The optional quick menu retains a native Key bindings shortcut. The debug mash specimen uses its own native FiveM mapping. Old custom-editor client KVP records are no longer read; they are not deleted or migrated into native bindings.
+These items are **pending** until the tester records results for the exact archive:
 
-The release workflow publishes on a push to `main` or `master` when the manifest's version tag does not yet exist. Commit all required runtime files, including newly added assets, together. Do not push the release commit until runtime acceptance is complete. A working-tree candidate is not yet a reproducible tagged release.
+- [ ] Clean startup: library, then consumers; no missing packfile assets, loader errors or server/F8 errors.
+- [ ] Settings: open `/cortexsettings`; preview scale and a custom accent; Apply, Save, Discard and Escape; reopen and reconnect to check persistence. Native blur and NUI focus must clear on every close and stop path.
+- [ ] Notifications, menus, radial menus and dialogs: representative success, cancellation and invalid-input paths; keyboard/mouse navigation; focus returns to gameplay.
+- [ ] Progress and skill checks: completion, cancellation and interruption; no stuck controls or overlays.
+- [ ] Quick menu: default Escape behavior with the switch off; enable it using `setr cortex_pause_replace_native 1`; test map and native bindings; disable it while open and confirm the settings handoff.
+- [ ] Interactions: screen, world, entity and entity-bone anchors; range and off-screen transitions; entity deletion and model reuse; key collisions; markers and merged-list selection; press, hold and cancellation.
+- [ ] Lifecycle: restart `cortex-lib`, then consumers, with a surface previously open; stop a consumer with prompts or settings registered; confirm cleanup and registration after restart.
+- [ ] Layout: normal and alternate resolution/aspect ratio, safe zone, UI scale and text size; transparent backing and readable surfaces.
+- [ ] Callbacks and optional integrations: two clients for changed network behavior; `groups` with `cortex-phone` running and stopped; replay telemetry with and without network control when used by consumers.
+- [ ] Performance: record idle and active resmon for the tested flows. Publish only measured results with their conditions.
 
-## User-run acceptance
+For development specimens, temporarily set `cortex_debug 1` before restarting and use `/cortexdebug`. Disable it afterward. Do not add the legacy `tests/client/debug_commands.lua` to a production manifest.
 
-Static checks cannot establish a clean FiveM installation. On an isolated server/client profile:
+## Record the result
 
-1. Start the extracted resource, then consumers, and check F8/server logs for missing files or startup errors.
-2. With the default config, confirm Escape retains the native/other pause menu. Open `/cortexsettings`: check the blurred game background, no back arrow or game/keybinding tabs, and preview, Apply, Discard, Save and Escape behavior. Verify focus and blur clear on close.
-3. Enable the quick menu from the server console with `setr cortex_pause_replace_native 1`. Check Escape, map and native keybindings, then disable it while open with value `0`. It must show only Cortex Settings. Players must have no quick-menu toggle.
-4. Confirm `/cortexdebug` is unavailable with the default config. On a development server, enable it, restart, run representative menu, interaction and skill checks, then disable it again.
-5. Restart `cortex-lib`, then consumers, while menus or interactions are active. Check cleanup, focus recovery and registration after restart.
-6. Check transparent NUI backing and layout at your normal resolution/safe-zone settings. Verify active and idle resource cost in game.
-
-For the PolCam dependency gate:
-
-1. Install the exact library archive alongside the matching PolCam candidate. Start `cortex-lib`, then `cortex-polcam`; no other Cortex resource should be necessary for its settings or shared presentation.
-2. Open the PolCam settings page. Preview contrast and target-label changes, Discard, then change and Save. Reopen and reconnect to check persistence. Confirm focus returns to the game each time.
-3. In a supported helicopter, open and close the camera, check its shared font and overlays, and trigger a normal notification. Test Escape with the quick menu enabled and with `cortex_pause_replace_native 0`.
-4. Restart the library, then PolCam, with the camera or settings previously active. Check registration, overlays, input and error logs afterward.
-5. Use two clients to confirm PolCam camera handoff, spotlight synchronization and cleanup. PolCam's gameplay/server checks are separate from library readiness.
-
-For shared interactions, use the opt-in workbench: screen, world, entity and entity-bone prompts; range and off-screen transitions; entity deletion/model reuse; key collisions; press, hold and cancel; resolution/safe-zone changes; consumer stop cleanup. Record unavailable scenarios rather than treating them as passed.
-
-Record the ZIP SHA-256, server/game build, resolution/safe zone, consumers, test date and pass/fail results with any console errors. The archive that passes is the one to publish. If source files change afterward, rebuild and repeat the affected checks.
-
-Framework integrations, multiplayer behavior and live CEF rendering still require your environment. Keep the archive checksum with the runtime acceptance record; publish only the artifact that passes those checks.
+Keep the release tag, source SHA, ZIP SHA-256, server/game build, consumers and their versions, test date, resolution, safe zone, pass/fail results and console errors together. Mark unavailable cases as untested. If runtime files change, rebuild and repeat the affected cases against the new archive.

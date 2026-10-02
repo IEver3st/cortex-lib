@@ -8,12 +8,14 @@ For installation and player settings, read the [customer guide](../README.md). T
 | :--- | :---: | :--- |
 | `notify` | client | HUD toasts, progress bars, alert dialogs, text UI and helpers (`success`, `error`, `info`) |
 | `callback` | shared | Promise-style client ↔ server RPC with `await` support |
+| `groups` | server | Crew and group-job helpers over cortex-phone (members, jobs board, stages, payouts); nil-safe when the phone is stopped |
 | `menu` | client | Keyboard and mouse NUI menus with nested options |
 | `radial` | client | Radial menu picked by direction, with pages and nested submenus |
 | `zones` | client | Poly, box and sphere zones — `onEnter`, `onExit`, `inside` |
 | `points` | client | Distance-based point triggers — `onEnter`, `onExit`, `nearby` |
 | `raycast` | client | Camera and coordinate raycasts |
 | `getters` | client | Closest / nearby player, vehicle, ped and object queries |
+| `vehicleReplay` | client | Shared wheel-speed and suspension telemetry for Director and Rewind |
 | `disablecontrols` | client | Instance-based control locks (movement, combat, vehicle, mouse) |
 | `help` | client | GTA-style controls legend (label + keycaps) at the bottom-right of the safe zone |
 | `interaction` | client | Owner-scoped screen and world prompt registry + 3D NUI renderer |
@@ -172,6 +174,44 @@ CreateThread(function()
   print(json.encode(data))
 end)
 ```
+
+### Groups (server)
+
+`lib.groups` wraps the cortex-phone group exports for job scripts. Crews form in the phone's Groups app; your job registers on its jobs board and the crew leader starts it. While cortex-phone is stopped, queries return `nil`, `{}` or `0` and mutations return `false, 'phone_unavailable'`, so your resource can start in any order. cortex-phone remains the authority for membership, job ownership and payouts; see its `APP_API.md` for limits.
+
+```lua
+lib.groups.registerJob('armoured_truck', {
+  label = 'Armoured truck', description = 'Stop the truck and empty it before the cops arrive.',
+  icon = 'bank', color = '#30d158', category = 'Heist', payout = 'Up to $4,000 each',
+  minMembers = 2, maxMembers = 4, requireReady = true, maxActive = 1, -- extra crews queue
+}, {
+  onStart = function(groupId, members)
+    if not enoughPolice() then return false, 'Not enough police in the city.' end
+    lib.groups.setStage(groupId, { title = 'Find the truck', subtitle = 'Route 68', progress = 0 })
+    lib.groups.setWaypoint(groupId, { x = 1203.4, y = 2650.1, z = 37.8, label = 'Truck route' })
+    return true
+  end,
+  onMemberLeft = function(groupId, member, reason) end, -- 'left', 'kicked', 'dropped', 'job'
+  onEnd = function(groupId, result) cleanup(groupId) end, -- abandoned, disbanded or crew too small
+})
+
+-- Later, after your own server checks:
+lib.groups.pay(groupId, { amount = 8000, split = true, account = 'cash', reason = 'Armoured truck', id = 'final' })
+lib.groups.endJob(groupId, { success = true, summary = 'Clean getaway.' })
+```
+
+| Function | Returns |
+| --- | --- |
+| `get(groupIdOrSource)`, `getPlayerGroup(source)` | Group table or `nil` |
+| `getMembers(groupIdOrSource)` | Members with `citizenid`, `name`, `number`, `source` (nil offline), `online`, `leader`, `ready`, `participant` |
+| `getSources(groupIdOrSource, participantsOnly?)` | Online server IDs, for `TriggerClientEvent` |
+| `getSize(groupIdOrSource)` | Active members, online members |
+| `isLeader(source, groupId?)`, `getJob(groupIdOrSource)`, `getPlayerGroups(source)` | Leader flag, running/queued job, summaries |
+| `registerJob(id, definition, handlers)`, `unregisterJob(id)`, `setJobAvailable(id, available, reason?)`, `startJob(groupId, jobId)` | `ok, reason` |
+| `setStage`, `setWaypoint`, `clearWaypoint`, `setBlip`, `addObjective`, `setObjective`, `notify`, `endJob`, `pay` | `ok` (`pay` also returns `{ paid, failed, each }`) |
+| `on(event, handler)` | Listens to `memberJoined`, `memberLeft`, `memberRejoined`, `leaderChanged`, `disbanded`, `jobQueued`, `jobStarted`, `jobEnded` |
+
+Only the resource that registered a job can change its runs. `registerJob` stores the definition and registers it again when cortex-phone restarts.
 
 ### Zones & Points
 
@@ -461,7 +501,7 @@ Settings are stored per-client with `SetResourceKvp` / `GetResourceKvpString` un
 | --- | --- | --- | --- | --- |
 | Interface | Interface size (`uiScale`) | 100 % | Slider 80-130 % | Scales every Cortex prompt, menu and notification. Previews on release. |
 | Interface | Text size (`textSize`) | Standard | Standard / Large | Larger body text in menus, dialogs and notifications. |
-| Interface | Shared accent (`dynamic_accent`) | Mint | Colour swatches | Highlight colour in every Cortex interface. |
+| Interface | Shared accent (`dynamic_accent`) | Mint | Colour swatches + hex | Highlight colour in every Cortex interface. Five presets, or any `#rrggbb`; a colour too dark for ink text is lightened. |
 | Interface | Surface opacity (`dynamic_opacity`) | 92 % | Slider 65-100 % | How solid menus and panels look. |
 | Interface | Motion (`dynamic_motion`) | System | System / Reduced / Full | Follows the OS preference or forces reduced/full animation. |
 | Interface | Avoid overlapping overlays (`dynamic_layout`) | On | Toggle | Moves notifications and prompts aside from chat, the HUD and each other. |
@@ -622,6 +662,30 @@ boundaries, compatibility evidence, and the user-run checks.
 
 ---
 
+## Vehicle replay telemetry
+
+`local replay = lib.vehicleReplay` loads the same client utility in Director and
+Rewind. Loading it starts no worker. `replay.capture(vehicle)` only reads state
+and returns `frame, wheelCount`, bounded to ten actual wheels. The flat frame
+contains ten angular speeds followed by ten suspension-compression readings;
+`frame.count` is the captured count. Unsupported/missing compression is `-1`.
+
+`replay.interpolate(a, b, fraction)` interpolates this frame. Missing compression
+holds its sentinel rather than blending into a real value.
+`replay.copy(frame, output, offset, rate)` optionally scales angular speeds by
+the playback rate; compression is never scaled. `replay.valid(frame, offset)`
+checks the numeric fields. Offsets let Director use the same code in its flat
+track storage.
+
+`replay.apply(vehicle, frame, rate, wheelCount, offset)` writes only dedicated
+wheel angular speeds, bounded by the current vehicle's actual wheel count and
+network ownership. Use `0` for paused spin and a negative rate for reverse.
+It does not write wheel geometry or suspension. Cfx exposes
+[suspension compression readings](https://github.com/citizenfx/fivem/blob/master/ext/native-decls/GetVehicleWheelSuspensionCompression.md)
+but no corresponding per-wheel setter; captured readings are telemetry, not
+exact suspension playback. `replay.dent(vehicle, dent, force)` is the shared
+bounded-impact primitive used by the existing damage workers.
+
 ## How It Works
 
 **Lazy loading** — `lib` is a metatable with `__index` / `__call`. Consumer-local modules are loaded from `imports/<module>/<context>.lua` once and cached; shared files (`shared.lua`) are prepended automatically. UI-backed modules and direct client utilities resolve to cortex-lib exports so callbacks, NUI messages, focus and owner cleanup stay in the resource that owns the shared UI.
@@ -649,4 +713,3 @@ exports['cortex-lib']:notify({ type = 'success', description = 'Hello!' })
 ```
 
 ---
-

@@ -112,11 +112,15 @@ assert(changes[#changes].key == 'invertScroll' and changes[#changes].value == tr
 assert(not call('settingsPreview', { tabId = 'cortex', key = 'uiScale', value = 200 }).ok, 'out-of-range scale rejected')
 assert(not call('settingsPreview', { tabId = 'cortex', key = 'notifyLimit', value = 4 }).ok, 'unlisted limit rejected')
 assert(not call('settingsPreview', { tabId = 'cortex', key = 'promptScale', value = 'huge' }).ok)
-assert(not call('settingsPreview', { tabId = 'cortex', key = 'dynamic_accent', value = '#ff0000' }).ok,
-    'accent is limited to the offered colours')
+for _, bad in ipairs({ 'red', '#ff00', '#ff00000', '#gg0000', 'ff0000', 16711680 }) do
+    assert(not call('settingsPreview', { tabId = 'cortex', key = 'dynamic_accent', value = bad }).ok,
+        'accent is an offered colour or a six-digit hex')
+end
 assert(kvp['cortex:uiScale'] == '400', 'preview never persists')
 local messagesBeforeAccent = #messages
 assert(call('settingsPreview', { tabId = 'cortex', key = 'dynamic_accent', value = '#9bbcd3' }).ok)
+assert(call('settingsPreview', { tabId = 'cortex', key = 'dynamic_accent', value = '#FF5A36' }).ok, 'a custom hex accent is accepted')
+assert(api.getSetting('dynamic_accent') == '#ff5a36', 'and stored lowercase')
 assert(#messages == messagesBeforeAccent, 'appearance keys travel through the presentation profile, not prefs')
 assert(call('settingsCancel', { session = open.data.session }).ok)
 prefs = lastPrefs()

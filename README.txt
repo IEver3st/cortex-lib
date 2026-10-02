@@ -1,55 +1,50 @@
 CORTEX LIB
 ==========
-Version 2.2.1
-
-Shared settings, notifications, menus and UI utilities for Cortex scripts.
-Install it once and start it before every script that requires it.
+Shared UI and Lua utilities for FiveM resources.
+Maintained by Ever3st and GSD Modifications. MIT license.
 
 INSTALL
 -------
-1. Extract the complete resource into your server's resources directory.
-   Keep the folder named cortex-lib, with fxmanifest.lua directly inside.
-2. Add this to server.cfg before your dependent scripts:
+Download cortex-lib.zip from:
+https://github.com/IEver3st/cortex-lib/releases
 
-   ensure cortex-lib
+Extract the complete cortex-lib folder into resources. Keep the exact name,
+with fxmanifest.lua directly inside. Add this order to server.cfg:
 
-3. Start your dependent scripts after it. For PolCam, for example:
-
-   ensure cortex-polcam
+    ensure cortex-lib
+    ensure your-resource
 
 No framework, database or frontend build is required by the library itself.
-Use the library version required by your script. PolCam 1.0.2 needs 2.2.1;
-the older 2.2.0 package lacks its shared presentation files.
+The optional groups module needs cortex-phone for group operations.
 
-SETTINGS AND CONTROLS
---------------------
-  /cortexsettings   Open settings for the library and compatible scripts.
-  /cortexpause      Open the quick menu if enabled; otherwise open settings.
-  /cortexnative     Open GTA's native map/pause menu.
+SETTINGS
+--------
+/cortexsettings opens shared settings. Apply saves without closing.
+Save & Resume saves and closes. Discard & Resume and unsaved Escape restore
+values from opening or the latest Apply. Preferences are stored per client.
 
-Use GTA's native keybinding editor for script controls.
-Cortex Settings contains only library and script preferences. Escape closes
-it; there is no back arrow, game-settings tab or keybinding link.
+The quick menu is disabled by default. To enable it, put this before startup:
 
-The quick menu is OFF by default. Only the server owner can enable it.
-To use it, put this BEFORE ensure cortex-lib in server.cfg:
+    setr cortex_pause_replace_native 1
 
-   setr cortex_pause_replace_native 1
+Use 0 to disable it. /cortexpause opens the enabled quick menu or settings.
+/cortexnative opens the native map/pause frontend when input is available.
+Keep setr cortex_debug 0 on a normal server.
 
-Set it to 0 to disable it. You can also run either command in the server
-console to change it immediately. Save the value in server.cfg for restarts.
-Players have no quick-menu toggle. No library Lua edits are needed.
-Player preferences are saved locally. Apply saves without closing;
-Save & Resume saves and closes; Discard & Resume cancels unsaved changes.
+UPDATING TO 3.0
+---------------
+The UI app API and cortex:uiEvent callback are removed. Update consumers
+that use them first. Shared appearance moved into the Cortex settings tab;
+the separate Dynamic UI tab and per-resource appearance opt-outs are removed.
+Retained appearance preferences migrate automatically. No SQL migration.
 
-UPDATING OR TROUBLESHOOTING
---------------------------
-Back up the old version and stop dependent scripts before replacing files.
-Start cortex-lib first, then restart its consumers. Do not mix releases.
+Back up the old folder, stop consumers and replace the whole library.
+Start cortex-lib first, then consumers. Check settings, UI close paths and
+each consumer's main feature. Do not mix files from different releases.
 
-Missing UI or settings: check the folder name, required library version,
-start order, server console and the player's F8 console. A script only gets
-a settings page if it registers one. Keep development diagnostics disabled.
-
-Full instructions and developer reference: README.md
-License: LICENSE (MIT)
+DOCS AND SUPPORT
+----------------
+README.md contains installation, configuration and developer examples.
+API: https://github.com/IEver3st/cortex-lib/blob/main/docs/api.md
+Issues: https://github.com/IEver3st/cortex-lib/issues
+License and bundled component notices: LICENSE and THIRD_PARTY_NOTICES.md

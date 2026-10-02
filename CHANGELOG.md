@@ -1,14 +1,9 @@
 # Changelog
 
-## Unreleased
-
-### Added
-- The presentation adapter also writes `--cx-accent-deep` (the shared accent at mint-deep's lightness) for accent marks on paper.
-
-### Changed
-- The focus tint (`--state-focus-surface`) follows the shared accent instead of fixed mint.
-
 ## 3.0.0
+
+### Action required
+- Update consumers using the removed UI app API before upgrading. Replace the complete library folder, then restart cortex-lib before consumers. No SQL migration is required.
 
 Every shared surface redesigned to `CORTEX-DESIGN.md`; see `DESIGN.md` for the brief behind each one.
 
@@ -22,6 +17,10 @@ Every shared surface redesigned to `CORTEX-DESIGN.md`; see `DESIGN.md` for the b
   prompts share one anatomy). Consumers need no changes.
 
 ### Added
+- Server group-job helpers over cortex-phone, with unavailable-service fallbacks and registration replay after phone restarts.
+- Shared vehicle wheel-speed and suspension telemetry for Director and Rewind.
+- Custom six-digit hex accents alongside the built-in colour presets. Dark accents are lightened for readable ink text.
+- The shared presentation adapter supplies an accent-derived deep colour for marks on paper.
 - Interaction **markers** (a small dot in a ring between `maxDistance` and the new optional
   `anchor.markerDistance`) that grow into the full prompt in range.
 - Merged interaction **lists**: nearby prompts become one GTA-style list; the mouse wheel picks the row that
@@ -39,6 +38,7 @@ Every shared surface redesigned to `CORTEX-DESIGN.md`; see `DESIGN.md` for the b
   reset it). `mash` and `trace` games added to cortex-minigames.
 
 ### Changed
+- Focus tint follows the selected shared accent.
 - NUI split into `ui/core` (tokens, base helpers, shared kit) and one module per surface in `ui/surfaces`.
 - Skill checks restyled to match cortex-minigames.
 - Quick menu: removed the coloured edge glow and hairlines; hints use the shared keycaps.

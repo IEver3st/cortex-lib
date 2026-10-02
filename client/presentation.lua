@@ -76,12 +76,28 @@ end)
 
 -- Shared appearance comes from the Cortex settings tab (imports/settings). Every
 -- participating resource follows it; there is no per-resource opt-out.
+-- The accent carries ink text (selected rows, keycaps, tags). A custom colour
+-- too dark for that is lightened toward paper until ink reads on it.
+local MIN_LUMINANCE = 0.22
+local function readableAccent(hex)
+    local r, g, b = tonumber(hex:sub(2, 3), 16), tonumber(hex:sub(4, 5), 16), tonumber(hex:sub(6, 7), 16)
+    local function linear(channel)
+        channel = channel / 255
+        return channel <= 0.03928 and channel / 12.92 or ((channel + 0.055) / 1.055) ^ 2.4
+    end
+    for _ = 1, 20 do
+        if 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b) >= MIN_LUMINANCE then break end
+        r, g, b = r + (240 - r) * 0.12, g + (240 - g) * 0.12, b + (233 - b) * 0.12
+    end
+    return ('#%02x%02x%02x'):format(math.floor(r + 0.5), math.floor(g + 0.5), math.floor(b + 0.5))
+end
+
 local function refreshProfile()
     local accent = lib.getSetting('dynamic_accent')
     local opacity = tonumber((lib.getSetting('dynamic_opacity')))
     local motion = lib.getSetting('dynamic_motion')
     profile = {
-        accent = type(accent) == 'string' and accent:match('^#%x%x%x%x%x%x$') and accent or '#8fcbbf',
+        accent = type(accent) == 'string' and accent:match('^#%x%x%x%x%x%x$') and readableAccent(accent) or '#8fcbbf',
         opacity = math.max(65, math.min(100, opacity or 92)),
         motion = (motion == 'reduced' or motion == 'full') and motion or 'system',
         layout = lib.getSetting('dynamic_layout') ~= false,

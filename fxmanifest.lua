@@ -4,7 +4,7 @@ game 'gta5'
 name 'cortex-lib'
 author 'Cortex & GSD Modifications'
 version '3.0.0'
-description 'Lightweight UI and utility library for the Cortex ecosystem (module-based)'
+description 'Shared UI and Lua utilities for FiveM resources'
 
 shared_script 'resource/init.lua'
 
@@ -77,6 +77,7 @@ files {
     'imports/points/client.lua',
     'imports/raycast/client.lua',
     'imports/getters/client.lua',
+    'imports/vehicleReplay/client.lua',
     'imports/disablecontrols/client.lua',
     'imports/help/client.lua',
     'imports/interaction/client.lua',
@@ -85,6 +86,7 @@ files {
     'imports/settings/client.lua',
     'imports/notify/server.lua',
     'imports/callback/server.lua',
+    'imports/groups/server.lua',
     'imports/timer/shared.lua',
     'imports/waitFor/shared.lua',
     'imports/utils/shared.lua',

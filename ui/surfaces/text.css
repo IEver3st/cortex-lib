@@ -113,8 +113,10 @@
    ============================================================================ */
 
 .cortex-help-bar {
-    --help-edge-x: calc(var(--cx-safezone-x, 0px) + 40 * var(--u));
-    --help-edge-y: calc(var(--cx-safezone-y, 0px) + 36 * var(--u));
+    /* Sits on the safe-zone corner like the native instructional buttons: a
+       small optical margin inside it, never closer than 20u to the screen. */
+    --help-edge-x: max(calc(var(--cx-safezone-x, 0px) + 8 * var(--u)), calc(20 * var(--u)));
+    --help-edge-y: max(calc(var(--cx-safezone-y, 0px) + 8 * var(--u)), calc(20 * var(--u)));
     position: fixed;
     right: var(--help-edge-x);
     bottom: var(--help-edge-y);

@@ -93,8 +93,8 @@
        when hidden); the clamp adds the 18u gap only while it is present. */
     --help-legend: var(--cx-help-legend-height, 0px);
     position: fixed;
-    right: calc(var(--cortex-interaction-safe-right, 0px) + 40 * var(--u));
-    bottom: calc(var(--cortex-interaction-safe-bottom, 0px) + 36 * var(--u)
+    right: max(calc(var(--cortex-interaction-safe-right, 0px) + 8 * var(--u)), calc(20 * var(--u)));
+    bottom: calc(max(calc(var(--cortex-interaction-safe-bottom, 0px) + 8 * var(--u)), calc(20 * var(--u)))
         + var(--help-legend) + clamp(0px, var(--help-legend) * 1000, 18 * var(--u)));
     z-index: 10003;
     display: flex;

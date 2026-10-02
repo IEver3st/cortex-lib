@@ -1,5 +1,7 @@
 # Automatic releases
 
+As of October 2, 2026, GitHub reports that the account's Actions budget prevents jobs from starting. Automatic publication is blocked until the account owner resolves that limit. The 3.0.0 release was prepared with local source, contract, Lua and extracted-archive checks. Live FiveM acceptance remains user-run.
+
 Commit your changes and push to `main`. GitHub Actions runs the source checks and Lua specs, assigns the next version, validates a runtime ZIP, and publishes it on GitHub Releases. A failed check blocks publication. Feature branches do not publish; pull requests to `main` run validation.
 
 Customers can always download the current package here:
