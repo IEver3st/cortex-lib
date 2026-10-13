@@ -4,10 +4,17 @@ Shared UI and Lua utilities for FiveM resources, maintained by Ever3st and GSD M
 
 [![Version 3.3.1](https://img.shields.io/badge/version-3.3.1-blue?style=flat-square)](https://github.com/IEver3st/cortex-lib/releases)
 [![MIT license](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+[![Discord](https://img.shields.io/badge/discord-GSD%20Modifications-5865F2?style=flat-square)](https://discord.gg/Atwt5nxaCV)
+[![Store](https://img.shields.io/badge/store-gsd--modifications.tebex.io-6e8ffa?style=flat-square)](https://gsd-modifications.tebex.io/)
 
 ![Cortex Lib: menus, radial menus and interaction prompts](https://raw.githubusercontent.com/IEver3st/cortex-lib/main/marketing/2026-09-27/final/01-cortex-lib.png)
 
 **[Download cortex-lib.zip](https://github.com/IEver3st/cortex-lib/releases/latest/download/cortex-lib.zip)** · [Release notes](https://github.com/IEver3st/cortex-lib/releases) · [API reference](https://github.com/IEver3st/cortex-lib/blob/main/docs/api.md) · [Report a problem](https://github.com/IEver3st/cortex-lib/issues)
+
+> [!TIP]
+> **Made by GSD Modifications.** Get the paid Cortex scripts (PolCam, HUD, Chat, Rewind and more) at
+> **[gsd-modifications.tebex.io](https://gsd-modifications.tebex.io/)**, and get help in our
+> [Discord](https://discord.gg/Atwt5nxaCV). Also free: [Cortex Minigames](https://github.com/IEver3st/cortex-minigames), twelve skill checks and QTEs.
 
 Install the library once and start it before the scripts that use it. The release ZIP includes the interface, React runtime and fonts. Server owners need no frontend tools or build step.
 
@@ -172,15 +179,6 @@ Pushes to `main` run contract tests, Lua specs and archive validation before the
 | Input stays captured | Record the surface and close action, check F8, then restart the library and affected consumer. |
 
 [Open an issue](https://github.com/IEver3st/cortex-lib/issues) with the library and consumer versions, start order, reproduction steps and exact console errors. For layout problems, include resolution, safe zone and a screenshot. Remove credentials and private player or server details from logs. Consumer gameplay and permissions belong to that resource's author.
-
-## More from GSD Modifications
-
-cortex-lib is the shared base of the Cortex range. The same team makes paid FiveM scripts,
-including Cortex PolCam, HUD, Chat and Rewind, and the free
-[Cortex Minigames](https://github.com/IEver3st/cortex-minigames) skill-check resource.
-
-- Store: [gsd-modifications.tebex.io](https://gsd-modifications.tebex.io/)
-- Discord: [discord.gg/Atwt5nxaCV](https://discord.gg/Atwt5nxaCV)
 
 ## License
 
