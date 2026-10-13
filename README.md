@@ -173,6 +173,15 @@ Pushes to `main` run contract tests, Lua specs and archive validation before the
 
 [Open an issue](https://github.com/IEver3st/cortex-lib/issues) with the library and consumer versions, start order, reproduction steps and exact console errors. For layout problems, include resolution, safe zone and a screenshot. Remove credentials and private player or server details from logs. Consumer gameplay and permissions belong to that resource's author.
 
+## More from GSD Modifications
+
+cortex-lib is the shared base of the Cortex range. The same team makes paid FiveM scripts,
+including Cortex PolCam, HUD, Chat and Rewind, and the free
+[Cortex Minigames](https://github.com/IEver3st/cortex-minigames) skill-check resource.
+
+- Store: [gsd-modifications.tebex.io](https://gsd-modifications.tebex.io/)
+- Discord: [discord.gg/Atwt5nxaCV](https://discord.gg/Atwt5nxaCV)
+
 ## License
 
 [MIT](LICENSE), copyright 2026 Ever3st. Bundled React and Barlow Condensed retain their licenses; see [Third-party notices](THIRD_PARTY_NOTICES.md). Consumer resources may have different terms.
