@@ -162,6 +162,10 @@ function Wait()
     error('__frame_complete__')
 end
 
+-- Each frame reads the clock once; a 1s step keeps distance culling (at most
+-- 500ms) out of these projection fixtures.
+local fakeClock = 0
+GetGameTimer = GetGameTimer or function() fakeClock = fakeClock + 1000; return fakeClock end
 dofile('client/interaction_renderer.lua')
 
 local readyResponse = nil
@@ -223,10 +227,12 @@ assert(presentationStates['cortex-hud:vehicle-door'].visible == true)
 assert(presentationStates['cortex-subtleadditions:wallet'].visible == true)
 assert(boneLookups == 1, 'the entity bone should be resolved once for a stable entity model')
 
+-- Full frames and position-only moves are both world updates.
 local function countWorldMessages()
     local count = 0
     for index = 1, #messages do
-        if messages[index].action == 'interaction:world' then
+        local action = messages[index].action
+        if action == 'interaction:world' or action == 'interaction:worldMove' then
             count = count + 1
         end
     end
@@ -284,6 +290,9 @@ projectedX = 0.56
 ok, err = pcall(threads[2])
 assert(not ok and tostring(err):find('__frame_complete__', 1, true), tostring(err))
 assert(countWorldMessages() == worldMessages + 1, 'a moved projected frame must be sent to NUI')
+local moved = messages[#messages]
+assert(moved.action == 'interaction:worldMove' and moved.data.p[1] == 0.56 and #moved.data.p == 6,
+    'a position-only change sends positions, not every item definition')
 
 projectedX = 0.56 + (0.2 / 1920)
 ok, err = pcall(threads[2])
@@ -301,16 +310,24 @@ ok, err = pcall(threads[2])
 assert(not ok and tostring(err):find('__frame_complete__', 1, true), tostring(err))
 assert(boneLookups == 1, 'presentation updates should preserve the bone cache for the same entity and bone')
 
+-- The anchor model is re-read every 15 frames, so a change lands within 15.
+local function runUntil(condition)
+    for _ = 1, 15 do
+        ok, err = pcall(threads[2])
+        assert(not ok and tostring(err):find('__frame_complete__', 1, true), tostring(err))
+        if condition() then return true end
+    end
+    return false
+end
+
 entityModel = 1002
-ok, err = pcall(threads[2])
-assert(not ok and tostring(err):find('__frame_complete__', 1, true), tostring(err))
-assert(boneLookups == 2, 'entity model changes must invalidate and rebuild the bone cache')
+assert(runUntil(function() return boneLookups == 2 end),
+    'entity model changes must invalidate and rebuild the bone cache within 15 frames')
 
 resolvedBoneIndex = -1
 entityModel = 1003
-ok, err = pcall(threads[2])
-assert(not ok and tostring(err):find('__frame_complete__', 1, true), tostring(err))
-assert(boneLookups == 3, 'a missing bone must be revalidated after a model change')
+assert(runUntil(function() return boneLookups == 3 end),
+    'a missing bone must be revalidated after a model change')
 
 resolvedBoneIndex = 2
 ok, err = pcall(threads[2])
@@ -318,8 +335,7 @@ assert(not ok and tostring(err):find('__frame_complete__', 1, true), tostring(er
 assert(boneLookups == 4, 'a transient missing bone must be retried without another model change')
 
 walletModel = 2002
-ok, err = pcall(threads[2])
-assert(not ok and tostring(err):find('__frame_complete__', 1, true), tostring(err))
-assert(presentationStates['cortex-subtleadditions:wallet'].visible == false, 'entity model reuse must hide the prompt')
+assert(runUntil(function() return presentationStates['cortex-subtleadditions:wallet'].visible == false end),
+    'entity model reuse must hide the prompt within 15 frames')
 
 print('interaction renderer projection tests passed')

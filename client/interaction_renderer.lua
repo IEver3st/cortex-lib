@@ -29,7 +29,10 @@ local PlayerPedId = PlayerPedId
 local SendNUIMessage = SendNUIMessage
 local Wait = Wait
 local World3dToScreen2d = World3dToScreen2d
+local GetGameTimer = GetGameTimer
 local playerCache = lib.cache
+-- Opt-in capture labels (client/profile.lua); nil outside the game.
+local profile = rawget(lib, '_profile')
 
 -- Prompts within this fraction of screen height of a list head merge into it.
 local LIST_MERGE_RATIO = 0.06
@@ -37,9 +40,10 @@ local LIST_MERGE_RATIO = 0.06
 local MARKER_MERGE_RATIO = 0.035
 local MAX_WORLD_ITEMS = 16
 
--- Adaptive cadence. A visible prompt, hold or focused list is tracked every
--- frame. Markers are small and faded, so they move at ~30 Hz (the NUI eases
--- the steps). Nothing in range at all polls slowly by distance.
+-- Adaptive cadence. Anything on screen, markers included, is tracked every
+-- frame: a marker updated at a lower rate trails the camera and swims when it
+-- turns. Anchors in range but off screen are checked at ~30 Hz, and nothing
+-- in range at all polls slowly by distance.
 local MARKER_WAIT_MS = 33
 local IDLE_NEAR_WAIT_MS = 50
 local IDLE_FAR_WAIT_MS = 250
@@ -62,9 +66,34 @@ local lastWidth = -1
 local lastHeight = -1
 local lastScreenItems = nil
 local worldInteractions = {}
+-- Entity reads are shared only within one renderer pass. Definitions bind
+-- their scratch slots during refresh, so lists at the same entity/bone/offset
+-- do not repeat natives or allocate lookup tables on every frame.
+local worldEntityReads = {}
 local worldFrameItems = {}
 local worldFrameMessage = { action = 'interaction:world', data = { items = worldFrameItems } }
 local emptyWorldFrameMessage = { action = 'interaction:world', data = { items = {} } }
+-- While only positions move (camera turn, walking), the NUI gets a flat
+-- [x, y, distance, ...] array for its current items instead of every item's
+-- full definition. Each NUI message is costly; its size is the part we control.
+local worldPositions = {}
+local worldMoveMessage = { action = 'interaction:worldMove', data = { p = worldPositions } }
+-- An anchor entity's model is re-checked every this many frames (~250ms at 60
+-- FPS); handle reuse by a different model hides the prompt within that window.
+local MODEL_CHECK_FRAMES = 15
+-- An anchor found beyond its outer range is not resolved again until it could
+-- have closed the gap at this relative speed (m/ms, i.e. 100 m/s), so far
+-- registrations stop costing natives every frame. Capped so a stale skip is
+-- short.
+local CULL_SPEED_M_PER_MS = 0.1
+local CULL_MAX_MS = 500
+-- Each SendNUIMessage costs ~150 us regardless of size, so position-only
+-- updates go out at most about 60 times a second (every other frame at
+-- 110 FPS; every frame at 60 FPS and below). Structural changes are never
+-- held back, and a held move is sent on the next allowed frame because the
+-- comparison is always against what was last sent.
+local MOVE_SEND_INTERVAL_MS = 15
+local frameNow, lastMoveSentAt = 0, nil
 local frameDescriptors = {}
 local lastFrameDescriptors = {}
 local lastWorldCount = 0
@@ -76,6 +105,10 @@ local startWorldWorker
 -- Player preferences (Cortex settings tab). nil means default.
 local markersEnabled = true
 local invertScroll = false
+
+-- Character select (LocalPlayer.state.cortexCharacterSelect) hides every
+-- prompt and marker; entries stay registered and return when it clears.
+local suppressed = LocalPlayer and LocalPlayer.state and LocalPlayer.state.cortexCharacterSelect == true or false
 
 -- List selection and registry preference, by descriptor key (never handles).
 local selectedKey = nil
@@ -318,6 +351,7 @@ local function sendCurrentInteractions(force)
     local items = lib.getInteractions and select(1, lib.getInteractions()) or {}
     local screenItems = {}
     local nextWorldInteractions = {}
+    local nextEntityReads = {}
     local previousWorldByKey = {}
     local nextWorldByKey = {}
     -- The natural (priority) owner of each key, ignoring the list preference.
@@ -337,13 +371,52 @@ local function sendCurrentInteractions(force)
             naturalWinners[keyUpper] = type(item.anchor) == 'table' and (item.owner .. '\0' .. item.id) or false
         end
 
-        if type(item.anchor) == 'table' then
+        if suppressed then
+            setPresentationState(item, false)
+        elseif type(item.anchor) == 'table' then
             -- Anchored entries are projected even when they lose arbitration:
             -- they can appear as list rows or markers, never as a pressable
             -- prompt of their own.
             local descriptorKey = item.owner .. '\0' .. item.id
             local descriptor = prepareWorldInteraction(item, previousWorldByKey[descriptorKey])
             if descriptor then
+                if descriptor.entity then
+                    local reads = nextEntityReads[descriptor.entity]
+                    if not reads then
+                        reads = { offsets = {}, bones = {} }
+                        nextEntityReads[descriptor.entity] = reads
+                    end
+                    descriptor.entityReads = reads
+
+                    if descriptor.hasOffset then
+                        local offsetReads
+                        for offsetIndex = 1, #reads.offsets do
+                            local offset = reads.offsets[offsetIndex]
+                            if offset.x == descriptor.offsetX and offset.y == descriptor.offsetY
+                                and offset.z == descriptor.offsetZ
+                            then
+                                offsetReads = offset
+                                break
+                            end
+                        end
+                        if not offsetReads then
+                            offsetReads = {
+                                x = descriptor.offsetX, y = descriptor.offsetY, z = descriptor.offsetZ,
+                            }
+                            reads.offsets[#reads.offsets + 1] = offsetReads
+                        end
+                        descriptor.offsetReads = offsetReads
+                    end
+
+                    if descriptor.bone then
+                        local boneReads = reads.bones[descriptor.bone]
+                        if not boneReads then
+                            boneReads = {}
+                            reads.bones[descriptor.bone] = boneReads
+                        end
+                        descriptor.boneReads = boneReads
+                    end
+                end
                 descriptor.winnerKey = naturalWinners[keyUpper]
                 descriptor.natural = descriptor.winnerKey == descriptorKey
                 nextWorldInteractions[#nextWorldInteractions + 1] = descriptor
@@ -365,6 +438,7 @@ local function sendCurrentInteractions(force)
     end
 
     worldInteractions = nextWorldInteractions
+    worldEntityReads = nextEntityReads
     worldFrameDirty = true
     clearArray(lastFrameDescriptors)
     lastWorldCount = -1
@@ -439,61 +513,99 @@ local function sendLayout(force)
     })
 end
 
+local function readEntityCoords(entity, reads)
+    if reads.coordsStamp ~= frameStamp then
+        reads.coords = GetEntityCoords(entity)
+        reads.coordsStamp = frameStamp
+    end
+    return reads.coords
+end
+
+local function readEntityOffset(descriptor)
+    local reads = descriptor.offsetReads
+    if reads.stamp ~= frameStamp then
+        reads.coords = GetOffsetFromEntityInWorldCoords(
+            descriptor.entity, descriptor.offsetX, descriptor.offsetY, descriptor.offsetZ
+        )
+        reads.stamp = frameStamp
+    end
+    return reads.coords
+end
+
 local function resolveAnchor(descriptor)
     if descriptor.type == 'world' then
         return descriptor.x, descriptor.y, descriptor.z
     end
 
     local entity = descriptor.entity
-    if not DoesEntityExist(entity) then
+    local reads = descriptor.entityReads
+    if reads.existsStamp ~= frameStamp then
+        reads.exists = DoesEntityExist(entity)
+        reads.existsStamp = frameStamp
+    end
+    if not reads.exists then
         descriptor.entityModel = nil
         descriptor.boneIndex = nil
+        descriptor.modelStamp = nil
         return nil
     end
 
-    local entityModel = GetEntityModel(entity)
+    local entityModel = descriptor.modelSeen
+    if not descriptor.modelStamp or frameStamp - descriptor.modelStamp >= MODEL_CHECK_FRAMES
+        or frameStamp < descriptor.modelStamp
+    then
+        -- Keep each descriptor's existing model-check schedule. Only coalesce
+        -- requests made in this pass, never extend the 15-pass freshness window.
+        if reads.modelStamp ~= frameStamp then
+            reads.model = GetEntityModel(entity)
+            reads.modelStamp = frameStamp
+        end
+        entityModel = reads.model
+        descriptor.modelSeen = entityModel
+        descriptor.modelStamp = frameStamp
+    end
     if descriptor.expectedModel and descriptor.expectedModel ~= entityModel then return nil end
 
     if descriptor.type == 'entity' then
         local coords
         if descriptor.hasOffset then
-            coords = GetOffsetFromEntityInWorldCoords(
-                entity,
-                descriptor.offsetX,
-                descriptor.offsetY,
-                descriptor.offsetZ
-            )
+            coords = readEntityOffset(descriptor)
         else
-            coords = GetEntityCoords(entity)
+            coords = readEntityCoords(entity, reads)
         end
 
         if not coords then return nil end
         return coords.x, coords.y, coords.z
     end
 
+    local boneReads = descriptor.boneReads
     if descriptor.boneIndex == nil or descriptor.entityModel ~= entityModel then
         descriptor.entityModel = entityModel
-        local boneIndex = GetEntityBoneIndexByName(entity, descriptor.bone)
+        if boneReads.lookupStamp ~= frameStamp then
+            boneReads.index = GetEntityBoneIndexByName(entity, descriptor.bone)
+            boneReads.lookupStamp = frameStamp
+        end
+        local boneIndex = boneReads.index
         descriptor.boneIndex = boneIndex ~= -1 and boneIndex or nil
     end
 
     local boneIndex = descriptor.boneIndex
     if boneIndex == nil then return nil end
 
-    local coords = GetEntityBonePosition_2(entity, boneIndex)
+    if boneReads.positionStamp ~= frameStamp or boneReads.positionIndex ~= boneIndex then
+        boneReads.coords = GetEntityBonePosition_2(entity, boneIndex)
+        boneReads.positionStamp = frameStamp
+        boneReads.positionIndex = boneIndex
+    end
+    local coords = boneReads.coords
     if not coords then return nil end
 
     if not descriptor.hasOffset then
         return coords.x, coords.y, coords.z
     end
 
-    local entityCoords = GetEntityCoords(entity)
-    local offsetCoords = GetOffsetFromEntityInWorldCoords(
-        entity,
-        descriptor.offsetX,
-        descriptor.offsetY,
-        descriptor.offsetZ
-    )
+    local entityCoords = readEntityCoords(entity, reads)
+    local offsetCoords = readEntityOffset(descriptor)
     if not entityCoords or not offsetCoords then return coords.x, coords.y, coords.z end
 
     return coords.x + offsetCoords.x - entityCoords.x,
@@ -501,12 +613,14 @@ local function resolveAnchor(descriptor)
         coords.z + offsetCoords.z - entityCoords.z
 end
 
+-- Returns a ped that exists, or nil. The cache can trail a respawn or model
+-- swap by up to 100ms, so a stale handle falls back to PlayerPedId.
 local function getPlayerPed()
     local ped = playerCache and playerCache.ped or nil
-    if type(ped) ~= 'number' or ped <= 0 or not DoesEntityExist(ped) then
-        ped = PlayerPedId()
-    end
-    return ped
+    if type(ped) == 'number' and ped > 0 and DoesEntityExist(ped) then return ped end
+    ped = PlayerPedId()
+    if type(ped) == 'number' and ped > 0 and DoesEntityExist(ped) then return ped end
+    return nil
 end
 
 local function isFiniteNumber(value)
@@ -516,11 +630,13 @@ local function isFiniteNumber(value)
         and value ~= -math_huge
 end
 
+local function readCoords(coords)
+    return coords.x, coords.y, coords.z
+end
+
 local function finiteCoords(coords)
     if coords == nil then return nil end
-    local ok, x, y, z = pcall(function()
-        return coords.x, coords.y, coords.z
-    end)
+    local ok, x, y, z = pcall(readCoords, coords)
     if not ok or not isFiniteNumber(x) or not isFiniteNumber(y) or not isFiniteNumber(z) then
         return nil
     end
@@ -606,12 +722,13 @@ end
 -- Returns frameCount, frameChanged, waitMs.
 local function buildWorldFrame()
     local ped = getPlayerPed()
-    if type(ped) ~= 'number' or ped <= 0 or not DoesEntityExist(ped) then
+    if not ped then
         hideWorldFrame()
         return 0, false, IDLE_NEAR_WAIT_MS
     end
 
-    local pedX, pedY, pedZ = finiteCoords(GetEntityCoords(ped))
+    local pedCoords = GetEntityCoords(ped)
+    local pedX, pedY, pedZ = finiteCoords(pedCoords)
     if not pedX then
         hideWorldFrame()
         return 0, false, IDLE_NEAR_WAIT_MS
@@ -619,6 +736,17 @@ local function buildWorldFrame()
 
     frameStamp = frameStamp + 1
     local stamp = frameStamp
+    -- A player-anchored list can reuse the reads just validated above. This
+    -- expires with the pass, including after a respawn or cache fallback.
+    local pedReads = worldEntityReads[ped]
+    if pedReads then
+        pedReads.exists, pedReads.existsStamp = true, stamp
+        pedReads.coords, pedReads.coordsStamp = pedCoords, stamp
+    end
+    local now = GetGameTimer()
+    frameNow = now
+    local profiling = profile and profile.enabled
+    if profiling then profile.enter('cortex-lib:world-anchors') end
     local screenWidth = lastWidth > 0 and lastWidth or 1920
     local screenHeight = lastHeight > 0 and lastHeight or 1080
     local promptCount, markerCount = 0, 0
@@ -629,9 +757,18 @@ local function buildWorldFrame()
     for index = 1, #worldInteractions do
         local descriptor = worldInteractions[index]
         descriptor.tier = nil
-        local x, y, z = resolveAnchor(descriptor)
+        local x, y, z
+        local culledUntil = descriptor.culledUntil
+        if culledUntil and now >= descriptor.culledAt and now < culledUntil then
+            -- Still provably out of range: count its shrinking gap only.
+            local gap = descriptor.culledGap - (now - descriptor.culledAt) * CULL_SPEED_M_PER_MS
+            if gap < nearestGap then nearestGap = gap end
+        else
+            descriptor.culledUntil = nil
+            x, y, z = resolveAnchor(descriptor)
+        end
 
-        if isFiniteNumber(x) and isFiniteNumber(y) and isFiniteNumber(z) then
+        if x and isFiniteNumber(x) and isFiniteNumber(y) and isFiniteNumber(z) then
             local dx = pedX - x
             local dy = pedY - y
             local dz = pedZ - z
@@ -670,10 +807,20 @@ local function buildWorldFrame()
             else
                 local gap = math_sqrt(distanceSquared) - outer
                 if gap < nearestGap then nearestGap = gap end
+                local skipMs = math_min(CULL_MAX_MS, gap / CULL_SPEED_M_PER_MS)
+                if skipMs >= 1 then
+                    descriptor.culledAt = now
+                    descriptor.culledUntil = now + skipMs
+                    descriptor.culledGap = gap
+                end
             end
         end
     end
     clearArray(promptCandidates, promptCount + 1)
+    if profiling then
+        profile.leave()
+        profile.enter('cortex-lib:world-lists')
+    end
 
     -- 2. Merge prompt-tier anchors into lists at the highest-ranked head.
     local mergeRadius = LIST_MERGE_RATIO * screenHeight
@@ -796,6 +943,10 @@ local function buildWorldFrame()
 
     -- Apply before presentation writes so the registry agrees this frame.
     applyPreference(preferred)
+    if profiling then
+        profile.leave()
+        profile.enter('cortex-lib:world-stage')
+    end
 
     -- 5. Stage prompt rows (list heads carry the anchor for the whole list).
     local frameCount = 0
@@ -908,30 +1059,36 @@ local function buildWorldFrame()
     clearArray(worldFrameItems, frameCount + 1)
     clearArray(frameDescriptors, frameCount + 1)
 
-    local frameChanged = worldFrameDirty or frameCount ~= lastWorldCount
+    -- 'full' when the item set, flags or grouping changed; 'move' when only
+    -- whole-pixel position or centimetre distance did; false when nothing.
+    -- Pixel/centimetre resolution keeps idle bone sway and float noise from
+    -- re-sending an identical frame to CEF; the sent values stay exact.
+    local frameChanged = (worldFrameDirty or frameCount ~= lastWorldCount) and 'full' or false
     if not frameChanged then
-        -- Compare at whole-pixel / centimetre resolution so idle bone sway
-        -- and float noise do not re-send an identical frame to CEF; the sent
-        -- values themselves stay exact.
         for index = 1, frameCount do
             local descriptor = frameDescriptors[index]
             if lastFrameDescriptors[index] ~= descriptor
-                or descriptor.lastSentPixelX ~= descriptor.framePixelX
-                or descriptor.lastSentPixelY ~= descriptor.framePixelY
-                or descriptor.lastSentCentimetres ~= descriptor.frameCentimetres
                 or descriptor.lastSentFlags ~= descriptor.frameFlags
                 or descriptor.lastSentGroup ~= descriptor.frameGroup
             then
-                frameChanged = true
+                frameChanged = 'full'
                 break
+            end
+            if descriptor.lastSentPixelX ~= descriptor.framePixelX
+                or descriptor.lastSentPixelY ~= descriptor.framePixelY
+                or descriptor.lastSentCentimetres ~= descriptor.frameCentimetres
+            then
+                frameChanged = 'move'
             end
         end
     end
 
+    if profiling then profile.leave() end
+
     local waitMs
-    if needsEveryFrame then
+    if needsEveryFrame or frameCount > 0 then
         waitMs = 0
-    elseif frameCount > 0 or anyInRange then
+    elseif anyInRange then
         waitMs = MARKER_WAIT_MS
     elseif nearestGap > IDLE_FAR_GAP then
         waitMs = IDLE_FAR_WAIT_MS
@@ -962,9 +1119,26 @@ local function updateWorldFrame()
     processing = true
     local frameCount, frameChanged, waitMs = buildWorldFrame()
 
+    local profiling = profile and profile.enabled
+    if profiling then profile.enter('cortex-lib:world-send') end
     if frameCount > 0 then
-        if frameChanged or not worldFrameVisible then
+        if frameChanged == 'full' or not worldFrameVisible then
             send(worldFrameMessage)
+            commitWorldFrame(frameCount)
+            lastMoveSentAt = frameNow
+        elseif frameChanged == 'move' and (not lastMoveSentAt or frameNow < lastMoveSentAt
+            or frameNow - lastMoveSentAt >= MOVE_SEND_INTERVAL_MS)
+        then
+            lastMoveSentAt = frameNow
+            for index = 1, frameCount do
+                local item = worldFrameItems[index]
+                local base = (index - 1) * 3
+                worldPositions[base + 1] = item.x
+                worldPositions[base + 2] = item.y
+                worldPositions[base + 3] = item.distance
+            end
+            clearArray(worldPositions, frameCount * 3 + 1)
+            send(worldMoveMessage)
             commitWorldFrame(frameCount)
         end
 
@@ -975,6 +1149,7 @@ local function updateWorldFrame()
     else
         worldFrameDirty = false
     end
+    if profiling then profile.leave() end
     processing = false
 
     -- Registry changes raised by this frame (the list preference) rebuild the
@@ -996,6 +1171,17 @@ AddEventHandler('cortex-lib:interaction:changed', function()
     refresh(false)
 end)
 
+if type(AddStateBagChangeHandler) == 'function' then
+    -- Fires before the bag applies the value, so read it from the argument.
+    AddStateBagChangeHandler('cortexCharacterSelect', nil, function(bagName, _, value)
+        if bagName ~= ('player:%s'):format(GetPlayerServerId(PlayerId())) then return end
+        local nextSuppressed = value == true
+        if nextSuppressed == suppressed then return end
+        suppressed = nextSuppressed
+        refresh(true)
+    end)
+end
+
 AddEventHandler('cortex-lib:settingChanged', function(key, value)
     if key == 'promptMarkers' then
         local nextMarkers = value ~= false
@@ -1013,6 +1199,7 @@ AddEventHandler('onClientResourceStop', function(resourceName)
     lastScreenItems = nil
     hideWorldFrame()
     worldInteractions = {}
+    worldEntityReads = {}
 end)
 
 CreateThread(function()

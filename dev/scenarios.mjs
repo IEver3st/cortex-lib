@@ -60,7 +60,7 @@ export const cortexSettingsTab = { id: 'cortex', label: 'CORTEX', defaults: cort
         { key: 'notifySound', section: 'Notifications', type: 'toggle', label: 'Sound', description: 'Play a sound when a notification arrives.' },
         { key: 'notifySoundPreset', section: 'Notifications', type: 'soundList', label: 'Sound preset', description: 'The sound notifications use. Choosing one plays it.', options: labSounds, showWhen: { notifySound: true } },
         { key: 'promptMarkers', section: 'Prompts', type: 'toggle', label: 'Distant interaction markers', description: 'Show a small marker where you can interact before you are close enough to use it.' },
-        { key: 'promptScale', section: 'Prompts', type: 'select', label: 'Prompt size', description: 'Size of interaction prompts in the world and on screen.', options: [{ value: 'small', label: 'Small' }, { value: 'standard', label: 'Standard' }, { value: 'large', label: 'Large' }] },
+        { key: 'promptScale', section: 'Prompts', type: 'select', label: 'Prompt size', description: 'Size of interaction prompts and control hints, in the world and on screen.', options: [{ value: 'small', label: 'Small' }, { value: 'standard', label: 'Standard' }, { value: 'large', label: 'Large' }] },
         { key: 'invertScroll', section: 'Prompts', type: 'toggle', label: 'Invert list scroll', description: 'Flip the mouse wheel direction when choosing between stacked prompts.' },
         { key: 'showPercent', section: 'Progress', type: 'toggle', label: 'Show percentage', description: 'Show how far along an action is next to progress bars and circles.' }
     ] };

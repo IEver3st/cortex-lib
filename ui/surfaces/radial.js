@@ -212,7 +212,7 @@ const radialLabelSize = label => label.length > 26 ? ' is-longer' : label.length
 // RADIAL MENU
 // ============================================================================
 
-function RadialMenu({ open, id, session, items, canGoBack, visible, appearance, trail, focusIndex, view }) {
+function RadialMenu({ open, id, session, items, canGoBack, visible, appearance, trail, focusIndex, view, releaseSelect }) {
     const Kit = window.CortexKit;
     const h = React.createElement;
     const [hoverIndex, setHoverIndex] = useState(-1);
@@ -229,6 +229,11 @@ function RadialMenu({ open, id, session, items, canGoBack, visible, appearance, 
     const pendingRef = useRef(false);
     const wheelAtRef = useRef(0);
     const firedTimerRef = useRef(0);
+    // Hold-to-select: the key that opened the menu is still down. Releasing it
+    // over an item selects that item; releasing over nothing leaves it open.
+    const holdRef = useRef(false);
+    const sawHeldRef = useRef(false);
+    const releasedRef = useRef(false);
 
     const isVisible = Boolean(open) && visible !== false;
     const allItems = Array.isArray(items) ? items : [];
@@ -272,6 +277,12 @@ function RadialMenu({ open, id, session, items, canGoBack, visible, appearance, 
             inputModeRef.current = 'pointer';
         }
     }, [open, view, session, id]);
+
+    useEffect(() => {
+        holdRef.current = Boolean(open && releaseSelect);
+        sawHeldRef.current = false;
+        releasedRef.current = false;
+    }, [open, view, releaseSelect]);
 
     useEffect(() => () => window.clearTimeout(firedTimerRef.current), []);
 
@@ -324,9 +335,21 @@ function RadialMenu({ open, id, session, items, canGoBack, visible, appearance, 
         event.clientX, event.clientY, radialSvgRef.current, slotCount, current
     ), [slotCount]);
 
+    const releaseHold = useCallback((index) => {
+        holdRef.current = false;
+        releasedRef.current = true;
+        if (index >= 0) activateItem(index);
+    }, [activateItem]);
+
     const handleMouseMove = useCallback((e) => {
         if (!isVisible) return;
         pointerRef.current = { x: e.clientX, y: e.clientY };
+        // CEF may miss the release of a press that began before focus; the
+        // button state on later moves still shows it.
+        if (holdRef.current) {
+            if (e.buttons & 2) sawHeldRef.current = true;
+            else if (sawHeldRef.current) { releaseHold(hovered); return; }
+        }
         if (inputModeRef.current === 'keys') {
             const anchor = keyAnchorRef.current;
             if (anchor && Math.hypot(e.clientX - anchor.x, e.clientY - anchor.y) < RADIAL_KEY_REARM_PX) return;
@@ -335,9 +358,11 @@ function RadialMenu({ open, id, session, items, canGoBack, visible, appearance, 
         const hit = pointerHit(e, hovered);
         const next = hit.type === 'item' && hit.index < displayItems.length ? hit.index : -1;
         if (next !== hoverIndex) setHoverIndex(next);
-    }, [displayItems.length, hoverIndex, hovered, isVisible, pointerHit]);
+    }, [displayItems.length, hoverIndex, hovered, isVisible, pointerHit, releaseHold]);
 
     const handleMouseDown = useCallback((e) => {
+        // A fresh right press is not the opening hold: its click backs out.
+        if (e.button === 2) { holdRef.current = false; releasedRef.current = false; }
         if (!isVisible || e.button !== 0) return;
         const hit = pointerHit(e, hovered);
         setPressed(hit.type === 'center' ? 'center' : 'item');
@@ -357,11 +382,19 @@ function RadialMenu({ open, id, session, items, canGoBack, visible, appearance, 
         }
     }, [activateItem, backOrClose, displayItems.length, hovered, isVisible, pointerHit]);
 
-    // Right-click = back / close, wherever the pointer is.
+    const handleMouseUp = useCallback((e) => {
+        setPressed(null);
+        if (isVisible && e.button === 2 && holdRef.current) releaseHold(hovered);
+    }, [hovered, isVisible, releaseHold]);
+
+    // Right-click = back / close, wherever the pointer is. The release that
+    // ends a hold is not a click.
     const handleContextMenu = useCallback((e) => {
         e.preventDefault();
+        if (releasedRef.current) { releasedRef.current = false; return; }
+        if (holdRef.current) { if (isVisible) releaseHold(hovered); return; }
         backOrClose();
-    }, [backOrClose]);
+    }, [backOrClose, hovered, isVisible, releaseHold]);
 
     const handleWheel = useCallback((e) => {
         if (!isVisible || totalPages <= 1 || !e.deltaY) return;
@@ -557,7 +590,7 @@ function RadialMenu({ open, id, session, items, canGoBack, visible, appearance, 
         className: overlayClasses,
         onMouseMove: handleMouseMove,
         onMouseDown: handleMouseDown,
-        onMouseUp: () => setPressed(null),
+        onMouseUp: handleMouseUp,
         onMouseLeave: () => setPressed(null),
         onClick: handleClick,
         onContextMenu: handleContextMenu,

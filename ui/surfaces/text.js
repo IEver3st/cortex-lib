@@ -279,6 +279,17 @@ function TextUI({ open, text, position, icon, style, backdrop }) {
 // HELP: THE CONTROLS LEGEND
 // ============================================================================
 
+// Other resources' HUDs share the bottom-right corner but not this frame:
+// report how far the legend reaches up from the bottom of the screen (px of
+// the shared viewport, 0 when hidden) so they can sit above it.
+let lastLegendClearance = -1;
+function publishLegendClearance(px) {
+    const value = Math.max(0, Math.round(px));
+    if (value === lastLegendClearance || typeof nuiPost !== 'function') return;
+    lastLegendClearance = value;
+    void nuiPost('helpLayout', { clearance: value });
+}
+
 function HelpBar({ open, items, compact }) {
     const present = useOverlayPresence(open);
     const legendRef = useRef(null);
@@ -291,15 +302,31 @@ function HelpBar({ open, items, compact }) {
         const element = legendRef.current;
         if (!open || !element || typeof ResizeObserver !== 'function') {
             rootStyle.setProperty('--cx-help-legend-height', '0px');
+            publishLegendClearance(0);
             return undefined;
         }
-        const observer = new ResizeObserver(() => {
-            rootStyle.setProperty('--cx-help-legend-height', `${Math.round(element.getBoundingClientRect().height)}px`);
-        });
+        // Measured from layout (bottom inset + height), not the on-screen box: the
+        // entrance slides in from below, and ResizeObserver never fires again
+        // when that transform ends, so a box read mid-slide stayed short.
+        const measure = () => {
+            const height = element.offsetHeight;
+            const bottom = parseFloat(getComputedStyle(element).bottom) || 0;
+            rootStyle.setProperty('--cx-help-legend-height', `${Math.round(height)}px`);
+            publishLegendClearance(bottom + height);
+        };
+        const observer = new ResizeObserver(measure);
         observer.observe(element);
+        // The inset follows the safe zone and viewport, which can move the legend without resizing it.
+        element.addEventListener('animationend', measure);
+        window.addEventListener('resize', measure);
+        window.addEventListener('cx-safezone', measure);
         return () => {
             observer.disconnect();
+            element.removeEventListener('animationend', measure);
+            window.removeEventListener('resize', measure);
+            window.removeEventListener('cx-safezone', measure);
             rootStyle.setProperty('--cx-help-legend-height', '0px');
+            publishLegendClearance(0);
         };
     }, [open, list.length, compact]);
 

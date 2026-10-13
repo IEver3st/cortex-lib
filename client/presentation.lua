@@ -50,6 +50,18 @@ exports('setPresentationSurfaces', function(items)
         clean[#clean + 1] = { id = item.id, x = item.x, y = item.y, width = item.width,
             height = item.height, fixed = item.fixed, priority = item.priority }
     end
+    -- An unchanged report would rebroadcast the whole snapshot to every
+    -- Cortex NUI for nothing.
+    local current = owners[resource]
+    if current and #current == #clean then
+        local same = true
+        for i = 1, #clean do
+            local a, b = current[i], clean[i]
+            if a.id ~= b.id or a.x ~= b.x or a.y ~= b.y or a.width ~= b.width or a.height ~= b.height
+                or a.fixed ~= b.fixed or a.priority ~= b.priority then same = false; break end
+        end
+        if same then return true end
+    end
     local now = GetGameTimer()
     local elapsed = lastWrites[resource] and now - lastWrites[resource]
     if elapsed and elapsed >= 0 and elapsed < 100 then return false, 'rate_limited' end

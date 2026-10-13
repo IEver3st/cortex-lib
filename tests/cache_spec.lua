@@ -31,9 +31,7 @@ end
 function CreateThread(callback)
     threads[#threads + 1] = callback
 end
-function Wait()
-    error('__cache_tick_complete__')
-end
+function Wait() coroutine.yield() end
 function LoadResourceFile() return nil end
 function GetCurrentResourceName() return 'cortex-lib' end
 function AddEventHandler() end
@@ -43,15 +41,18 @@ dofile('resource/init.lua')
 
 assert(serverIdCalls == 1, 'server id should be initialized once')
 assert(cache.playerId == 7 and cache.serverId == 107)
-assert(type(threads[1]) == 'function', 'cache updater thread was not created')
+assert(#threads == 0, 'the updater must not start until ped/vehicle/seat is read')
+
+-- The first read fills the cache immediately and starts the 100ms worker.
+assert(cache.ped == ped and cache.vehicle == vehicle and cache.seat == 1)
+assert(#threads == 1, 'cache updater thread was not created on first read')
+local worker = coroutine.create(threads[1])
+assert(coroutine.resume(worker)) -- parks on its first Wait
 
 local function runTick()
-    local ok, err = pcall(threads[1])
-    assert(not ok and tostring(err):find('__cache_tick_complete__', 1, true), tostring(err))
+    local ok, err = coroutine.resume(worker)
+    assert(ok, tostring(err))
 end
-
-runTick()
-assert(cache.ped == ped and cache.vehicle == vehicle and cache.seat == 1)
 assert(seatCalls == 3, 'initial seat resolution should inspect only valid vehicle seats')
 
 local callsBeforeStableTick = seatCalls

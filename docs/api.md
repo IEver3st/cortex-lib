@@ -113,7 +113,9 @@ lib.hideHelp()
 - On completion the progress fill pulses to paper; on cancellation it turns sand and reads CANCELLED before
   leaving. The percent readout follows the player's **Show percentage** setting.
 - The legend stays visible when the player turns control hints off, because it carries the only instructions.
-  It publishes its height as `--cx-help-legend-height` so bottom-right neighbours can sit above it.
+  It publishes its height as `--cx-help-legend-height` so bottom-right neighbours can sit above it. Other
+  resources' HUDs read `LocalPlayer.state.cortexHelpLegend`: how far the legend reaches up from the bottom of the
+  screen in NUI px (0 when hidden; local only).
 
 ### Dialogs
 
@@ -282,6 +284,7 @@ Radial menus:
 - More than 8 items are split into pages of 8, shown as dots with `Q` / `E` under the wheel. The mouse wheel, `Q` / `E` or PageUp / PageDown change pages, and paging wraps. The last page keeps empty ghost slots, so every direction means the same position on every page. The wheel remembers the last page per menu for the rest of the client session.
 - Item fields: `id`, `label`, `icon`, `iconColor`, `menu`, `keepOpen`, `onSelect`, plus the optional `description` (a string of at most 256 characters, shown in the hub) and `disabled` (boolean). A disabled item is drawn dimmed and never flips to paper. Lua refuses it with `disabled_item`, so its `onSelect` never runs, even from a forged NUI click. `icon` uses the same glyph names as menus. A one- or two-character string (`'1'`, `'?'`) renders in display type, and an emoji renders as a silhouette.
 - Submenus: the hub shows a breadcrumb built from the labels of the items that opened each level, and slips that open a submenu show an outward chevron. Going back re-selects the item that opened the submenu.
+- `releaseSelect = true` (boolean, default off) is for menus opened while a key or mouse button is held. Releasing the right mouse button over a slip selects it, so the player can hold, drag and let go. Releasing over nothing leaves the wheel open for a normal click, and a later right click backs out as usual. It applies to the root view only; a submenu reached by release uses the normal controls. Any other type returns `false, 'invalid_release_select'`.
 - `appearance = 'compact-control'` gives a smaller wheel with icon-only slips. The hub carries the label, and there's no description or controls legend.
 - Show/hide/refresh/transition messages add the optional fields `trail` (the breadcrumb labels) and `focusIndex` (the zero-based item to re-select after a back). `radialClick`, `radialBack` and `radialClose` payloads are unchanged: `index` is still the source index across pages.
 
@@ -512,9 +515,10 @@ Settings are stored per-client with `SetResourceKvp` / `GetResourceKvpString` un
 | Notifications | Sound (`notifySound`) | On | Toggle | Plays a sound when a notification arrives. |
 | Notifications | Sound preset (`notifySoundPreset`) | MP Idle Kick | Dropdown + play | Shown while Sound is on; choosing one plays it. |
 | Prompts | Distant interaction markers (`promptMarkers`) | On | Toggle | Small marker for interactions that are near but not yet in reach. |
-| Prompts | Prompt size (`promptScale`) | Standard | Small / Standard / Large | Size of world and screen prompts. |
+| Prompts | Prompt size (`promptScale`) | Standard | Small / Standard / Large | Size of world and screen prompts and the controls legend. |
 | Prompts | Invert list scroll (`invertScroll`) | Off | Toggle | Flips the wheel direction in stacked prompt lists. |
 | Progress | Show percentage (`showPercent`) | On | Toggle | Percent readout on progress bars and circles. |
+| Graphics | Volumetric lights (`volumetricLights`) | Off | Toggle | Visible beams for lamps that opt in through `lib.volumetric.playerEnabled()` (cortex-flashlight, gsd-arges). cortex-polcam ignores it. The description warns that the frame-rate cost varies by hardware, graphics settings and lights on screen. |
 
 `notifyDuration` is stored as the enum; the NUI receives the multiplier. A consumer tab that declares its own key with one of these names keeps its own value when that consumer calls `getSetting`/`setSetting`.
 

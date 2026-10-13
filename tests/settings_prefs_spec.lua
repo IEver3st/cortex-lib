@@ -72,6 +72,7 @@ local expected = {
     uiScale = 100, textSize = 'standard', controlHints = true, notifyPosition = 'top-right',
     notifyDuration = 'standard', notifyLimit = 5, notifySound = true, notifySoundPreset = 'mp_idle_kick',
     promptMarkers = true, promptScale = 'standard', invertScroll = false, showPercent = true,
+    volumetricLights = false,
 }
 for key, value in pairs(expected) do
     assert(api.getSetting(key) == value, key .. ' default')
@@ -95,8 +96,8 @@ for _, field in ipairs(open.data.tabs[1].fields) do
     keys[#keys + 1] = field.key
     assert(open.data.tabs[1].defaults[field.key] ~= nil, field.key .. ' has a default for per-row reset')
 end
-assert(sections.Interface and sections.Notifications and sections.Prompts and sections.Progress)
-assert(#keys == 16, 'the Cortex tab lists exactly the built-in preferences')
+assert(sections.Interface and sections.Notifications and sections.Prompts and sections.Progress and sections.Graphics)
+assert(#keys == 17, 'the Cortex tab lists exactly the built-in preferences')
 assert(call('settingsReady', { session = open.data.session }).ok)
 
 -- Preview pushes prefs live and emits settingChanged; Cancel rolls both back.
@@ -109,6 +110,8 @@ assert(call('settingsPreview', { tabId = 'cortex', key = 'notifyDuration', value
 assert(lastPrefs().notifyDuration == 1.5)
 assert(call('settingsPreview', { tabId = 'cortex', key = 'invertScroll', value = true }).ok)
 assert(changes[#changes].key == 'invertScroll' and changes[#changes].value == true, 'renderer-facing keys emit settingChanged')
+assert(call('settingsPreview', { tabId = 'cortex', key = 'volumetricLights', value = true }).ok)
+assert(changes[#changes].key == 'volumetricLights' and changes[#changes].value == true, 'lamps hear the volumetric preview')
 assert(not call('settingsPreview', { tabId = 'cortex', key = 'uiScale', value = 200 }).ok, 'out-of-range scale rejected')
 assert(not call('settingsPreview', { tabId = 'cortex', key = 'notifyLimit', value = 4 }).ok, 'unlisted limit rejected')
 assert(not call('settingsPreview', { tabId = 'cortex', key = 'promptScale', value = 'huge' }).ok)

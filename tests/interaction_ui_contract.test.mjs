@@ -227,3 +227,9 @@ assert.match(uiSource, /setTimeout\(\(\) => announceInteractionReady\(attempt \+
 assert.match(uiSource, /activeController\?\.abort\(\)/, 'ready retry must be torn down with the NUI app');
 
 console.log('interaction UI contract: PASS');
+
+// Position-only world updates apply to the current items and never guess on a mismatch.
+assert.match(uiSource, /case 'interaction:worldMove'/);
+assert.match(uiSource, /positions\.length !== currentItems\.length \* 3\) break/);
+assert.match(renderer, /action = 'interaction:worldMove'/);
+assert.match(renderer, /frameChanged == 'full' or not worldFrameVisible/);

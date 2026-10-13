@@ -97,6 +97,7 @@ local wheelWrites = #writes
 local loaded = consumer.vehicleReplay
 assert(type(loaded) == 'table' and loaded == consumer('vehicleReplay') and moduleLoads == 1,
     'the real lazy loader must resolve and cache the wheel module')
-assert(loaderThreads == 1 and #writes == wheelWrites, 'module loading adds no worker or vehicle writes')
+-- The loader's cache worker is lazy, so loading starts no thread at all.
+assert(loaderThreads == 0 and #writes == wheelWrites, 'module loading adds no worker or vehicle writes')
 assert(loaded.capture(2).count == 4)
 print('vehicle_replay_spec: passive capture, all axles, compression, interpolation, pause, reverse, ownership and bounded dents passed')

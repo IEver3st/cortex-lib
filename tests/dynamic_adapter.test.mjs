@@ -41,7 +41,7 @@ function harness(resource = 'opticom', selectorOverride) {
     context.CortexLayout = window.CortexLayout;
     vm.runInContext(readFileSync(new URL('../ui/dynamic-ui.js', import.meta.url), 'utf8'), context);
     const settle = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
-    return { chat, root, requests, fail: value => { fail = value; },
+    return { chat, root, requests, layout: window.CortexLayout, fail: value => { fail = value; },
         message: data => callbacks.get('message')({ data }),
         tick: async () => { await settle(); for (const [id, timer] of [...timers]) if (timer.delay === 200) { timers.delete(id); timer.fn(); } await settle(); },
     };
@@ -178,6 +178,19 @@ for (const [selector, id] of [['.progress-container', 'progress-0']]) {
     });
 }
 
+test('cortex-hud reserves the voice indicator so bottom-right prompts lift above it', async () => {
+    const h = harness('cortex-hud', '.cx-voice-shell, .voip-container-modern'); await h.tick();
+    const write = h.requests.find(request => request.url.endsWith('cortexPresentationSurfaces'));
+    assert.equal(write.data.surfaces[0].id, 'voice-0');
+    assert.equal(write.data.surfaces[0].fixed, true);
+    const voice = { key: 'cortex-hud:voice-0', x: 1760, y: 1018, width: 140, height: 42, priority: 100, fixed: true };
+    const prompts = { key: 'cortex-lib:prompts-0', x: 1640, y: 1010, width: 260, height: 50, priority: 75, fixed: false };
+    const placed = h.layout.solve([voice, prompts], { width: 1920, height: 1080, inset: 20 })['cortex-lib:prompts-0'];
+    assert.equal(placed.crowded, false);
+    assert.equal(placed.x, prompts.x, 'prompts keep their right-aligned column');
+    assert.ok(placed.y + prompts.height <= voice.y, 'prompts clear the voice indicator');
+});
+
 test('hyphenated PolCam registers its camera and compass through the correct NUI endpoint', async () => {
     for (const [selector, id] of [['.panel', 'camera-0'], ['.compass-container', 'compass-0']]) {
         const h = harness('cortex-polcam', selector); await h.tick();
@@ -189,4 +202,30 @@ test('hyphenated PolCam registers its camera and compass through the correct NUI
         h.chat.hidden = true; h.message({ action: 'close' }); await h.tick();
         assert.equal(h.requests.filter(request => request.url.endsWith('cortexPresentationSurfaces')).at(-1).data.surfaces.length, 0);
     }
+});
+
+test('text-width jitter does not re-report a surface; growth reports with room to spare', async () => {
+    const h = harness('opticom');
+    let width = 480;
+    h.chat.getBoundingClientRect = () => ({ x: 20, y: 20, width, height: 350 });
+    const writes = () => h.requests.filter(request => request.url.endsWith('cortexPresentationSurfaces'));
+    h.message(snapshot); await h.tick();
+    assert.equal(writes().length, 1);
+    assert.equal(writes()[0].data.surfaces[0].width, 480, 'the first report is exact');
+    for (const next of [470, 476, 466]) {
+        width = next;
+        h.message({ action: 'nudge' }); await h.tick();
+    }
+    assert.equal(writes().length, 1, 'shrinking within the slack keeps the last report');
+    width = 490;
+    h.message({ action: 'nudge' }); await h.tick();
+    assert.equal(writes().length, 2);
+    assert.equal(writes()[1].data.surfaces[0].width, 498, 'growth reports with padding');
+    width = 495;
+    h.message({ action: 'nudge' }); await h.tick();
+    assert.equal(writes().length, 2, 'growth inside the padding does not report again');
+    width = 300;
+    h.message({ action: 'nudge' }); await h.tick();
+    assert.equal(writes().length, 3);
+    assert.equal(writes()[2].data.surfaces[0].width, 300, 'a large shrink reports exactly');
 });

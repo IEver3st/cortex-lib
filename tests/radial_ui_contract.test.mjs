@@ -18,6 +18,16 @@ const radialMatch = uiSource.match(/function RadialMenu\([\s\S]*?\n}\n/);
 assert.ok(radialMatch, 'RadialMenu must remain discoverable by the UI regression test');
 const radial = radialMatch[0];
 
+// Release-to-select (opt-in): the opening right-button release picks the hovered slip;
+// a fresh right press disarms it so right-click keeps meaning back/close.
+assert.match(radial, /releaseSelect/, 'RadialMenu must accept the releaseSelect prop');
+assert.match(radial, /e\.button === 2[\s\S]*?holdRef\.current = false/, 'a new right press must disarm the hold');
+assert.match(radial, /const releaseHold[\s\S]*?holdRef\.current = false[\s\S]*?activateItem\(index\)/, 'ending the hold must activate the slip under the pointer');
+assert.match(radial, /const handleMouseUp[^]*?e\.button === 2 && holdRef\.current\) releaseHold\(hovered\)/, 'the opening release must activate the hovered slip');
+assert.match(radial, /const handleContextMenu[^]*?releasedRef\.current[^]*?holdRef\.current[^]*?backOrClose\(\)/, 'the release that ends a hold must not also back out');
+assert.match(radial, /onMouseUp: handleMouseUp/, 'the wheel must route mouseup through the release handler');
+assert.match(uiSource, /releaseSelect: data\.releaseSelect === true/, 'radialShow must forward releaseSelect strictly');
+
 // Geometry: the pointer is measured against the rendered SVG, never the overlay.
 assert.match(radial, /const radialSvgRef = useRef\(null\)/, 'radial pointer geometry must own a ref to the rendered SVG');
 assert.match(uiSource, /function getRadialPointer[\s\S]*?element\.getBoundingClientRect\(\)/,

@@ -117,12 +117,15 @@
        small optical margin inside it, never closer than 20u to the screen. */
     --help-edge-x: max(calc(var(--cx-safezone-x, 0px) + 8 * var(--u)), calc(20 * var(--u)));
     --help-edge-y: max(calc(var(--cx-safezone-y, 0px) + 8 * var(--u)), calc(20 * var(--u)));
+    /* Legend unit: 0.8u at the standard prompt size, following the player's
+       Prompt size setting (--cx-prompt-scale). Insets stay on --u. */
+    --hx: calc(var(--u) * 0.8 * var(--cx-prompt-scale, 1));
     position: fixed;
     right: var(--help-edge-x);
     bottom: var(--help-edge-y);
     z-index: 900;
     max-width: min(calc(1120 * var(--u)), calc(100vw - 2 * var(--help-edge-x)));
-    gap: calc(12 * var(--u)) calc(30 * var(--u));
+    gap: calc(12 * var(--hx)) calc(30 * var(--hx));
     padding: 0;
     background: transparent;
     pointer-events: none;
@@ -131,21 +134,21 @@
 .cortex-help-bar.is-leaving { animation: textuiLeave var(--t-fast, 160ms) ease-in forwards; }
 
 .cortex-help-bar .cortex-help-item {
-    gap: calc(11 * var(--u));
+    gap: calc(11 * var(--hx));
     color: var(--paper);
-    font-size: calc(22 * var(--u));
+    font-size: calc(22 * var(--hx));
     letter-spacing: 0.03em;
     text-shadow: var(--legible);
 }
 
-.cortex-help-label { max-width: calc(260 * var(--u)); }
+.cortex-help-label { max-width: calc(260 * var(--hx)); }
 
-.cortex-help-values { gap: calc(6 * var(--u)); }
+.cortex-help-values { gap: calc(6 * var(--hx)); }
 
 /* The prompt glyph (interaction-key.js): a disc that grows into a pill. */
 .cortex-help-bar {
-    --cortex-interaction-ring-stroke: 4;
-    --help-key: calc(38 * var(--u));
+    --cortex-interaction-ring-stroke: 5;
+    --help-key: calc(38 * var(--hx));
 }
 .cortex-help-key-slot { display: inline-flex; }
 .cortex-help-key {
@@ -168,26 +171,26 @@
 
 .cortex-help-sep {
     color: var(--paper);
-    font: italic 800 calc(17 * var(--u)) / 1 var(--display);
+    font: italic 800 calc(17 * var(--hx)) / 1 var(--display);
     font-synthesis: style;
 }
 
 .cortex-help-text {
     color: var(--paper);
     opacity: 0.86;
-    font: italic 800 calc(18 * var(--u)) / 1 var(--display);
+    font: italic 800 calc(18 * var(--hx)) / 1 var(--display);
     font-synthesis: style;
     letter-spacing: 0.03em;
     text-transform: uppercase;
 }
 
 /* Compact: long control strips (showHelp options.compact). */
-.cortex-help-bar--compact { gap: calc(8 * var(--u)) calc(22 * var(--u)); }
-.cortex-help-bar--compact .cortex-help-item { gap: calc(8 * var(--u)); font-size: calc(17 * var(--u)); }
-.cortex-help-bar--compact .cortex-help-values { gap: calc(4 * var(--u)); }
-.cortex-help-bar--compact { --help-key: calc(30 * var(--u)); --cortex-interaction-ring-stroke: 5; }
-.cortex-help-bar--compact .cortex-help-sep { font-size: calc(14 * var(--u)); }
-.cortex-help-bar--compact .cortex-help-text { font-size: calc(15 * var(--u)); }
+.cortex-help-bar--compact { gap: calc(8 * var(--hx)) calc(22 * var(--hx)); }
+.cortex-help-bar--compact .cortex-help-item { gap: calc(8 * var(--hx)); font-size: calc(17 * var(--hx)); }
+.cortex-help-bar--compact .cortex-help-values { gap: calc(4 * var(--hx)); }
+.cortex-help-bar--compact { --help-key: calc(30 * var(--hx)); --cortex-interaction-ring-stroke: 6; }
+.cortex-help-bar--compact .cortex-help-sep { font-size: calc(14 * var(--hx)); }
+.cortex-help-bar--compact .cortex-help-text { font-size: calc(15 * var(--hx)); }
 
 
 /* ============================================================================

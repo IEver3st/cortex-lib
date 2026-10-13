@@ -2,7 +2,7 @@
 
 Shared UI and Lua utilities for FiveM resources, maintained by Ever3st and GSD Modifications.
 
-[![Version 3.0.0](https://img.shields.io/badge/version-3.0.0-blue?style=flat-square)](https://github.com/IEver3st/cortex-lib/releases)
+[![Version 3.3.1](https://img.shields.io/badge/version-3.3.1-blue?style=flat-square)](https://github.com/IEver3st/cortex-lib/releases)
 [![MIT license](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 
 ![Cortex Lib: menus, radial menus and interaction prompts](https://raw.githubusercontent.com/IEver3st/cortex-lib/main/marketing/2026-09-27/final/01-cortex-lib.png)
@@ -73,8 +73,13 @@ setr cortex_pause_title "CORTEX"
 # Keep diagnostics disabled on a normal server.
 setr cortex_debug 0
 
+# 0 skips the startup check for a newer cortex-lib release on GitHub.
+set cortex_lib_version_check 1
+
 ensure cortex-lib
 ```
+
+On start the server console reports `Update available: <version>` with the download link when GitHub has a newer release, or `Version <x> is up to date`. It makes one request to the GitHub API per start and never downloads or changes files.
 
 Only the server controls the quick-menu switch. Players use FiveM's native keybinding editor for script controls.
 

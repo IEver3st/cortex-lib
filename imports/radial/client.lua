@@ -39,6 +39,15 @@ local function safeColor(value)
     return value:match('^var%(%-%-[%w%-]+%)$') ~= nil
 end
 
+-- Handlers from other resources arrive as Cfx funcrefs: callable tables whose
+-- fields throw when indexed. Check the metatable, never the table itself.
+local function isCallable(value)
+    if type(value) == 'function' then return true end
+    if type(value) ~= 'table' then return false end
+    local mt = getmetatable(value)
+    return type(mt) == 'table' and type(rawget(mt, '__call')) == 'function'
+end
+
 local function isDenseArray(value, maxItems)
     if type(value) ~= 'table' then return false end
     local length = #value
@@ -68,7 +77,7 @@ local function validateItems(items, maxItems)
             or (item.disabled ~= nil and type(item.disabled) ~= 'boolean')
             or (item.menu ~= nil and not boundedString(item.menu, 64, false))
             or (item.keepOpen ~= nil and type(item.keepOpen) ~= 'boolean')
-            or (item.onSelect ~= nil and type(item.onSelect) ~= 'function')
+            or (item.onSelect ~= nil and not isCallable(item.onSelect))
         then
             return false, 'invalid_item'
         end
@@ -109,7 +118,7 @@ local function safeErrorText(value)
 end
 
 local function protectedSelect(callback, menuId, index)
-    if type(callback) ~= 'function' then return true end
+    if not isCallable(callback) then return true end
     local ok, err = pcall(callback, menuId, index)
     if not ok then print(('^1[cortex-lib]^7 radial callback failed: %s'):format(safeErrorText(err))) end
     return ok
@@ -275,6 +284,9 @@ local function registerRadial(data)
     if data.appearance ~= nil and data.appearance ~= 'compact-control' then
         return false, 'invalid_appearance'
     end
+    if data.releaseSelect ~= nil and type(data.releaseSelect) ~= 'boolean' then
+        return false, 'invalid_release_select'
+    end
 
     local valid, err = validateItems(data.items or {}, MAX_MENU_ITEMS)
     if not valid then return false, err end
@@ -292,6 +304,7 @@ local function registerRadial(data)
         owner = owner,
         items = items,
         appearance = data.appearance,
+        releaseSelect = data.releaseSelect == true,
     }
     if isOpen and currentRadial == data.id then
         local session = clearOpenRadial(true, true)
@@ -350,6 +363,8 @@ local function showRadial(menuId)
             canGoBack = false,
             trail = {},
             session = session,
+            -- The opening key is still held: releasing it over an item selects it.
+            releaseSelect = (menuId and menus[menuId].releaseSelect) or nil,
         }
     })
 

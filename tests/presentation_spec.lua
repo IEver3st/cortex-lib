@@ -24,7 +24,12 @@ assert(definition == nil, 'the retired Dynamic UI tab is no longer registered')
 assert(api.setPresentationSurfaces({ valid }))
 local s = api.getPresentation()
 assert(s.surfaces[1].owner == 'chat' and s.surfaces[1].key == 'chat:chat')
-assert(not api.setPresentationSurfaces({ valid }), 'must rate limit')
+for i = #timers, 1, -1 do table.remove(timers, i)() end -- deliver the pending publish
+local publishes = #timers
+assert(api.setPresentationSurfaces({ valid }) and #timers == publishes,
+    'an identical report succeeds without rebroadcasting the snapshot')
+local moved = {}; for k, v in pairs(valid) do moved[k] = v end; moved.x = 24
+assert(not api.setPresentationSurfaces({ moved }), 'must rate limit')
 now = now + 200
 assert(not api.setPresentationSurfaces({ valid, valid }), 'must reject duplicate ids')
 assert(not api.setPresentationSurfaces({ bad = valid }), 'must reject object instead of array')

@@ -27,6 +27,8 @@
         const y = Math.max(0, Math.min(insetBottom * (height / screenHeight), height * 0.15));
         root.style.setProperty('--cx-safezone-x', `${Math.round(x)}px`);
         root.style.setProperty('--cx-safezone-y', `${Math.round(y)}px`);
+        // Overlays measured from these insets (the help legend) re-measure.
+        window.dispatchEvent(new Event('cx-safezone'));
     };
     window.addEventListener('message', (event) => {
         const message = event && isRecord(event.data) ? event.data : null;

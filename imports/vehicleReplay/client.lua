@@ -4,6 +4,13 @@
 local Replay = { MAX_WHEELS = 10, SIZE = 20, UNKNOWN_COMPRESSION = -1 }
 local MAX_SPEED = 10000
 local function finite(n) return type(n) == 'number' and n == n and math.abs(n) < math.huge end
+-- A native looked up through the environment, not rawget: FiveM's Lua runtime
+-- can create native wrappers on first access, which rawget would never see.
+-- Missing (an older game build, a test without the mock) reads as nil.
+local function native(name)
+    local ok, fn = pcall(function() return _ENV[name] end)
+    return ok and type(fn) == 'function' and fn or nil
+end
 local function wheelCount(vehicle)
     if not DoesEntityExist(vehicle) then return 0 end
     local count = GetVehicleNumberOfWheels(vehicle)
@@ -13,8 +20,8 @@ end
 function Replay.capture(vehicle, out, offset)
     out, offset = out or {}, offset or 0
     local count = wheelCount(vehicle)
-    local rotation = rawget(_ENV, 'GetVehicleWheelRotationSpeed')
-    local compression = rawget(_ENV, 'GetVehicleWheelSuspensionCompression')
+    local rotation = native('GetVehicleWheelRotationSpeed')
+    local compression = native('GetVehicleWheelSuspensionCompression')
     for index = 1, Replay.MAX_WHEELS do
         local speed = index <= count and rotation and rotation(vehicle, index - 1) or 0
         local spring = index <= count and compression and compression(vehicle, index - 1) or -1
@@ -59,7 +66,7 @@ end
 
 function Replay.apply(vehicle, data, rate, count, offset)
     offset = offset or 0
-    local setter = rawget(_ENV, 'SetVehicleWheelRotationSpeed')
+    local setter = native('SetVehicleWheelRotationSpeed')
     if not setter or not finite(rate) or not Replay.valid(data, offset) then return false end
     local available = wheelCount(vehicle)
     if available == 0 then return false end

@@ -589,6 +589,27 @@ function InteractionSurface({ hidden }) {
                     }
                     break;
                 }
+                case 'interaction:worldMove': {
+                    // Positions only, for the items of the last full frame, in
+                    // order. A mismatch waits for Lua's next full frame.
+                    const positions = data?.p;
+                    const currentItems = latestWorldItemsRef.current;
+                    if (!Array.isArray(positions) || positions.length !== currentItems.length * 3) break;
+                    const nextItems = currentItems.map((item, index) => ({
+                        ...item,
+                        x: clampInteractionNumber(positions[index * 3], 0, 1),
+                        y: clampInteractionNumber(positions[index * 3 + 1], 0, 1),
+                        distance: clampInteractionNumber(positions[index * 3 + 2], 0, 25),
+                    }));
+                    latestWorldItemsRef.current = nextItems;
+                    if (hiddenRef.current) break;
+
+                    pendingWorldItemsRef.current = nextItems;
+                    if (!worldFrameRef.current) {
+                        worldFrameRef.current = window.requestAnimationFrame(commitWorldItems);
+                    }
+                    break;
+                }
                 case 'interaction:layout':
                     setInteractionLayout((currentLayout) => {
                         const nextLayout = {

@@ -5,6 +5,7 @@ function GetCurrentResourceName() return 'cortex-lib' end
 function GetInvokingResource() return invoking end
 function SendNUIMessage(message) messages[#messages + 1] = message end
 function AddEventHandler(name, callback) events[name] = callback end
+function RegisterNUICallback() end
 exports = function() end
 lib = {}
 

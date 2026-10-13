@@ -74,6 +74,7 @@ function App() {
         canGoBack: false,
         visible: true,
         appearance: null,
+        releaseSelect: false,
         trail: [],
         focusIndex: null,
         view: 0
@@ -394,6 +395,7 @@ function App() {
                         items: normalizeRadialItems(data.items),
                         canGoBack: Boolean(data.canGoBack),
                         appearance: data.appearance === 'compact-control' ? 'compact-control' : null,
+                        releaseSelect: data.releaseSelect === true,
                         visible: true,
                         trail: normalizeRadialTrail(data.trail),
                         focusIndex: null,
@@ -427,6 +429,7 @@ function App() {
                         items: normalizeRadialItems(data.items),
                         canGoBack: Boolean(data.canGoBack),
                         appearance: data.appearance === 'compact-control' ? 'compact-control' : null,
+                        releaseSelect: false,
                         visible: true,
                         trail: normalizeRadialTrail(data.trail),
                         focusIndex: normalizeRadialFocusIndex(data.focusIndex),

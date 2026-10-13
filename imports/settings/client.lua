@@ -203,12 +203,14 @@ local cortexDefaults = {
     promptScale = 'standard',
     invertScroll = false,
     showPercent = true,
+    volumetricLights = false,
 }
 
 local SECTION_INTERFACE = 'Interface'
 local SECTION_NOTIFICATIONS = 'Notifications'
 local SECTION_PROMPTS = 'Prompts'
 local SECTION_PROGRESS = 'Progress'
+local SECTION_GRAPHICS = 'Graphics'
 
 local cortexFields = {
     {
@@ -292,7 +294,7 @@ local cortexFields = {
     },
     {
         key = 'promptScale', section = SECTION_PROMPTS, type = 'select', label = 'Prompt size',
-        description = 'Size of interaction prompts in the world and on screen.',
+        description = 'Size of interaction prompts and control hints, in the world and on screen.',
         options = {
             { value = 'small', label = 'Small' }, { value = 'standard', label = 'Standard' },
             { value = 'large', label = 'Large' },
@@ -305,6 +307,12 @@ local cortexFields = {
     {
         key = 'showPercent', section = SECTION_PROGRESS, type = 'toggle', label = 'Show percentage',
         description = 'Show how far along an action is next to progress bars and circles.',
+    },
+    {
+        key = 'volumetricLights', section = SECTION_GRAPHICS, type = 'toggle', label = 'Volumetric lights',
+        description = 'Flashlights and vehicle-mounted spotlights show a visible beam at night and indoors. '
+            .. 'Costs frame rate, and how much varies a lot between computers: it depends on your hardware, '
+            .. 'your graphics settings and how many lights are on screen. Try it and see.',
     },
 }
 
@@ -983,16 +991,36 @@ local function canMigrateLegacyValue(tab, key)
     return true
 end
 
+-- Stored values are untrusted, as for the Cortex tab: a stale or edited KVP (an option the tab no
+-- longer offers, a slider value outside a narrowed range) falls back to the default. Otherwise the
+-- NUI sends it back with every Save and the whole batch is rejected, so nothing can be saved.
+local CHECKED_FIELD_TYPES = { toggle = true, slider = true, select = true, color = true, soundList = true,
+    text = true, input = true }
+local function tabFieldAccepts(field, value)
+    if not field or not CHECKED_FIELD_TYPES[field.type] then return true end
+    if field.type == 'slider' then
+        local minValue, maxValue = tonumber(field.min), tonumber(field.max)
+        return isFiniteNumber(value) and (not minValue or value >= minValue) and (not maxValue or value <= maxValue)
+    end
+    return fieldAcceptsValue(field, value)
+end
+
 local function reloadTabValues(tab)
     tab.values = {}
 
     for key, defaultValue in pairs(tab.defaults or {}) do
-        tab.values[key] = loadStoredValue(
+        local value = loadStoredValue(
             tab.kvpPrefix,
             key,
             defaultValue,
             canMigrateLegacyValue(tab, key)
         )
+        local field = nil
+        for index = 1, #(tab.fields or {}) do
+            if tab.fields[index].key == key then field = tab.fields[index]; break end
+        end
+        if not tabFieldAccepts(field, value) then value = defaultValue end
+        tab.values[key] = value
     end
 end
 
@@ -1570,14 +1598,21 @@ local function validatePreviewSubmission(tabs)
             return nil
         end
         local fields, tabDefaults = getTabState(tabId)
-        if not fields or not tabDefaults then return nil end
+        if not fields or not tabDefaults then
+            pcall(print, ('^3[cortex-lib]^7 settings save rejected: unknown tab %s'):format(tostring(tabId)))
+            return nil
+        end
 
         local normalizedValues = {}
         local valueCount = 0
         for key, value in next, values do
             valueCount = valueCount + 1
             local valid, normalized = normalizeNuiSettingValue(tabId, key, value)
-            if valueCount > MAX_SETTINGS_PER_TAB or not valid then return nil end
+            if valueCount > MAX_SETTINGS_PER_TAB or not valid then
+                pcall(print, ('^3[cortex-lib]^7 settings save rejected: %s.%s = %s'):format(
+                    tostring(tabId), tostring(key), tostring(value)))
+                return nil
+            end
             normalizedValues[key] = normalized
         end
         normalizedTabs[tabId] = normalizedValues

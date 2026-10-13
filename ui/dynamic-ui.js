@@ -16,6 +16,8 @@
             ['status', '.status-cluster, .gta6-vitals', true, 100], ['speed', '.speedo-container', true, 100],
             ['ammo', '.gta6-weapon, .ammo-display', true, 100],
             ['location', '.gta6-location-plaque', true, 100], ['waypoint', '.waypoint-distance', true, 100],
+            // The voice indicator owns its corner; prompts and notices step around it.
+            ['voice', '.cx-voice-shell, .voip-container-modern', true, 100],
         ],
         'cortex-polcam': [['camera', '.panel', true, 100], ['compass', '.compass-container', true, 100]],
         'cortex-rewind': [['rewind', '.rewind-instrument', false, 90]],
@@ -28,6 +30,9 @@
         'opticom': [['receiver', '.receiver', false, 80], ['debug', '.debug-panel', true, 100]],
     };
     const definitions = [...(rules[resource] || [])];
+    // Report hysteresis in pixels (see measure()).
+    const SLACK = 16;
+    const GROWTH_PAD = 8;
     const tracked = new Map();
     let state = null;
     let minimap = null;
@@ -117,10 +122,26 @@
                 if (base === 'chat' && !element.classList.contains('chat-open')
                     && ![...element.querySelectorAll('.es-chat-message')].some(visible)) return;
                 const rect = element.getBoundingClientRect();
-                const x = Math.round(rect.x - entry.dx), y = Math.round(rect.y - entry.dy);
-                const width = Math.ceil(rect.width), height = Math.ceil(rect.height);
+                let x = Math.round(rect.x - entry.dx), y = Math.round(rect.y - entry.dy);
+                let width = Math.ceil(rect.width), height = Math.ceil(rect.height);
                 if (width < 1 || height < 1 || x + width < 0 || y + height < 0
                     || x > innerWidth || y > innerHeight) return;
+                // Each report is rebroadcast to every Cortex NUI, so text-width
+                // jitter must not report. A box that still fits its last report
+                // with little slack keeps it; one that grows reports with room
+                // to spare. Reserving a few extra pixels is harmless.
+                const last = entry.reported;
+                if (last && x >= last.x && y >= last.y
+                    && x + width <= last.x + last.width && y + height <= last.y + last.height
+                    && last.width - width <= SLACK && last.height - height <= SLACK) {
+                    ({ x, y, width, height } = last);
+                } else {
+                    if (last && x === last.x && y === last.y) {
+                        if (width > last.width) width += GROWTH_PAD;
+                        if (height > last.height) height += GROWTH_PAD;
+                    }
+                    entry.reported = { x, y, width, height };
+                }
                 surfaces.push({ id, x, y, width, height, fixed, priority });
             });
         }

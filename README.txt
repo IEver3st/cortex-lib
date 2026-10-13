@@ -31,6 +31,11 @@ Use 0 to disable it. /cortexpause opens the enabled quick menu or settings.
 /cortexnative opens the native map/pause frontend when input is available.
 Keep setr cortex_debug 0 on a normal server.
 
+On start the server console says when a newer cortex-lib release is on
+GitHub. To skip that check:
+
+    set cortex_lib_version_check 0
+
 UPDATING TO 3.0
 ---------------
 The UI app API and cortex:uiEvent callback are removed. Update consumers

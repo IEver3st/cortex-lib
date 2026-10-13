@@ -13,14 +13,20 @@ local context = IsDuplicityVersion() and 'server' or 'client'
 local cache = {}
 
 if context == 'client' then
+    -- ped, vehicle and seat are filled by a 100ms worker that starts on the
+    -- first read of any of them. Consumers that never read them (most HUD
+    -- and world resources) pay for no worker at all.
+    local startCacheWorker
+    local liveKeys = { ped = true, vehicle = true, seat = true }
+
     cache = setmetatable({
-        ped = nil,
         playerId = nil,
         serverId = nil,
-        vehicle = 0,
-        seat = -1,
     }, {
         __index = function(self, key)
+            if startCacheWorker and liveKeys[key] then
+                startCacheWorker()
+            end
             return rawget(self, key)
         end,
         __newindex = function(self, key, value)
@@ -49,39 +55,47 @@ if context == 'client' then
     cache.playerId = PlayerId()
     cache.serverId = GetPlayerServerId(cache.playerId)
 
-    CreateThread(function()
-        while true do
-            local playerId = PlayerId()
-            if playerId ~= cache.playerId then
-                cache.playerId = playerId
-                cache.serverId = GetPlayerServerId(playerId)
-            end
+    local function refreshCache()
+        local playerId = PlayerId()
+        if playerId ~= cache.playerId then
+            cache.playerId = playerId
+            cache.serverId = GetPlayerServerId(playerId)
+        end
 
-            local ped = PlayerPedId()
-            cache.ped = ped
+        local ped = PlayerPedId()
+        cache.ped = ped
 
-            if ped ~= 0 then
-                local vehicle = GetVehiclePedIsIn(ped, false)
-                if vehicle > 0 then
-                    local vehicleChanged = vehicle ~= cache.vehicle
-                    cache.vehicle = vehicle
-                    local seat = cache.seat
+        if ped ~= 0 then
+            local vehicle = GetVehiclePedIsIn(ped, false)
+            if vehicle > 0 then
+                local vehicleChanged = vehicle ~= rawget(cache, 'vehicle')
+                cache.vehicle = vehicle
+                local seat = rawget(cache, 'seat')
 
-                    if vehicleChanged or type(seat) ~= 'number' or GetPedInVehicleSeat(vehicle, seat) ~= ped then
-                        cache.seat = findPedSeat(vehicle, ped)
-                    end
-                else
-                    cache.vehicle = 0
-                    cache.seat = -1
+                if vehicleChanged or type(seat) ~= 'number' or GetPedInVehicleSeat(vehicle, seat) ~= ped then
+                    cache.seat = findPedSeat(vehicle, ped)
                 end
             else
                 cache.vehicle = 0
                 cache.seat = -1
             end
-
-            Wait(100)
+        else
+            cache.vehicle = 0
+            cache.seat = -1
         end
-    end)
+    end
+
+    startCacheWorker = function()
+        startCacheWorker = nil
+        -- The first read gets current values, not a value from the next tick.
+        refreshCache()
+        CreateThread(function()
+            while true do
+                Wait(100)
+                refreshCache()
+            end
+        end)
+    end
 end
 
 local memberModules = {

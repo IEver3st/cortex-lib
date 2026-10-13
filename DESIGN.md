@@ -1,6 +1,6 @@
 # cortex-lib design brief
 
-Follows [`../CORTEX-DESIGN.md`](../CORTEX-DESIGN.md) (the constitution wins on conflict). This file records the
+Follows [`../../[cortex-test]/CORTEX-DESIGN.md`](../../[cortex-test]/CORTEX-DESIGN.md) (the constitution wins on conflict). This file records the
 library-specific decisions for every shared surface. The NUI is the grandfathered vendored React 18 stack
 (`React.createElement`, no build step); it stays React.
 
@@ -70,7 +70,7 @@ cancel). Shared appearance (accent, surface opacity, motion, overlap avoidance) 
 | `notifyLimit` | 1–12 | visible notification cap |
 | `showPercent` | bool | progress readouts |
 | `promptMarkers` | bool | Lua renderer: distant marker tier |
-| `promptScale` | `small`, `standard`, `large` | `--cx-prompt-scale` (world + screen prompts) |
+| `promptScale` | `small`, `standard`, `large` | `--cx-prompt-scale` (world + screen prompts, help legend at 0.8x) |
 | `controlHints` | bool | `html[data-cx-hints]` legends |
 | `invertScroll` | bool | Lua renderer: prompt list scroll direction |
 

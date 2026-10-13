@@ -134,4 +134,19 @@ api.hideRadial(true)
 focusSucceeds = false
 assert(api.showRadial() == false and activeSession == nil, 'radial focus failure must release the modal session')
 
+-- releaseSelect is opt-in, boolean only, and reaches the NUI only for the menu that asked for it.
+focusSucceeds = true
+invoking = 'owner-a'
+local badRelease, badReleaseError = api.registerRadial({ id = 'bad-release', releaseSelect = 'yes', items = {} })
+assert(badRelease == false and badReleaseError == 'invalid_release_select', 'releaseSelect must be boolean')
+api.registerRadial({ id = 'hold', releaseSelect = true, items = { { id = 'hold-leaf', label = 'Hold' } } })
+assert(api.showRadial('hold'))
+assert(messages[#messages].action == 'radialShow' and messages[#messages].data.releaseSelect == true,
+    'a releaseSelect menu must tell the NUI to pick on the opening button release')
+api.hideRadial(true)
+api.registerRadial({ id = 'plain', items = { { id = 'plain-leaf', label = 'Plain' } } })
+assert(api.showRadial('plain'))
+assert(messages[#messages].data.releaseSelect ~= true, 'other radials keep right-click = back/close')
+api.hideRadial(true)
+
 print('radial registry lifecycle: PASS')

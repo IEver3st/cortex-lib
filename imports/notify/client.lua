@@ -383,11 +383,13 @@ local function requestModel(model, timeout)
     return true
 end
 
-local function normalizeVector(value)
+-- limit: metres for offsets (10), degrees for rotations (360).
+local function normalizeVector(value, limit)
+    limit = limit or 10
     value = value or { x = 0.0, y = 0.0, z = 0.0 }
     local ok, x, y, z = pcall(function() return value.x, value.y, value.z end)
     if not ok or not isFiniteNumber(x) or not isFiniteNumber(y) or not isFiniteNumber(z)
-        or math.abs(x) > 10 or math.abs(y) > 10 or math.abs(z) > 10
+        or math.abs(x) > limit or math.abs(y) > limit or math.abs(z) > limit
     then
         return nil
     end
@@ -459,7 +461,7 @@ local function normalizeProgress(data)
         if type(data.prop) ~= 'table' then return nil end
         local model = normalizeModel(data.prop.model)
         local pos = normalizeVector(data.prop.pos)
-        local rot = normalizeVector(data.prop.rot)
+        local rot = normalizeVector(data.prop.rot, 360)
         local bone = data.prop.bone == nil and 60309
             or (type(data.prop.bone) == 'number' and math.tointeger(data.prop.bone) or nil)
         if not model or not pos or not rot or not bone or bone < 0 or bone > 65535 then return nil end

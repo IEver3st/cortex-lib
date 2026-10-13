@@ -44,6 +44,10 @@ function IsPauseMenuActive() return paused end
 function IsPlayerFreeAiming() return aiming end
 
 dofile('imports/interaction/client.lua')
+-- Each frame reads the clock once; a 1s step keeps distance culling (at most
+-- 500ms) out of these projection fixtures.
+local fakeClock = 0
+GetGameTimer = GetGameTimer or function() fakeClock = fakeClock + 1000; return fakeClock end
 dofile('client/interaction_renderer.lua')
 callbacks.interactionReady({}, function(data) assert(data.ok) end)
 
@@ -116,7 +120,7 @@ assert(#items == 1 and items[1].tier == 'marker', 'nearby anchors merge into one
 assert(items[1].id == 'beer', 'the merged marker sits at the highest-ranked anchor')
 assert(items[1].label == nil and items[1].key == nil, 'markers carry no label or key')
 assert(items[1].fade > 0 and items[1].fade < 1, 'markers fade with distance')
-assert(waitMs == 33, 'marker-only frames run at the coarse cadence')
+assert(waitMs == 0, 'on-screen markers are tracked every frame so they stay pinned to the camera')
 assert(not as('fridge', exported.isInteractionVisible, 'beer'), 'markers never make an entry visible')
 assert(next(disabled) == nil, 'markers never take the wheel')
 

@@ -1,6 +1,15 @@
 -- Deterministic Lua/native-boundary harness. Does not execute GTA or CEF.
 local callbacks, commands, public, events, threads, timeouts, messages = {}, {}, {}, {}, {}, {}, {}
-local convars, requested, released = {}, {}, {}
+local convarStore, convarListeners, requested, released = {}, {}, {}, {}
+-- Writes notify the convar change listener, as the runtime does.
+local convars = setmetatable({}, {
+    __index = convarStore,
+    __newindex = function(_, name, value)
+        convarStore[name] = value
+        if convarListeners[name] then convarListeners[name](name, value) end
+    end,
+})
+function AddConvarChangeListener(name, fn) convarListeners[name] = fn end
 local blur = false
 local extraModifier = -1
 local blurClones, blurRemoved, blurWrites = 0, false, {}

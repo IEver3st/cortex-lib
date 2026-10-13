@@ -73,8 +73,21 @@ local function hideHudWhileVisible()
     end)
 end
 -- Replicated by the server; there is no player KVP or settings toggle.
+-- The pause worker asks every pass (every frame while the quick menu is on);
+-- a convar read is a string native, so the answer is reused for 8 calls:
+-- about 2 seconds idle, or 8 frames while the quick menu is on.
+local quickMenuValue, quickMenuReads = false, 0
 local function quickMenuEnabled()
-    return GetConvarInt('cortex_pause_replace_native', 0) == 1
+    if quickMenuReads <= 0 then
+        quickMenuValue = GetConvarInt('cortex_pause_replace_native', 0) == 1
+        quickMenuReads = 8
+    end
+    quickMenuReads = quickMenuReads - 1
+    return quickMenuValue
+end
+-- A server owner's live change applies at once where the runtime reports it.
+if type(AddConvarChangeListener) == 'function' then
+    AddConvarChangeListener('cortex_pause_replace_native', function() quickMenuReads = 0 end)
 end
 local title = GetConvar('cortex_pause_title', 'CORTEX'):sub(1, 48)
 local MAX_PAGES, MAX_LOCATIONS = 24, 256

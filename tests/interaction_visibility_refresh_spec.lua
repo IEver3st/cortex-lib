@@ -33,6 +33,10 @@ lib._setInteractionPresentationState = function(...)
     presentationWrites = presentationWrites + 1
     return setPresentation(...)
 end
+-- Each frame reads the clock once; a 1s step keeps distance culling (at most
+-- 500ms) out of these projection fixtures.
+local fakeClock = 0
+GetGameTimer = GetGameTimer or function() fakeClock = fakeClock + 1000; return fakeClock end
 dofile('client/interaction_renderer.lua')
 assert(#threads == 1, 'empty world registry starts no projection worker')
 local function setLabel(label)

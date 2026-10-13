@@ -2,13 +2,15 @@ fx_version 'cerulean'
 game 'gta5'
 
 name 'cortex-lib'
-author 'Cortex & GSD Modifications'
-version '3.0.0'
+author 'GSDMODS/CORTEX'
+version '3.3.1'
+cortex_placement_api '1'
 description 'Shared UI and Lua utilities for FiveM resources'
 
 shared_script 'resource/init.lua'
 
 client_scripts {
+    'client/profile.lua',
     'client/utils.lua',
     'client/presentation.lua',
     'presentation-client.lua',
@@ -21,6 +23,7 @@ client_scripts {
 server_scripts {
     'server/config.lua',
     'server/debug_workbench.lua',
+    'server/version_check.lua',
 }
 
 ui_page 'ui/index.html'
@@ -76,6 +79,7 @@ files {
     'imports/zones/client.lua',
     'imports/points/client.lua',
     'imports/raycast/client.lua',
+    'imports/placement/client.lua',
     'imports/getters/client.lua',
     'imports/vehicleReplay/client.lua',
     'imports/disablecontrols/client.lua',
@@ -84,6 +88,8 @@ files {
     'imports/skillCheck/client.lua',
     'imports/skillCheck/shared.lua',
     'imports/settings/client.lua',
+    'imports/sensors/client.lua',
+    'imports/volumetric/client.lua',
     'imports/notify/server.lua',
     'imports/callback/server.lua',
     'imports/groups/server.lua',

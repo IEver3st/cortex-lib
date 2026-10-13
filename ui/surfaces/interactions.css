@@ -126,6 +126,7 @@
 /* -------------------------------------------------------- target panel --- */
 .cortex-target-panel {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     width: calc(300 * var(--ix));
     max-width: 100%;
     color: var(--paper);
@@ -134,6 +135,7 @@
 
 .cortex-target-actions {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: calc(8 * var(--ix));
 }
 
@@ -202,11 +204,9 @@
     will-change: transform;
 }
 
-/* Markers arrive at ~30 Hz; a short linear ease hides the steps. Prompts
-   are sent every frame and must not lag the anchor. */
-.cx-wp.is-marker {
-    transition: transform 40ms linear;
-}
+/* Markers and prompts are both sent every frame while on screen. No
+   transform transition: easing toward the last projection makes the mark
+   trail the camera instead of staying pinned to its anchor. */
 
 .cx-wp-body {
     display: flex;

@@ -63,7 +63,22 @@ local function hideHelp()
     return true
 end
 
+-- How far the legend reaches up from the bottom of the screen (NUI px, 0 when
+-- hidden), for HUDs in other resources sharing the bottom-right corner:
+-- LocalPlayer.state.cortexHelpLegend (local only, never replicated).
+local function setClearance(px)
+    if LocalPlayer and LocalPlayer.state then LocalPlayer.state:set('cortexHelpLegend', px, false) end
+end
+
+RegisterNUICallback('helpLayout', function(data, cb)
+    local px = type(data) == 'table' and tonumber(data.clearance) or 0
+    if not px or px ~= px or px < 0 or px > 8192 then px = 0 end
+    setClearance(math.floor(px))
+    cb({ ok = true })
+end)
+
 AddEventHandler('onResourceStop', function(resourceName)
+    if resourceName == CURRENT_RESOURCE then setClearance(0) end
     if resourceName == CURRENT_RESOURCE or helpState.owner == resourceName then
         helpState.open = false
         helpState.owner = nil
