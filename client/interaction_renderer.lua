@@ -98,13 +98,106 @@ local frameDescriptors = {}
 local lastFrameDescriptors = {}
 local lastWorldCount = 0
 local worldFrameVisible = false
+-- Whether the NUI world layer currently holds items (it is emptied while the
+-- DUI draws them).
+local nuiWorldShown = false
 local worldFrameDirty = true
+-- Prompts and lists are drawn by the game from a DUI texture once it has
+-- painted them (client/interaction_dui.lua): pinned to their anchors at render
+-- time, with no per-frame NUI traffic. Until then, or if it fails, the NUI
+-- layer draws. `duiFeed`: the DUI gets content (loading or drawing);
+-- `duiMode`: it draws.
+local worldDui = rawget(lib, '_interactionDui')
+local duiFeed, duiMode = false, false
+-- The NUI's wheel hint reads its world items; from the DUI it has none, so
+-- the renderer sends the hint itself.
+local worldListHint, listHintShown = false, false
+local listHintMessage = { action = 'interaction:worldHint', data = { show = false } }
 local worldWorkerRunning = false
 local startWorldWorker
 
 -- Player preferences (Cortex settings tab). nil means default.
 local markersEnabled = true
 local invertScroll = false
+local uiScale, promptScale = 1.0, 1.0
+local PROMPT_SCALES = { small = 0.88, standard = 1.0, large = 1.16 }
+
+-- The Cortex tab stores UI scale as 80-130 (%), like the NUI's --cx-scale.
+local function percentScale(value)
+    value = tonumber(value)
+    if not value then return 1.0 end
+    return math_floor(math_max(80, math_min(130, value)) + 0.5) / 100
+end
+
+-- Markers are drawn natively, not in NUI. A NUI dot is projected with the
+-- previous frame's camera and reaches the screen through CEF a frame or two
+-- later, so it trails its anchor whenever the camera turns. SetDrawOrigin is
+-- resolved by the game at render time with the current camera, so the dot
+-- stays pinned. Same look as the NUI marker it replaced: a 10u paper dot in
+-- a 22u paper ring (3.5u wide) with a 4u shadow, sized by --u x prompt scale.
+local MARKER_TXD, MARKER_TEXTURE = 'cortex_lib_marker', 'dot'
+local MARKER_PIXELS = 64            -- texture edge; covers MARKER_UNITS
+local MARKER_UNITS = 32             -- the 22u ring plus its shadow
+local MARKER_FADE_IN_MS = 240
+local markerTextureReady = false
+local nativeMarkers = {}
+
+local function coverage(edge)
+    return math_max(0.0, math_min(1.0, edge + 0.5))
+end
+
+local function ensureMarkerTexture()
+    if markerTextureReady then return true end
+    local txd = CreateRuntimeTxd(MARKER_TXD)
+    local texture = CreateRuntimeTexture(txd, MARKER_TEXTURE, MARKER_PIXELS, MARKER_PIXELS)
+    if not texture then return false end
+    local perUnit = MARKER_PIXELS / MARKER_UNITS
+    local centre = MARKER_PIXELS / 2
+    local outer, inner, core = 11 * perUnit, 7.5 * perUnit, 5 * perUnit
+    local ringBlur, coreBlur = 4 * perUnit, 3 * perUnit
+    for py = 0, MARKER_PIXELS - 1 do
+        for px = 0, MARKER_PIXELS - 1 do
+            local dx, dy = px + 0.5 - centre, py + 0.5 - centre
+            local d = math_sqrt(dx * dx + dy * dy)
+            local paper = math_max(coverage(outer - d) * coverage(d - inner), coverage(core - d))
+            local shadow = 0.0
+            if d > outer then
+                local t = math_min(1.0, (d - outer) / ringBlur)
+                shadow = 0.6 * (1.0 - t * t * (3.0 - 2.0 * t))
+            elseif d < inner and d > core then
+                local t = math_min(1.0, (d - core) / coreBlur)
+                shadow = 0.55 * (1.0 - t * t * (3.0 - 2.0 * t))
+            end
+            local under = shadow * (1.0 - paper)
+            local alpha = paper + under
+            local r, g, b = 0, 0, 0
+            if alpha > 0.0 then
+                r = (240 * paper + 8 * under) / alpha
+                g = (240 * paper + 9 * under) / alpha
+                b = (233 * paper + 11 * under) / alpha
+            end
+            SetRuntimeTexturePixel(texture, px, py, math_floor(r + 0.5), math_floor(g + 0.5), math_floor(b + 0.5),
+                math_floor(alpha * 255 + 0.5))
+        end
+    end
+    CommitRuntimeTexture(texture)
+    markerTextureReady = true
+    return true
+end
+
+-- Draws this frame's marker heads. Called every frame while any is staged.
+local function drawMarkers(count, width, height)
+    if count == 0 or not ensureMarkerTexture() then return end
+    local unit = math_max(0.72, math_min(width, height) / 1080) * uiScale * promptScale
+    for index = 1, count do
+        local marker = nativeMarkers[index]
+        local size = MARKER_UNITS * unit * marker.scale
+        SetDrawOrigin(marker.x, marker.y, marker.z, 0)
+        DrawSprite(MARKER_TXD, MARKER_TEXTURE, 0.0, 0.0, size / width, size / height, 0.0, 255, 255, 255,
+            math_floor(marker.alpha * 255 + 0.5))
+        ClearDrawOrigin()
+    end
+end
 
 -- Character select (LocalPlayer.state.cortexCharacterSelect) hides every
 -- prompt and marker; entries stay registered and return when it clears.
@@ -133,6 +226,13 @@ local function send(message)
     end
 end
 
+local function setListHint(show)
+    if show == listHintShown then return end
+    listHintShown = show
+    listHintMessage.data.show = show
+    send(listHintMessage)
+end
+
 local function readPreferences()
     local getter = rawget(lib, 'getSetting')
     local nextMarkers, nextInvert = true, false
@@ -142,6 +242,10 @@ local function readPreferences()
         if ok and value == false then nextMarkers = false end
         ok, value = pcall(getter, 'invertScroll')
         if ok and value == true then nextInvert = true end
+        ok, value = pcall(getter, 'uiScale')
+        uiScale = ok and percentScale(value) or 1.0
+        ok, value = pcall(getter, 'promptScale')
+        promptScale = ok and PROMPT_SCALES[value] or 1.0
     end
 
     if nextMarkers ~= markersEnabled then worldFrameDirty = true end
@@ -258,9 +362,12 @@ local function hideWorldFrame()
     selectedKey = nil
     applyPreference(nil)
 
-    if worldFrameVisible then
+    if nuiWorldShown then
         send(emptyWorldFrameMessage)
+        nuiWorldShown = false
     end
+    setListHint(false)
+    if worldDui then worldDui.clear(frameNow) end
 
     clearArray(worldFrameItems)
     clearArray(frameDescriptors)
@@ -297,7 +404,6 @@ local function prepareWorldInteraction(item, previous)
         markerDistance = hasMarkerTier and markerDistance or maxDistance,
         markerDistanceSquared = hasMarkerTier and markerDistance * markerDistance or 0.0,
         frameItem = copyPresentationItem(item, true),
-        markerItem = { tier = 'marker', id = item.id, owner = item.owner },
         -- A definition replacement (including a label-only change) resets
         -- registry visibility. Seed the write cache from that current state,
         -- not the old descriptor, so the next projection restores visibility
@@ -749,6 +855,17 @@ local function buildWorldFrame()
     if profiling then profile.enter('cortex-lib:world-anchors') end
     local screenWidth = lastWidth > 0 and lastWidth or 1920
     local screenHeight = lastHeight > 0 and lastHeight or 1080
+    -- The NUI's --u and --ix in screen pixels (ui/core/kit.css).
+    local unit = math_max(0.72, math_min(screenWidth, screenHeight) / 1080) * uiScale
+    local promptUnit = unit * promptScale
+    local duiState = worldDui ~= nil and worldDui.update(now, promptUnit) or false
+    duiFeed = duiState ~= false
+    if not duiFeed and duiMode then worldDui.clear(now) end
+    if (duiState == 'draw') ~= duiMode then
+        -- Hand every row to the other layer in full.
+        duiMode = duiState == 'draw'
+        worldFrameDirty = true
+    end
     local promptCount, markerCount = 0, 0
     local anyInRange = false
     local nearestGap = math_huge
@@ -793,6 +910,7 @@ local function buildWorldFrame()
                     descriptor.pixelX = screenX * screenWidth
                     descriptor.pixelY = screenY * screenHeight
                     descriptor.distance = math_sqrt(distanceSquared)
+                    descriptor.worldX, descriptor.worldY, descriptor.worldZ = x, y, z
 
                     if distanceSquared <= descriptor.maxDistanceSquared then
                         descriptor.tier = 'prompt'
@@ -895,12 +1013,16 @@ local function buildWorldFrame()
     clusterCount = keptClusters
     clearArray(markerCandidates, markerCount + 1)
 
-    -- 4. Focus: the list nearest the screen centre that has a real choice.
+    -- 4. From the DUI each list needs an atlas cell. A list without one is not
+    --    drawn, so it cannot take the wheel and its rows are not staged.
+    if duiFeed then worldDui.assign(now, clusters, clusterCount) end
+
+    --    Focus: the list nearest the screen centre that has a real choice.
     local focused = nil
     local focusDistance = math_huge
     for clusterIndex = 1, clusterCount do
         local cluster = clusters[clusterIndex]
-        cluster.choosable = cluster.count > 1 and rowsShareKey(cluster)
+        cluster.choosable = cluster.count > 1 and rowsShareKey(cluster) and not (duiMode and not cluster.cell)
         if cluster.choosable then
             local dx = cluster.head.pixelX - (screenWidth * 0.5)
             local dy = cluster.head.pixelY - (screenHeight * 0.5)
@@ -940,6 +1062,7 @@ local function buildWorldFrame()
     else
         selectedKey = nil
     end
+    worldListHint = focused ~= nil and takesWheel
 
     -- Apply before presentation writes so the registry agrees this frame.
     applyPreference(preferred)
@@ -959,9 +1082,10 @@ local function buildWorldFrame()
         local pixelY = math_floor(head.pixelY + 0.5)
         local centimetres = math_floor(head.distance * 100 + 0.5)
         local isFocused = cluster == focused and takesWheel
+        local rowCount = (duiMode and not cluster.cell) and 0 or cluster.count
         needsEveryFrame = true
 
-        for rowIndex = 1, cluster.count do
+        for rowIndex = 1, rowCount do
             if frameCount >= MAX_WORLD_ITEMS then break end
             local descriptor = cluster.rows[rowIndex]
             local item = descriptor.frameItem
@@ -993,7 +1117,7 @@ local function buildWorldFrame()
         local markerSquared = markerRadius * markerRadius
 
         for index = 1, markerCount do
-            if frameCount >= MAX_WORLD_ITEMS then break end
+            if markerHeadCount >= MAX_WORLD_ITEMS then break end
             local descriptor = markerCandidates[index]
             local hidden = false
 
@@ -1028,27 +1152,27 @@ local function buildWorldFrame()
                 if span > 0.0 and descriptor.distance > descriptor.maxDistance then
                     near = math_max(0.0, math_min(1.0, (descriptor.markerDistance - descriptor.distance) / span))
                 end
-                local fadeStep = math_floor(near * 20 + 0.5)
-                local item = descriptor.markerItem
-                item.x = descriptor.screenX
-                item.y = descriptor.screenY
-                item.distance = descriptor.distance
-                item.fade = fadeStep / 20
+                -- A new marker fades in over MARKER_FADE_IN_MS.
+                if descriptor.markerStamp ~= stamp - 1 then descriptor.markerSince = now end
+                descriptor.markerStamp = stamp
+                local fadeIn = math_min(1.0, (now - descriptor.markerSince) / MARKER_FADE_IN_MS)
 
-                frameCount = stageItem(
-                    frameCount,
-                    descriptor,
-                    item,
-                    math_floor(descriptor.pixelX + 0.5),
-                    math_floor(descriptor.pixelY + 0.5),
-                    0,
-                    1 + (fadeStep * 16),
-                    descriptor.groupId
-                )
+                local marker = nativeMarkers[markerHeadCount]
+                if not marker then
+                    marker = {}
+                    nativeMarkers[markerHeadCount] = marker
+                end
+                marker.id, marker.owner = descriptor.id, descriptor.owner
+                marker.x, marker.y, marker.z = descriptor.worldX, descriptor.worldY, descriptor.worldZ
+                marker.distance, marker.fade = descriptor.distance, near
+                marker.alpha = (0.42 + near * 0.5) * fadeIn
+                marker.scale = math_max(0.96, math_min(1.02, 1.035 - descriptor.distance * 0.025))
             end
         end
     end
     clearArray(markerHeads, markerHeadCount + 1)
+    clearArray(nativeMarkers, markerHeadCount + 1)
+    drawMarkers(markerHeadCount, screenWidth, screenHeight)
 
     -- Everything not presented as an actionable row is not visible.
     for index = 1, #worldInteractions do
@@ -1083,10 +1207,17 @@ local function buildWorldFrame()
         end
     end
 
+    if duiFeed then
+        -- Content changes go to the DUI; positions are drawn here every frame.
+        worldDui.publish(now, stamp, frameChanged == 'full', promptScale)
+        if duiMode then worldDui.draw(now, clusters, clusterCount, screenWidth, screenHeight, promptUnit, unit) end
+    end
+
     if profiling then profile.leave() end
 
     local waitMs
-    if needsEveryFrame or frameCount > 0 then
+    if needsEveryFrame or frameCount > 0 or markerHeadCount > 0 then
+        -- Native markers are drawn this frame and must be drawn every frame.
         waitMs = 0
     elseif anyInRange then
         waitMs = MARKER_WAIT_MS
@@ -1122,8 +1253,18 @@ local function updateWorldFrame()
     local profiling = profile and profile.enabled
     if profiling then profile.enter('cortex-lib:world-send') end
     if frameCount > 0 then
-        if frameChanged == 'full' or not worldFrameVisible then
+        if duiMode then
+            -- Drawn natively this pass, and the DUI has any content change.
+            if nuiWorldShown then
+                send(emptyWorldFrameMessage)
+                nuiWorldShown = false
+            end
+            setListHint(worldListHint)
+            if frameChanged then commitWorldFrame(frameCount) end
+        elseif frameChanged == 'full' or not nuiWorldShown then
+            setListHint(false)
             send(worldFrameMessage)
+            nuiWorldShown = true
             commitWorldFrame(frameCount)
             lastMoveSentAt = frameNow
         elseif frameChanged == 'move' and (not lastMoveSentAt or frameNow < lastMoveSentAt
@@ -1189,6 +1330,10 @@ AddEventHandler('cortex-lib:settingChanged', function(key, value)
         markersEnabled = nextMarkers
     elseif key == 'invertScroll' then
         invertScroll = value == true
+    elseif key == 'uiScale' then
+        uiScale = percentScale(value)
+    elseif key == 'promptScale' then
+        promptScale = PROMPT_SCALES[value] or 1.0
     end
 end)
 

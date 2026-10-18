@@ -3,7 +3,7 @@ game 'gta5'
 
 name 'cortex-lib'
 author 'GSDMODS/CORTEX'
-version '3.3.1'
+version '3.4.0'
 cortex_placement_api '1'
 description 'Shared UI and Lua utilities for FiveM resources'
 
@@ -15,7 +15,11 @@ client_scripts {
     'client/presentation.lua',
     'presentation-client.lua',
     'client/pause.lua',
+    'client/interaction_dui.lua',
     'client/interaction_renderer.lua',
+    'client/callout_layout.lua',
+    'client/callout_dui.lua',
+    'client/callout_renderer.lua',
     'client/debug_panel.lua',
     'client/debug_workbench.lua',
 }
@@ -37,6 +41,12 @@ files {
     'ui/cortex-display.woff2',
     'ui/barlow-condensed-OFL.txt',
     'ui/index.html',
+    'ui/world.html',
+    'ui/world.js',
+    'ui/world.css',
+    'ui/callouts.html',
+    'ui/callouts.js',
+    'ui/callouts.css',
     'ui/core/tokens.css',
     'ui/core/base.css',
     'ui/core/kit.css',
@@ -85,6 +95,7 @@ files {
     'imports/disablecontrols/client.lua',
     'imports/help/client.lua',
     'imports/interaction/client.lua',
+    'imports/callouts/client.lua',
     'imports/skillCheck/client.lua',
     'imports/skillCheck/shared.lua',
     'imports/settings/client.lua',

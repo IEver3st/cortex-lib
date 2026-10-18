@@ -232,4 +232,4 @@ console.log('interaction UI contract: PASS');
 assert.match(uiSource, /case 'interaction:worldMove'/);
 assert.match(uiSource, /positions\.length !== currentItems\.length \* 3\) break/);
 assert.match(renderer, /action = 'interaction:worldMove'/);
-assert.match(renderer, /frameChanged == 'full' or not worldFrameVisible/);
+assert.match(renderer, /frameChanged == 'full' or not nuiWorldShown/);

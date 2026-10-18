@@ -66,6 +66,15 @@ local function fixture(rendererPath)
         f.trace[#f.trace + 1] = { clock = f.clock, message = snapshot }
     end
     function env.GetSafeZoneSize() return 1 end
+    -- Markers are drawn natively; this spec only counts entity reads.
+    f.draws = 0
+    function env.CreateRuntimeTxd(name) return name end
+    function env.CreateRuntimeTexture() return 'dot' end
+    function env.SetRuntimeTexturePixel() end
+    function env.CommitRuntimeTexture() end
+    function env.SetDrawOrigin() end
+    function env.DrawSprite() f.draws = f.draws + 1 end
+    function env.ClearDrawOrigin() end
     function env.GetActiveScreenResolution() return 1920, 1080 end
     function env.GetGameTimer() return f.clock end
     function env.PlayerPedId() return 1 end
@@ -257,9 +266,9 @@ local function exercise(rendererPath)
     assert(not f:visible('row1'), 'offscreen prompts stop being actionable')
     f.projected = true
     f.entities[500].x = 6
+    local drawsBefore = f.draws
     assert(f:frame(432) == 0, 'visible markers still project every render frame')
-    local markerMessage = f.messages[#f.messages]
-    assert(markerMessage.action == 'interaction:world' and markerMessage.data.items[1].tier == 'marker')
+    assert(f.draws == drawsBefore + 1, 'the marker is drawn natively this frame')
     assert(not f:visible('row1'), 'markers never authorize an interaction')
 
     -- Keep one world prompt active while the distant entity uses the existing bounded cull.

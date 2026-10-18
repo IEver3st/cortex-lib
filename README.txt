@@ -1,7 +1,7 @@
 CORTEX LIB
 ==========
 Shared UI and Lua utilities for FiveM resources.
-Maintained by Ever3st and GSD Modifications. MIT license.
+Maintained by Ever3st and GSD Modifications. Free use license.
 
 INSTALL
 -------

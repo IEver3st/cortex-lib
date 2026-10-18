@@ -42,6 +42,18 @@ function DisableControlAction(_, control) disabled[control] = true end
 function IsDisabledControlJustPressed(_, control) return pressed[control] == true end
 function IsPauseMenuActive() return paused end
 function IsPlayerFreeAiming() return aiming end
+-- Markers are native sprites at a draw origin, not NUI items.
+local drawn, textures = {}, 0
+function CreateRuntimeTxd(name) return name end
+function CreateRuntimeTexture() textures = textures + 1; return 'dot' end
+function SetRuntimeTexturePixel() end
+function CommitRuntimeTexture() end
+function SetDrawOrigin(x, y, z) drawn[#drawn + 1] = { x = x, y = y, z = z } end
+function DrawSprite(txd, texture, _, _, width, height, _, _, _, _, alpha)
+    local mark = drawn[#drawn]
+    mark.txd, mark.texture, mark.width, mark.height, mark.alpha = txd, texture, width, height, alpha
+end
+function ClearDrawOrigin() end
 
 dofile('imports/interaction/client.lua')
 -- Each frame reads the clock once; a 1s step keeps distance culling (at most
@@ -62,6 +74,7 @@ end
 local function worker() return threads[#threads] end
 local function frame()
     disabled = {}
+    drawn = {}
     local co = worker()
     assert(coroutine.status(co) ~= 'dead', 'projection worker must be running')
     local ok, waitMs = coroutine.resume(co)
@@ -82,6 +95,11 @@ local function world(id, key, priority, y, more, z)
     }
     for field, value in pairs(more or {}) do item[field] = value end
     return item
+end
+local function markerAt(y, z)
+    for index = 1, #drawn do
+        if drawn[index].y == y and drawn[index].z == z then return drawn[index] end
+    end
 end
 local function find(items, id)
     for index = 1, #items do if items[index].id == id then return items[index] end end
@@ -110,24 +128,29 @@ assert(as('fridge', exported.setInteractions, fridge))
 
 player = { x = -20.0, y = 0.0, z = 0.0 }
 local waitMs = frame()
-assert(#lastWorld() == 0, 'nothing is drawn outside the marker range')
+assert(#lastWorld() == 0 and #drawn == 0, 'nothing is drawn outside the marker range')
 assert(waitMs == 250, 'far from every anchor the worker polls slowly')
 
 player = { x = 5.0, y = 0.0, z = 0.0 }
 waitMs = frame()
 local items = lastWorld()
-assert(#items == 1 and items[1].tier == 'marker', 'nearby anchors merge into one marker')
-assert(items[1].id == 'beer', 'the merged marker sits at the highest-ranked anchor')
-assert(items[1].label == nil and items[1].key == nil, 'markers carry no label or key')
-assert(items[1].fade > 0 and items[1].fade < 1, 'markers fade with distance')
-assert(waitMs == 0, 'on-screen markers are tracked every frame so they stay pinned to the camera')
+assert(#items == 0, 'markers are not NUI items: NUI trails the camera')
+assert(#drawn == 1, 'nearby anchors merge into one native marker')
+assert(drawn[1].x == 10.0 and markerAt(0.0, 0.0), 'the merged marker sits at the highest-ranked anchor (beer)')
+assert(drawn[1].txd == 'cortex_lib_marker' and drawn[1].texture == 'dot' and textures == 1, 'one runtime texture, built once')
+assert(math.abs(drawn[1].height - 32 / 1080) < 0.002 and math.abs(drawn[1].width * 1920 - drawn[1].height * 1080) < 0.01,
+    'a 32u square sprite at 1080p')
+local firstAlpha = drawn[1].alpha
+frame()
+assert(drawn[1].alpha > firstAlpha and drawn[1].alpha < 255, 'markers fade in, then fade with distance')
+assert(waitMs == 0, 'on-screen markers are drawn every frame')
 assert(not as('fridge', exported.isInteractionVisible, 'beer'), 'markers never make an entry visible')
 assert(next(disabled) == nil, 'markers never take the wheel')
 
 settings.promptMarkers = false
 TriggerEvent('cortex-lib:settingChanged', 'promptMarkers', false)
 frame()
-assert(#lastWorld() == 0, 'the promptMarkers preference disables the marker tier')
+assert(#lastWorld() == 0 and #drawn == 0, 'the promptMarkers preference disables the marker tier')
 settings.promptMarkers = nil
 TriggerEvent('cortex-lib:settingChanged', 'promptMarkers', true)
 
@@ -236,13 +259,13 @@ assert(as('car', exported.showInteraction, world('door', 'E', 100, 0.0, nil, 1.5
 frame()
 items = lastWorld()
 assert(find(items, 'door').tier == 'prompt' and find(items, 'door').active)
-assert(find(items, 'beer').tier == 'marker', 'a same-key loser outside the owner list is only a marker')
+assert(not find(items, 'beer') and markerAt(0.0, 0.0), 'a same-key loser outside the owner list is only a marker')
 assert(not as('fridge', exported.isInteractionVisible, 'beer'))
 
 -- A screen prompt owning the key keeps world rows out and rejects preference.
 assert(as('hud', exported.showInteraction, { id = 'menu', label = 'MENU', key = 'E', priority = 500 }))
 frame()
-assert(find(lastWorld(), 'door').tier == 'marker', 'world rows cannot compete with a screen prompt owner')
+assert(not find(lastWorld(), 'door') and markerAt(0.0, 1.5), 'world rows cannot compete with a screen prompt owner')
 assert(lib._setInteractionPreference('car', 'door') == false, 'preference never beats a screen prompt')
 assert(as('hud', exported.isInteractionActive, 'menu'))
 assert(lib._setInteractionPreference('hud', 'menu') == false, 'screen prompts cannot be preferred')

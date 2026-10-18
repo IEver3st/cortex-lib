@@ -69,6 +69,10 @@
 .cortex-interaction-key-part.is-mouse { transform: translate(0.03em, 0.03em); }
 .cortex-interaction-key-part.is-plus { opacity: 0.7; font-size: 0.86em; font-style: normal; }
 .cortex-interaction-key-mouse { width: 0.72em; height: 1.02em; overflow: visible; }
+.cortex-interaction-key-part.is-axis { line-height: 0; }
+.cortex-interaction-key-axis { width: 1.14em; height: 1.14em; overflow: visible; }
+.cortex-interaction-key-axis.is-v { transform: rotate(90deg); }
+.cortex-interaction-key-axis-arrow { fill: none; stroke: currentColor; stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
 .cortex-interaction-key-mouse-body { fill: currentColor; }
 .cortex-interaction-key-mouse-seam { fill: none; stroke: var(--text-primary, #f0f0e9); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .cortex-interaction-key-mouse-wheel { fill: var(--text-primary, #f0f0e9); }

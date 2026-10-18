@@ -87,8 +87,10 @@ assert.match(rows[4].props.className, /is-peek/);
 assert.equal(byClass(rows[1], 'cortex-world-interaction-key').length, 1, 'the selected row has the full disc');
 assert.equal(byClass(rows[0], 'cx-wp-dot').length, 1, 'rows sharing the selected key show a dot');
 assert.equal(byClass(tree, 'cx-wp-hint').length, 0, 'the wheel hint lives bottom-right, never under the list');
-assert.match(source, /listHint: latestWorldItemsRef\.current\.some\(\(item\) => item\.focused === true && item\.tier !== 'marker'\)/,
-    'a focused list shows its WHEEL hint in the bottom-right prompt column');
+assert.match(source, /listHint: worldListHint\s*\|\| latestWorldItemsRef\.current\.some\(\(item\) => item\.focused === true && item\.tier !== 'marker'\)/,
+    'a focused list shows its WHEEL hint in the bottom-right prompt column (from Lua while the world DUI draws)');
+assert.match(source, /case 'interaction:worldHint':\s*setWorldListHint\(data\?\.show === true\)/,
+    'the world DUI hint message drives the same hint');
 assert.match(source, /item: \{ key: 'WHEEL' \},\s*className: 'cortex-interaction-key'/, 'the hint uses the shared key glyph');
 assert.ok(text(rows[1]).includes('LAVAZAS'));
 

@@ -2,19 +2,10 @@
 
 Shared UI and Lua utilities for FiveM resources, maintained by Ever3st and GSD Modifications.
 
-[![Version 3.3.1](https://img.shields.io/badge/version-3.3.1-blue?style=flat-square)](https://github.com/IEver3st/cortex-lib/releases)
-[![MIT license](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
-[![Discord](https://img.shields.io/badge/discord-GSD%20Modifications-5865F2?style=flat-square)](https://discord.gg/Atwt5nxaCV)
-[![Store](https://img.shields.io/badge/store-gsd--modifications.tebex.io-6e8ffa?style=flat-square)](https://gsd-modifications.tebex.io/)
-
+[![Version 3.4.0](https://img.shields.io/badge/version-3.4.0-blue?style=flat-square)](https://github.com/IEver3st/cortex-lib/releases)
 ![Cortex Lib: menus, radial menus and interaction prompts](https://raw.githubusercontent.com/IEver3st/cortex-lib/main/marketing/2026-09-27/final/01-cortex-lib.png)
 
 **[Download cortex-lib.zip](https://github.com/IEver3st/cortex-lib/releases/latest/download/cortex-lib.zip)** · [Release notes](https://github.com/IEver3st/cortex-lib/releases) · [API reference](https://github.com/IEver3st/cortex-lib/blob/main/docs/api.md) · [Report a problem](https://github.com/IEver3st/cortex-lib/issues)
-
-> [!TIP]
-> **Made by GSD Modifications.** Get the paid Cortex scripts (PolCam, HUD, Chat, Rewind and more) at
-> **[gsd-modifications.tebex.io](https://gsd-modifications.tebex.io/)**, and get help in our
-> [Discord](https://discord.gg/Atwt5nxaCV). Also free: [Cortex Minigames](https://github.com/IEver3st/cortex-minigames), twelve skill checks and QTEs.
 
 Install the library once and start it before the scripts that use it. The release ZIP includes the interface, React runtime and fonts. Server owners need no frontend tools or build step.
 
@@ -27,6 +18,7 @@ Install the library once and start it before the scripts that use it. The releas
 | Dialogs | Text, password, number, select and checkbox inputs; required fields; confirmation and cancellation. |
 | Progress and skill checks | Bars and circles with cancellation, completion feedback and configurable skill checks. |
 | Interaction prompts | Screen prompts and world, entity or bone anchors; distant markers; merged lists; hold indicators. |
+| Callouts | Labels on the parts of a vehicle or any entity, joined to them by leaders, picked with the mouse while you keep driving. |
 | Shared settings | Resource-owned tabs, search, live previews, Apply, Save and Discard, with preferences stored on the client. |
 | Shared appearance | Accent, opacity, scale, text size, motion preferences and placement around participating overlays. |
 | Lua utilities | Client/server callbacks, zones, points, raycasts, entity queries, control locks, timers and a live player cache. |
@@ -182,4 +174,4 @@ Pushes to `main` run contract tests, Lua specs and archive validation before the
 
 ## License
 
-[MIT](LICENSE), copyright 2026 Ever3st. Bundled React and Barlow Condensed retain their licenses; see [Third-party notices](THIRD_PARTY_NOTICES.md). Consumer resources may have different terms.
+Free use license; see [LICENSE](LICENSE). No resale or redistribution. Copyright 2026 Ever3st. Bundled React and Barlow Condensed retain their licenses; see [Third-party notices](THIRD_PARTY_NOTICES.md). Consumer resources may have different terms.

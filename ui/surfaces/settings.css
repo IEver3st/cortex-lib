@@ -79,18 +79,58 @@
     border: 0;
 }
 
-/* Tabs: resting paper text; hover washes; the selected tab flips to paper. */
-.cortex-settings-tabs {
+/* Tabs: resting paper text; hover washes; the selected tab flips to paper.
+   Past one row the strip scrolls, and arrow slips at both ends page it. */
+.cortex-settings-tabbar {
     display: flex;
     flex: none;
+    align-items: flex-start;
     gap: calc(6 * var(--u));
     margin: 0 0 calc(16 * var(--u));
+}
+
+.cortex-settings-tabs {
+    position: relative; /* offsetParent for paging */
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: calc(6 * var(--u));
     padding: 0 0 calc(4 * var(--u));
     overflow-x: auto;
     scrollbar-width: none;
 }
 
 .cortex-settings-tabs::-webkit-scrollbar { display: none; }
+
+.cortex-settings-tab-arrow {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: calc(40 * var(--u));
+    height: calc(40 * var(--u));
+    border-radius: var(--r-sm);
+    background: var(--slip-soft);
+    color: var(--paper);
+    transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast) var(--ease);
+}
+
+.cortex-settings-tab-arrow svg { width: calc(20 * var(--u)); height: calc(20 * var(--u)); }
+.cortex-settings-tab-arrow:hover:not(:disabled) { background: var(--slip); }
+.cortex-settings-tab-arrow:active:not(:disabled) { transform: translateY(calc(2 * var(--u))); }
+.cortex-settings-tab-arrow:disabled { color: var(--dim); cursor: default; }
+
+/* Unsaved changes on a tab scrolled out of view. */
+.cortex-settings-tab-arrow.is-dirty::after {
+    content: '';
+    position: absolute;
+    top: calc(5 * var(--u));
+    right: calc(5 * var(--u));
+    width: calc(7 * var(--u));
+    height: calc(7 * var(--u));
+    border-radius: calc(2 * var(--u));
+    background: var(--accent);
+}
 
 .cortex-settings-tab {
     position: relative;
@@ -688,7 +728,7 @@
 @media (prefers-reduced-motion: reduce) {
     .cortex-pause-overlay.is-settings-page,
     .is-settings-page .cortex-pause.cortex-settings-panel { animation: none; }
-    .cortex-settings-tab, .pause-sections button, .pause-sections button::before, .cortex-settings-row,
+    .cortex-settings-tab, .cortex-settings-tab-arrow, .pause-sections button, .pause-sections button::before, .cortex-settings-row,
     .cortex-settings-row::before, .cortex-settings-row-reset, .cortex-settings-btn, .cx-settings-swatch,
     .cx-settings-action, .cx-settings-icon-button { transition: none; }
 }

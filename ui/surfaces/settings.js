@@ -243,6 +243,10 @@ function SettingsGlyph({ kind }) {
         return React.createElement('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' },
             React.createElement('path', { d: 'M7 4.5v15l12.5-7.5Z', className: 'cx-settings-glyph-fill' }));
     }
+    if (kind === 'prev' || kind === 'next') {
+        return React.createElement('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' },
+            React.createElement('path', { d: kind === 'prev' ? 'M14.5 5.5 8 12l6.5 6.5' : 'M9.5 5.5 16 12l-6.5 6.5', className: 'cx-settings-glyph-line' }));
+    }
     return React.createElement('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' },
         React.createElement('path', { d: 'M5.5 12a6.5 6.5 0 1 0 2-4.7', className: 'cx-settings-glyph-line' }),
         React.createElement('path', { d: 'M4 3.5v5.5h5.5', className: 'cx-settings-glyph-line' }));
@@ -374,6 +378,107 @@ function SettingsField({ field, value, defaultValue, hasDefault, dirty, tabId, o
             onClick: () => { if (canReset) set(defaultValue); }
         }, React.createElement(SettingsGlyph, { kind: 'reset' }))
     );
+}
+
+const SETTINGS_TAB_EDGES = { overflow: false, prev: false, next: false, prevDirty: false, nextDirty: false };
+
+function settingsScrollBehavior() {
+    const motion = document.documentElement.dataset.cxMotion;
+    return (motion ? motion === 'reduced' : window.matchMedia('(prefers-reduced-motion: reduce)').matches) ? 'auto' : 'smooth';
+}
+
+/** The tab row scrolls once registered scripts outgrow it. Arrows appear only
+ * then, page to the next clipped tab, and carry the dirty dot when unsaved work
+ * is out of view. They are pointer-only: keyboard and pad step the tablist. Its
+ * own component, so scroll state never rebuilds the settings rows. */
+function SettingsTabStrip({ active, label, children }) {
+    const listRef = useRef(null);
+    const [edges, setEdges] = useState(SETTINGS_TAB_EDGES);
+
+    const measure = useCallback(() => {
+        const node = listRef.current;
+        if (!node) return;
+        const left = node.scrollLeft, right = left + node.clientWidth;
+        const overflow = node.scrollWidth - node.clientWidth > 1;
+        const dirty = Array.from(node.children).filter(tab => tab.classList.contains('is-dirty'));
+        const next = {
+            overflow,
+            prev: overflow && left > 1,
+            next: overflow && right < node.scrollWidth - 1,
+            prevDirty: overflow && dirty.some(tab => tab.offsetLeft < left - 1),
+            nextDirty: overflow && dirty.some(tab => tab.offsetLeft + tab.offsetWidth > right + 1)
+        };
+        setEdges(current => Object.keys(next).every(key => current[key] === next[key]) ? current : next);
+    }, []);
+
+    // Tabs register, rename and turn dirty while open: re-read after each render.
+    useEffect(measure);
+    useEffect(() => {
+        const node = listRef.current;
+        if (!node) return undefined;
+        const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+        observer?.observe(node);
+        document.fonts?.ready.then(measure);
+        return () => observer?.disconnect();
+    }, [measure]);
+
+    // Bring the selected tab fully into view, whichever input selected it, and
+    // again when its dirty dot widens it.
+    const activeClass = Array.isArray(children) ? children[active]?.props?.className : '';
+    useEffect(() => {
+        const node = listRef.current;
+        const tab = node?.children[active];
+        if (!tab) return;
+        const start = tab.offsetLeft, end = start + tab.offsetWidth;
+        if (start < node.scrollLeft) node.scrollTo({ left: start, behavior: settingsScrollBehavior() });
+        else if (end > node.scrollLeft + node.clientWidth) node.scrollTo({ left: end - node.clientWidth, behavior: settingsScrollBehavior() });
+    }, [active, activeClass]);
+
+    const page = direction => {
+        const node = listRef.current;
+        if (!node) return;
+        const left = node.scrollLeft, view = node.clientWidth;
+        const tabs = Array.from(node.children);
+        let target;
+        if (direction > 0) {
+            // The first clipped tab on the right lands flush with the left edge.
+            const clipped = tabs.find(tab => tab.offsetLeft + tab.offsetWidth > left + view + 1);
+            target = clipped && clipped.offsetLeft > left + 1 ? clipped.offsetLeft : left + view;
+        } else {
+            // The last clipped tab on the left lands flush with the right edge.
+            const clipped = tabs.filter(tab => tab.offsetLeft < left - 1).pop();
+            const end = clipped ? clipped.offsetLeft + clipped.offsetWidth : 0;
+            target = clipped && end < left + view - 1 ? end - view : left - view;
+        }
+        node.scrollTo({ left: Math.max(0, target), behavior: settingsScrollBehavior() });
+    };
+
+    // A mouse wheel only scrolls vertically; turn it sideways over the row.
+    const handleWheel = event => {
+        const node = listRef.current;
+        if (!node || !edges.overflow || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+        node.scrollLeft += event.deltaY;
+    };
+
+    const arrow = direction => {
+        const back = direction < 0;
+        return React.createElement('button', {
+            type: 'button', tabIndex: -1, 'aria-hidden': 'true',
+            className: `cortex-settings-tab-arrow ${back ? 'is-prev' : 'is-next'}${(back ? edges.prevDirty : edges.nextDirty) ? ' is-dirty' : ''}`,
+            disabled: !(back ? edges.prev : edges.next),
+            // Focus stays on the tab the player is working in.
+            onMouseDown: event => event.preventDefault(),
+            onClick: () => page(direction)
+        }, React.createElement(SettingsGlyph, { kind: back ? 'prev' : 'next' }));
+    };
+
+    return React.createElement('div', { className: `cortex-settings-tabbar${edges.overflow ? ' is-overflowing' : ''}` },
+        edges.overflow && arrow(-1),
+        React.createElement('div', {
+            ref: listRef, className: 'cortex-settings-tabs', role: 'tablist', 'aria-label': label,
+            onScroll: measure, onWheel: handleWheel
+        }, children),
+        edges.overflow && arrow(1));
 }
 
 // ============================================================================
@@ -645,7 +750,7 @@ function SettingsPanel({ open, session, tabs, page: initialPage, pause, onClose 
     },
         page === 'settings' && React.createElement('fieldset', { className: 'pause-settings-body', disabled: submitting, 'aria-busy': submitting },
             // Only Cortex and registered script preferences belong here.
-            React.createElement('div', { className: 'cortex-settings-tabs', role: 'tablist', 'aria-label': 'Settings' },
+            React.createElement(SettingsTabStrip, { active: activeTab, label: 'Settings' },
                 tabs.map((t, i) => {
                     const tabDirty = Object.keys(values[t.id] || {}).some(key => isDirty(t, key));
                     return React.createElement('button', {

@@ -13,7 +13,7 @@ test('advanced and contextual controls stay discoverable without losing pending 
     function SettingsField() {}
     const context = vm.createContext({
         React: { createElement: (type, props, ...children) => ({ type, props, children }) },
-        SettingsField,
+        SettingsField, SettingsTabStrip() {},
         useState(initial) {
             const index = cursor++;
             if (!(index in hooks)) hooks[index] = initial;
@@ -70,7 +70,7 @@ test('hidden script pages build no fields and retain edits when returning to set
             if (type === SettingsField) allocations++;
             return { type, props, children };
         } },
-        SettingsField,
+        SettingsField, SettingsTabStrip() {},
         useState(initial) {
             const index = cursor++;
             if (!(index in hooks)) hooks[index] = initial;
@@ -119,7 +119,7 @@ test('Apply retains the panel, resets dirty state and protects an in-flight comm
     function SettingsField() {}
     const context = vm.createContext({
         React: { createElement: (type, props, ...children) => ({ type, props, children }) },
-        SettingsField,
+        SettingsField, SettingsTabStrip() {},
         useState(initial) {
             const index = cursor++;
             if (!(index in hooks)) hooks[index] = initial;
@@ -187,7 +187,7 @@ test('settings contains script tabs without game-settings or keybinding handoffs
     function SettingsField() {}
     const context = vm.createContext({
         React: { createElement: (type, props, ...children) => ({ type, props, children }) },
-        SettingsField,
+        SettingsField, SettingsTabStrip() {},
         useState(initial) {
             const index = cursor++;
             if (!(index in hooks)) hooks[index] = initial;
@@ -228,7 +228,7 @@ test('Escape closes standalone Settings regardless of the server quick-menu opti
     function SettingsField() {}
     const context = vm.createContext({
         React: { createElement: (type, props, ...children) => ({ type, props, children }) },
-        SettingsField, CustomEvent: class { constructor(type, init) { this.type = type; Object.assign(this, init); } },
+        SettingsField, SettingsTabStrip() {}, CustomEvent: class { constructor(type, init) { this.type = type; Object.assign(this, init); } },
         useState(initial) {
             const index = cursor++;
             if (!(index in hooks)) hooks[index] = initial;

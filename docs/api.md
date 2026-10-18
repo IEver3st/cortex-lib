@@ -19,6 +19,7 @@ For installation and player settings, read the [customer guide](../README.md). T
 | `disablecontrols` | client | Instance-based control locks (movement, combat, vehicle, mouse) |
 | `help` | client | GTA-style controls legend (label + keycaps) at the bottom-right of the safe zone |
 | `interaction` | client | Owner-scoped screen and world prompt registry + 3D NUI renderer |
+| `callouts` | client | Pins, leaders and labels on an entity's parts, with a switch block, picked with the game cursor |
 | `settings` | client | KVP-backed settings registry with built-in NUI settings menu |
 | `timer` | shared | Pausable / resumable timer class |
 | `waitFor` | shared | `waitFor(condition, timeout)` helper |
@@ -493,6 +494,78 @@ local benchPoint = lib.points.new({
 Key arbitration is recomputed only when the registry changes (including a list selection change), so `lib.isInteractionActive(id)` is a direct owner-scoped lookup. World projection is frame-bound only while a prompt, hold or focused list is on screen; marker-only frames run at ~30 Hz (the NUI eases the steps), and with nothing in range the worker polls at 50-250 ms by distance. Stable entity bones reuse their lookup, unchanged frames (compared at whole pixels) do not cross the NUI bridge, and the React interaction surface is isolated from unrelated UI.
 
 The scheduling follows the [Cfx `Citizen.Wait` guidance](https://docs.fivem.net/docs/scripting-reference/runtimes/lua/functions/Citizen.Wait): reserve `Wait(0)` for genuinely frame-bound work, adapt idle waits, and cache infrequently changing native results. The cache and points lifecycles are adapted from proven [ox_lib cache](https://github.com/overextended/ox_lib/blob/main/resource/cache/client.lua) and [points](https://github.com/overextended/ox_lib/blob/main/imports/points/client.lua) patterns while retaining cortex-lib's existing public values and callback timing.
+
+---
+
+## Callouts
+
+Pins on the parts of an entity (a vehicle's doors, windows, seats, engine), each joined by a square leader to a label beside it, plus a block of switches. The player points with the mouse and clicks; nothing takes NUI focus, so driving and walking stay with them. Display only, like interaction prompts: your resource registers the key, decides what every row and switch says, acts on the events and has the server revalidate.
+
+```lua
+RegisterKeyMapping('+carParts', 'Vehicle parts', 'keyboard', 'M')
+RegisterCommand('+carParts', function()
+  local vehicle = cache.vehicle or lib.getClosestVehicle(GetEntityCoords(cache.ped), 4.0)
+  if not vehicle then return end
+  local ok, err = lib.showCallouts({
+    entity = vehicle,
+    model = GetEntityModel(vehicle),            -- closes if the handle is reused
+    callouts = {
+      { id = 'door:0', offset = vector3(-0.9, 0.4, 0.3), rows = {
+        { id = 'door:0', name = 'Left door', chip = 'Open' },
+        { id = 'window:0', name = 'Window', chip = 'Down' },
+      } },
+      { id = 'trunk', offset = vector3(0.0, -2.2, 0.4), rows = {
+        { id = 'trunk', name = 'Trunk', chip = 'Locked', tone = 'no' },
+      } },
+    },
+    switches = {
+      { id = 'lock', text = 'Unlocked', texts = { 'Locked', 'Unlocked' } },
+    },
+    chips = { 'Open', 'Close', 'Down', 'Up', 'Locked' },
+    onEvent = function(event)
+      if event.type == 'select' then
+        TriggerServerEvent('myres:server:work', event.id) -- revalidated there
+      elseif event.type == 'closed' then
+        -- event.reason: 'cancel' | 'entity' | 'focus' | 'error' | 'replaced' | 'stopped'
+      end
+    end,
+  })
+end, false)
+RegisterCommand('-carParts', function() lib.hideCallouts() end, false)
+```
+
+| Field | Rules |
+| :--- | :--- |
+| `entity` | Positive local handle. Required. Never send or persist it. |
+| `model` | Optional integer; the session closes with `entity` if the handle later resolves to another model. |
+| `bounds` | Optional `{ min, max }` in entity space (each axis within 100). Defaults to the model's dimensions. The labels sit outside the box it projects to. |
+| `callouts` | Up to 48: `{ id, offset, order?, minor?, rows }`. `offset` is entity space (each axis within 50). `order` ranks who keeps a label when the screen is short of room (default: list order). `minor = true` shows the label only while the pin is hovered. |
+| `rows` | 1 to 4 per callout: `{ id, name, chip?, tone?, hidden?, pending? }`. `name` up to 48 characters, `chip` up to 32. `tone` is `off`, `on` (accent), `you` or `no` (refused, dimmed). `hidden` leaves the row out; `pending` pulses it. The first row is large and the rest small, by declared place. |
+| `switches` | Up to 24: `{ id, text, texts?, tone?, hidden?, pending? }`. `texts` lists every text the switch can show (up to 8) so its cell never moves. |
+| `title` | Optional `{ name, chip? }` above the switches, for a session with no callouts (a key fob at range). |
+| `chips` | Up to 64 strings: every chip a row can show. Each row's cell keeps room for the widest, so a state change repaints in place. |
+| `onEvent` | Optional function or funcref, called with the events below. |
+
+Row and switch ids share one namespace (at most 64 characters). At least one callout, switch or title is required; malformed data returns `false, reason` (`invalid_entity`, `invalid_row_tone`, `empty`, ...), never an error. A show from inside a `replaced` or `stopped` event returns `false, 'busy'`.
+
+| Call | Behaviour |
+| :--- | :--- |
+| `lib.showCallouts(data)` | Opens the invoking resource's callouts, or updates them in place when they are already up on the same entity (call it on state changes, never every frame). One session is up at a time: another resource's call replaces it and the first owner receives `closed` with `replaced`. Returns `true` or `false, reason`. |
+| `lib.hideCallouts()` | Closes your session. No `closed` event. |
+| `lib.calloutEffect(id, kind)` | `'pop'` after an action landed, `'shake'` after a refusal, on a row or switch id. |
+| `lib.isCalloutsOpen()` | Whether your session is up. |
+| `lib.getCalloutState()` | `{ open, hot = { id, callout, switch }, labels = { [calloutId] = { x, y, side } }, switches = { [id] = { x, y } }, hover = { ids }, screen = { width, height } }` in screen pixels, for tooling and tests. Presentation, not authorization. |
+| `lib.prepareCallouts()` | Starts the label texture and paints the pins ahead of the first session. Call once at start. |
+
+| Event | Sent when |
+| :--- | :--- |
+| `{ type = 'select', id, callout, switch }` | Left click, or Enter / the controller's accept, on a row (`id` is the row id) or a switch (`switch = true`). |
+| `{ type = 'wheel', id, callout, rows, delta }` | The wheel over a label; `rows` lists its shown row ids, `delta` is `-1` up or `1` down. |
+| `{ type = 'closed', reason }` | Right click, Backspace or Esc (`cancel`, the pause menu is held off briefly), the entity gone or another model (`entity`), the pause menu or NUI focus (`focus`), a renderer error (`error`), another resource's session (`replaced`), or cortex-lib stopping (`stopped`). |
+
+While a session is up the mouse moves the game's cursor instead of the camera, and looking, weapons, the phone, the radio and the pause menu are held; the arrow keys step between labels and a controller stick aims. Labels keep clear of the radar and of other owners' presentation surfaces, never cross their leaders, and stay where they were while the camera moves.
+
+Everything is drawn by the game relative to one `SetDrawOrigin` at the entity's middle, so it stays pinned at render time. Labels are painted into one transparent DUI texture (`ui/callouts.html`) only when their text changes; if the DUI cannot load, labels are game text and every part still works. A moving entity is drawn where it will be this frame; `setr cortex_lib_callouts_predict 0` turns that off.
 
 ---
 

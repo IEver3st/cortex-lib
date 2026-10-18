@@ -1,0 +1,27 @@
+/* World prompt DUI (ui/world.html): a transparent atlas of fixed cells. The
+   game draws each cell at its prompt's anchor (client/interaction_dui.lua). */
+html.cx-world-dui,
+html.cx-world-dui body {
+    margin: 0;
+    overflow: hidden;
+    background: transparent;
+}
+
+.cx-world-atlas {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+/* `contain` makes each cell the containing block of the fixed-position
+   prompt layer, so a group's --wx/--wy are cell coordinates. */
+.cx-world-cell {
+    position: absolute;
+    overflow: hidden;
+    contain: strict;
+}
+
+/* The NUI caps labels at min(34vw, 340ix); here vw is the atlas width. */
+.cx-world-dui .cx-wp-label {
+    max-width: calc(340 * var(--ix));
+}

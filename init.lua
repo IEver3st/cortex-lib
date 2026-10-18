@@ -192,6 +192,16 @@ local clientOwnedModules = {
             cancelHold = self.cancelInteractionHold,
         }
     end,
+    callouts = function(self)
+        return {
+            show = self.showCallouts,
+            hide = self.hideCallouts,
+            effect = self.calloutEffect,
+            isOpen = self.isCalloutsOpen,
+            getState = self.getCalloutState,
+            prepare = self.prepareCallouts,
+        }
+    end,
 }
 
 local function callCortexExport(exportName, ...)
@@ -654,6 +664,30 @@ if context == 'client' then
 
     function lib.cancelInteractionHold(id)
         return callCortexExport('cancelInteractionHold', id)
+    end
+
+    function lib.showCallouts(data)
+        return callCortexExport('showCallouts', data)
+    end
+
+    function lib.hideCallouts()
+        return callCortexExport('hideCallouts')
+    end
+
+    function lib.calloutEffect(id, kind)
+        return callCortexExport('calloutEffect', id, kind)
+    end
+
+    function lib.isCalloutsOpen()
+        return callCortexExport('isCalloutsOpen')
+    end
+
+    function lib.getCalloutState()
+        return callCortexExport('getCalloutState')
+    end
+
+    function lib.prepareCallouts()
+        return callCortexExport('prepareCallouts')
     end
 else
     function lib.notify(target, data)

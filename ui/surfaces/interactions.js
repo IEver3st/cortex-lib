@@ -286,7 +286,10 @@ function WorldPromptRow({ item, selected, peek, head, marker, first, last }) {
     );
 }
 
-function WorldPromptGroup({ group }) {
+// `place` is set in the world DUI (ui/world.js): the group is drawn into an
+// atlas cell at a fixed anchor ({ x, y } in px, flip decided by Lua) and the
+// game positions and clamps the cell, so viewport maths does not apply.
+function WorldPromptGroup({ group, place }) {
     const head = group.rows[0];
     const x = clampInteractionNumber(head.x, 0, 1);
     const y = clampInteractionNumber(head.y, 0, 1);
@@ -317,7 +320,7 @@ function WorldPromptGroup({ group }) {
     const selectedIndex = Math.max(0, rows.findIndex((row) => row.selected));
     const { start, end } = getInteractionListWindow(count, selectedIndex);
     const list = count > 1;
-    const flipped = x > INTERACTION_FLIP_X;
+    const flipped = place ? place.flipped === true : x > INTERACTION_FLIP_X;
     const focused = list && head.focused === true;
     const moreAbove = start > 0;
     const moreBelow = end < count;
@@ -355,7 +358,7 @@ function WorldPromptGroup({ group }) {
 
     return React.createElement('div', {
         className: classes,
-        style: {
+        style: place ? { '--wx': `${place.x}px`, '--wy': `${place.y}px`, '--wscale': 1 } : {
             '--wx': `${x * 100}vw`,
             '--wy': `min(${y * 100}vh, calc(100vh - ${estimate} * var(--ix) - 24 * var(--u)))`,
             '--wscale': distanceScale
@@ -371,7 +374,7 @@ function WorldPromptGroup({ group }) {
     );
 }
 
-function WorldInteractionPrompts({ items }) {
+function WorldInteractionPrompts({ items, place }) {
     if (!Array.isArray(items) || items.length === 0) return null;
 
     const groups = buildWorldInteractionGroups(items);
@@ -387,7 +390,7 @@ function WorldInteractionPrompts({ items }) {
         className: 'cortex-world-interactions',
         role: 'list',
         'aria-label': 'Nearby world actions'
-    }, groups.map((group) => React.createElement(WorldPromptGroup, { key: group.key, group })));
+    }, groups.map((group) => React.createElement(WorldPromptGroup, { key: group.key, group, place })));
 }
 
 const INTERACTION_BASE_FIELDS = Object.freeze([
@@ -502,6 +505,9 @@ function interactionLayoutsEqual(left, right) {
 function InteractionSurface({ hidden }) {
     const [interactionItems, setInteractionItems] = useState([]);
     const [, setWorldInteractionItems] = useState([]);
+    // Sent by Lua while the world DUI draws the prompts (the world items here
+    // are empty then): whether a focused list takes the wheel.
+    const [worldListHint, setWorldListHint] = useState(false);
     const [interactionLayout, setInteractionLayout] = useState({
         insetRight: 0,
         insetBottom: 0,
@@ -610,6 +616,9 @@ function InteractionSurface({ hidden }) {
                     }
                     break;
                 }
+                case 'interaction:worldHint':
+                    setWorldListHint(data?.show === true);
+                    break;
                 case 'interaction:layout':
                     setInteractionLayout((currentLayout) => {
                         const nextLayout = {
@@ -640,7 +649,8 @@ function InteractionSurface({ hidden }) {
         React.createElement(InteractionPrompts, {
             items: interactionItems,
             layout: interactionLayout,
-            listHint: latestWorldItemsRef.current.some((item) => item.focused === true && item.tier !== 'marker')
+            listHint: worldListHint
+                || latestWorldItemsRef.current.some((item) => item.focused === true && item.tier !== 'marker')
         }),
         React.createElement(WorldInteractionPrompts, { items: latestWorldItemsRef.current })
     );

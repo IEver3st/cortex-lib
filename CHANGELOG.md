@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.4.0 (2026-10-18)
+
+### Added
+- World prompts and lists are drawn by the game from one DUI texture and pinned to their anchors at render time, so they no longer trail or stutter when the camera turns. If the DUI cannot load, the previous NUI layer takes over. Turn it off with `set cortex_lib_world_dui 0`.
+- World markers (the dot and ring) are drawn natively for the same reason, and fade in.
+- Key glyphs: an opposite arrow pair ("← →", "↑ ↓") shows as one axis glyph.
+- Callouts (`lib.showCallouts`): pins on the parts of a vehicle or any entity, each joined by a square leader to a label beside it, with a block of switches. The player points with the game's cursor and clicks while still driving or walking; nothing takes NUI focus. Display only: the calling resource decides what every label says and acts on `select`, `wheel` and `closed` events. Labels are drawn by the game from one DUI texture pinned at render time and fall back to game text if the DUI cannot load. See **Callouts** in `docs/api.md`.
+
+### Changed
+- Settings: when the tabs no longer fit on one row, the row scrolls sideways, with arrows at both ends that page it. An arrow shows a dot when a tab with unsaved changes is scrolled out of view on that side.
+- License: Cortex Library now ships under the Cortex Library Free Use License instead of MIT. It stays free to use and modify on servers you own or run, including commercial ones; it may not be sold or redistributed. Share the official download link.
+- Drop-in update. Restart cortex-lib before the resources that use it.
+
+### Fixed
+- Settings: a controller's left and right switch tabs. They used to move focus off the tab row, so only the first tab could be opened.
+
 ## 3.3.1 (2026-10-12)
 
 ### Added

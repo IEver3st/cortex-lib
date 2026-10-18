@@ -1,6 +1,7 @@
 // Shared key glyph and hold ring for React prompts and inline 2D consumers.
 // One glyph for every key: a disc for one or two characters that grows into a
-// pill for longer names, combos ("SHIFT E") and mouse buttons. The ring is a
+// pill for longer names, combos ("SHIFT E") and mouse buttons. An arrow pair
+// ("← →", "↑ ↓") is one axis glyph in a disc. The ring is a
 // single path that starts at 12 o'clock, so the hold fill reads the same on a
 // disc and a pill. Loaded by other Cortex resources: keep render/mount stable.
 (function (root) {
@@ -22,7 +23,9 @@
     });
     // Approximate advance of the italic condensed caps in viewBox units.
     const CHAR_UNITS = 9.4;
-    const GLYPH_UNITS = { mouse: 13, plus: 8, gap: 3 };
+    const GLYPH_UNITS = { mouse: 13, axis: 19, plus: 8, gap: 3 };
+    // Two opposite arrows are one axis ("← →" cycles, "↑ ↓" nudges), not a combo.
+    const AXIS = Object.freeze({ '←→': 'h', '→←': 'h', '↔': 'h', '↑↓': 'v', '↓↑': 'v', '↕': 'v' });
 
 // Column-0 on purpose: contract tests extract this normalizer by its shape.
 function getInteractionHoldDuration(value) {
@@ -41,6 +44,8 @@ function getInteractionHoldDuration(value) {
         const sided = /^([LR])\s+(CTRL|SHIFT|ALT)$/.exec(raw);
         if (sided) return [{ type: 'text', text: `${sided[1]} ${sided[2]}` }];
         const tokens = raw.split(/\s*\+\s*|\s+/).filter(Boolean).slice(0, 3);
+        const axis = tokens.length <= 2 && AXIS[tokens.map(token => SHORT[token] || token).join('')];
+        if (axis) return [{ type: 'axis', axis }];
         const parts = [];
         tokens.forEach((token, index) => {
             if (index > 0) parts.push({ type: 'plus' });
@@ -55,6 +60,7 @@ function getInteractionHoldDuration(value) {
         parts.forEach((part, index) => {
             if (index > 0) units += GLYPH_UNITS.gap;
             if (part.type === 'mouse') units += GLYPH_UNITS.mouse;
+            else if (part.type === 'axis') units += GLYPH_UNITS.axis;
             else if (part.type === 'plus') units += GLYPH_UNITS.plus;
             else units += Math.max(1, part.text.length) * CHAR_UNITS;
         });
@@ -81,6 +87,11 @@ function getInteractionHoldDuration(value) {
                 className: wheelLit ? 'cortex-interaction-key-mouse-lit' : 'cortex-interaction-key-mouse-wheel' }),
             button === 'WHEEL' ? h('path', { d: 'M5.2 12.4 7 10.9l1.8 1.5M5.2 15.2 7 16.7l1.8-1.5', className: 'cortex-interaction-key-mouse-seam' }) : null
         );
+    }
+
+    function axisGlyph(h, axis) {
+        return h('svg', { className: `cortex-interaction-key-axis is-${axis}`, viewBox: '0 0 20 20', focusable: 'false', 'aria-hidden': 'true' },
+            h('path', { d: 'M3.5 10h13M7.5 5.5 3 10l4.5 4.5M12.5 5.5 17 10l-4.5 4.5', className: 'cortex-interaction-key-axis-arrow' }));
     }
 
     function render(h, { item, className, ariaLabel, decorative = false }) {
@@ -133,6 +144,8 @@ function getInteractionHoldDuration(value) {
                 'aria-hidden': 'true'
             }, ...parts.map((part, index) => part.type === 'mouse'
                 ? h('span', { key: `m${index}`, className: 'cortex-interaction-key-part is-mouse' }, mouseGlyph(h, part.button))
+                : part.type === 'axis'
+                ? h('span', { key: `a${index}`, className: 'cortex-interaction-key-part is-axis' }, axisGlyph(h, part.axis))
                 : part.type === 'plus'
                     ? h('span', { key: `p${index}`, className: 'cortex-interaction-key-part is-plus' }, '+')
                     : h('span', { key: `t${index}`, className: 'cortex-interaction-key-part is-text' }, part.text)))

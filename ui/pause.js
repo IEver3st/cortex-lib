@@ -174,8 +174,8 @@
                     else moveFocus(dialogRef.current, input === 'up' ? -1 : 1);
                 } else if (input === 'accept') current?.click();
                 else if (input === 'left' || input === 'right') {
-                    if (current?.getAttribute?.('role') === 'radio') {
-                        // Segmented and swatch choices step their own value.
+                    if (['radio', 'tab'].includes(current?.getAttribute?.('role'))) {
+                        // Segmented and swatch choices step their own value; tabs step the tablist.
                         current.dispatchEvent(new KeyboardEvent('keydown', { key: input === 'left' ? 'ArrowLeft' : 'ArrowRight', bubbles: true }));
                     } else if (current?.type === 'range') {
                         const next = Math.max(Number(current.min), Math.min(Number(current.max),

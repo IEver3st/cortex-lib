@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en" class="cx-world-dui">
+<head>
+    <meta charset="UTF-8">
+    <title>cortex-lib world prompts</title>
+    <!-- World prompt DUI (client/interaction_dui.lua). Not the ui_page. -->
+    <link rel="stylesheet" href="core/tokens.css">
+    <link rel="stylesheet" href="core/base.css">
+    <link rel="stylesheet" href="core/kit.css">
+    <link rel="stylesheet" href="dynamic-ui.css">
+    <link rel="stylesheet" href="surfaces/interactions.css">
+    <link rel="stylesheet" href="interaction-key.css">
+    <link rel="stylesheet" href="skill-checks.css">
+    <link rel="stylesheet" href="world.css">
+</head>
+<body>
+    <div id="root"></div>
+    <script>
+        // Read by skill-checks.js (never reports) and world.js. A DUI page has
+        // no parent frame, so the resource name comes from the URL.
+        window.CORTEX_WORLD_DUI = true;
+        window.CORTEX_WORLD_RESOURCE = new URLSearchParams(location.search).get('resource') || 'cortex-lib';
+        if (typeof window.GetParentResourceName !== 'function') {
+            window.GetParentResourceName = () => window.CORTEX_WORLD_RESOURCE;
+        }
+    </script>
+    <script src="vendor/react.production.min.js"></script>
+    <script src="vendor/react-dom.production.min.js"></script>
+    <script src="core/base.js"></script>
+    <script src="core/kit.js"></script>
+    <script src="skill-engine.js"></script>
+    <script src="skill-checks.js"></script>
+    <script src="interaction-key.js"></script>
+    <script src="surfaces/interactions.js"></script>
+    <script src="world.js"></script>
+</body>
+</html>

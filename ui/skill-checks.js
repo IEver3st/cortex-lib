@@ -13,8 +13,10 @@
     let session = null;
     let outcomeTimer = 0;
     const notify = () => listeners.forEach(fn => fn(session));
-    // One bounded transport for the whole NUI (core/base.js).
-    const post = (name, data) => nuiPost(name, data, { timeoutMs: 2500 });
+    // One bounded transport for the whole NUI (core/base.js). The world DUI
+    // (ui/world.html) mirrors sessions to draw a mash dial and never reports.
+    const post = (name, data) => window.CORTEX_WORLD_DUI === true
+        ? Promise.resolve(null) : nuiPost(name, data, { timeoutMs: 2500 });
 
     window.addEventListener('message', event => {
         const { action, data } = event.data || {};

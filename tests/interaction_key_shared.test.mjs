@@ -46,3 +46,16 @@ test('inline ring survives unrelated updates and resets on cancel, repress and t
     action.destroy();
     assert.equal(node.children.length, 0);
 });
+
+test('an opposite arrow pair is one axis glyph in a disc, not a combo pill', () => {
+    const glyph = key => render(h, { item: { key }, className: 'cortex-key-inline', decorative: true });
+    for (const [key, axis] of [['← →', 'h'], ['LEFT RIGHT', 'h'], ['↑ ↓', 'v'], ['↕', 'v']]) {
+        const node = glyph(key);
+        assert.doesNotMatch(node.props.className, /is-pill/, `${key} stays a disc`);
+        const [part] = node.children[1].children;
+        assert.match(part.props.className, /is-axis/);
+        assert.match(part.children[0].props.className, new RegExp(`is-${axis}$`));
+    }
+    assert.match(glyph('SHIFT E').props.className, /is-pill/, 'real combos keep the pill');
+    assert.equal(glyph('←').children[1].children[0].children[0], '←', 'a single arrow stays text');
+});

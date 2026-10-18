@@ -54,7 +54,12 @@ end
 local function send(action, session, extra)
     local data = extra or {}
     data.session = session.id
-    SendNUIMessage({ action = action, data = data })
+    local message = { action = action, data = data }
+    SendNUIMessage(message)
+    -- World prompts may be drawn from the world DUI, where a mash dial needs
+    -- the same session (client/interaction_dui.lua). Other checks are screen-only.
+    local mirror = rawget(lib, '_interactionDuiMirror')
+    if mirror and session.config.type == 'mash' then mirror(message) end
 end
 
 local function finish(success, reason)
