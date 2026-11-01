@@ -25,8 +25,19 @@ local abs, floor, max, min, sin = math.abs, math.floor, math.max, math.min, math
 
 local OPEN_MS, POP_MS, SHAKE_MS = 200, 220, 320
 local STATIC_ROW = 40      -- u reserved at the atlas top for the pins
-local PAPER, HALO = { 240, 240, 233 }, { 11, 12, 14 }
+local PAPER, HALO, INK = { 240, 240, 233 }, { 11, 12, 14 }, { 15, 16, 18 }
 local CANCEL_GUARD_MS = 350
+
+-- Each style's leader (ui/callouts.css paints the cells): the halo under it
+-- (width in u, colour, alpha) and its core (width, picked width, colour,
+-- alpha). A drafting leader ends on a bar across its end. dev/lab in
+-- cortex-pinpoint mirrors this table.
+local STYLES = {
+    ink = { halo = 9, haloColor = HALO, haloA = 128, core = 3, hotCore = 4, color = PAPER, coreA = 235 },
+    slip = { halo = 9, haloColor = HALO, haloA = 210, core = 3, hotCore = 4, color = PAPER, coreA = 235 },
+    paper = { halo = 7, haloColor = PAPER, haloA = 255, core = 3, hotCore = 3, color = INK, coreA = 255 },
+    draft = { halo = 5, haloColor = HALO, haloA = 200, core = 3, hotCore = 3, color = PAPER, coreA = 235, terminal = true },
+}
 
 local predict = GetConvarInt('cortex_lib_callouts_predict', 1) ~= 0
 
@@ -234,6 +245,8 @@ local function shapeOf(s)
     for _, sw in ipairs(s.switches) do parts[#parts + 1] = sw.id .. '=' .. table.concat(sw.texts, '/') end
     parts[#parts + 1] = '|' .. table.concat(s.chips, '/')
     if s.title then parts[#parts + 1] = '|' .. s.title.name .. '=' .. s.title.chip end
+    -- A new style repaints every cell before any is drawn.
+    parts[#parts + 1] = '|' .. s.style
     return table.concat(parts, '\n')
 end
 
@@ -253,21 +266,28 @@ local function projectNative(sc, x, y, z)
     return sx * sc.w, sy * sc.h
 end
 
--- One leader: axis-aligned segments, a dark halo under a paper (or accent)
--- line at least 3u wide (CORTEX-DESIGN law 4). A corner belongs to the
--- segment arriving at it, so the halo never doubles up. `grow` draws the first
--- part of it, from the pin outward.
-local function leader(path, grow, hot, alpha, d)
+local function rect(x1, y1, x2, y2, col, a, d)
+    DrawRect(((x1 + x2) / 2 - d.ox) / d.sw, ((y1 + y2) / 2 - d.oy) / d.sh, abs(x2 - x1) / d.sw, abs(y2 - y1) / d.sh, col[1], col[2], col[3], a)
+end
+
+-- One leader in style `st`: axis-aligned segments, a halo under a line at
+-- least 3u wide (CORTEX-DESIGN law 4), accent when picked. A corner belongs to
+-- the segment arriving at it, so the halo never doubles up. `grow` draws the
+-- first part of it, from the pin outward. A drafting leader, once drawn
+-- whole, ends on a bar across the first row (row1: its height in pixels) of a
+-- label beside the car, or a shelf the label's width under one above it
+-- (`placed`).
+local function leader(path, grow, hot, alpha, d, st, placed, row1)
     local u = d.u
     local total = 0
     for i = 1, #path - 2, 2 do total = total + abs(path[i + 2] - path[i]) + abs(path[i + 3] - path[i + 1]) end
-    local core = hot and 4 * u or 3 * u
-    local color = hot and d.accent or PAPER
+    local core = (hot and st.hotCore or st.core) * u
+    local color = hot and d.accent or st.color
     local n = #path / 2 - 1
     for pass = 1, 2 do
-        local wide = pass == 1 and 9 * u or core
-        local col = pass == 1 and HALO or color
-        local a = floor((pass == 1 and 128 or (hot and 255 or 235)) * alpha + 0.5)
+        local wide = pass == 1 and st.halo * u or core
+        local col = pass == 1 and st.haloColor or color
+        local a = floor((pass == 1 and st.haloA or (hot and 255 or st.coreA)) * alpha + 0.5)
         local left = total * grow
         for i = 1, n do
             if left <= 0 then break end
@@ -287,6 +307,18 @@ local function leader(path, grow, hot, alpha, d)
             local h = sy ~= 0 and abs(by - ay) or wide
             if w > 0 and h > 0 then
                 DrawRect(((ax + bx) / 2 - d.ox) / d.sw, ((ay + by) / 2 - d.oy) / d.sh, w / d.sw, h / d.sh, col[1], col[2], col[3], a)
+            end
+        end
+        if st.terminal and grow >= 1 and n >= 1 then
+            local ex, ey = path[#path - 1], path[#path]
+            local extra = pass == 1 and (st.halo - st.core) * u or 0
+            if path[#path - 3] == ex then
+                -- Arrives from below: a shelf under the label.
+                rect(placed.x - extra / 2, ey - wide / 2, placed.x + placed.w + extra / 2, ey + wide / 2, col, a, d)
+            else
+                -- Across the first row, wherever on it the leader arrives.
+                local half, cy = (row1 + extra) / 2, placed.y + row1 / 2
+                rect(ex - wide / 2, cy - half, ex + wide / 2, cy + half, col, a, d)
             end
         end
     end
@@ -331,7 +363,7 @@ local function draw(s, now, input)
 
     local ready = atlas.ready(now)
     if ready and s.dirty then
-        if atlas.publish(s.message, now, s.moved) then s.moved, s.dirty = false, false end
+        if atlas.publish(s.message, now, s.moved, s.style) then s.moved, s.dirty = false, false end
     end
     atlas.tick(now)
     local labelsOk = ready and not s.moved and atlas.revealed(now)
@@ -441,6 +473,7 @@ local function draw(s, now, input)
 
     -- Drawing ------------------------------------------------------------------------
     local d = { u = u, sw = sc.w, sh = sc.h, ox = ox or 0, oy = oy or 0, accent = rgb(atlas.accent()) }
+    local style = STYLES[s.style] or STYLES.ink
     if ox then
         local px, py, pz = wx, wy, wz
         if predict then
@@ -467,7 +500,7 @@ local function draw(s, now, input)
         local it = byId[id]
         if p.path and it then
             local dim = #it.rows == 1 and it.rows[1].tone == 'no'
-            leader(p.path, grow, hotId == id, dim and 0.5 or 1.0, d)
+            leader(p.path, grow, hotId == id, dim and 0.5 or 1.0, d, style, p, L.ROW[it.rows[1].size].h * u)
         end
     end
 
@@ -696,6 +729,7 @@ function R.show(owner, data)
     s.model = data.model
     s.onEvent = data.onEvent or s.onEvent
     s.callouts, s.switches, s.title, s.chips = data.callouts, data.switches, data.title, data.chips
+    s.style = data.style or 'ink'
     s.dims = data.bounds or s.dims or modelBounds(data.entity)
     local shape = shapeOf(s)
     if fresh then
@@ -757,10 +791,11 @@ function R.state(owner)
     return { open = true, hot = hot, labels = labels, switches = switches, hover = hover, screen = { width = w, height = h } }
 end
 
--- Starts the label atlas and paints the pins ahead of the first session, so
--- the first one shows everything at once. Owners call it once at start.
+-- Starts the label atlas and paints the pins (in `style`) ahead of the first
+-- session, so the first one shows everything at once. Owners call it once at
+-- start.
 local preparing = false
-function R.prepare()
+function R.prepare(style)
     if preparing then return true end
     preparing = true
     CreateThread(function()
@@ -771,7 +806,7 @@ function R.prepare()
         if cur or not atlas.ready(GetGameTimer()) then return end
         local cells = {}
         for _, c in ipairs(staticCells()) do cells[#cells + 1] = { k = 'pin', v = c.v, x = c.x, y = c.y, w = c.w, h = c.h } end
-        atlas.publish(cells, GetGameTimer(), false)
+        atlas.publish(cells, GetGameTimer(), false, style)
     end)
     return true
 end

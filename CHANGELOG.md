@@ -1,5 +1,29 @@
 # Changelog
 
+## 3.5.0 (2026-11-01)
+
+### Added
+- Settings has its own key: **I** opens it on every server, with or without cortex-hud. Players rebind it in Settings > Key Bindings > FiveM ("Cortex: open settings"); `setr cortex_lib_settings_key <key>` changes the default, and `""` leaves it unbound. The manifest declares `cortex_settings_key '1'` so consumers can skip binding their own.
+- Callout styles: `lib.showCallouts({ style = ... })` picks one of four looks. `ink` is the default and unchanged; `slip` puts each row on an ink slip with square pins; `paper` makes paper tags with ink chips, paper leaders and diamond pins; `draft` uses upright lettering, underlined chips, leaders that end on a bar and ring pins. Every style keeps the same sizes, so labels sit in the same places. `lib.getCalloutStyles()` lists them, and `lib.prepareCallouts(style)` paints the pins in the style the first session will use.
+
+### Changed
+- Settings is a script library: scripts are listed down the left, grouped Everyday, Equipment, Activities, Staff and Other with a setting count each, with search at the top. The open script's title and count sit above its settings, and its sections are chips beside the Advanced switch. The horizontal tab strip and the section list are gone. Resources pick their group with `{ group = '...' }` on `registerSettings` or a `group` field in their settings definition; Cortex resources are placed automatically.
+- Keycaps: menus, Settings, dialogs and the quick menu draw an opposite arrow pair as one axis keycap, as world prompts already did, and Backspace reads BKSP everywhere.
+- Quick menu: brought in line with the Cortex design rules with the same layout. Panels use the shared neutral ink instead of a teal tint, every colour comes from a token, rings and rules are at least 3u, and the clock colon, session dot, beacons and terrain no longer loop. Small labels are larger and higher in contrast.
+- Radial: the legend no longer repeats RMB Back/Close; the centre already names it.
+- Settings: the Escape hint reads "Discard & resume", which is what it does.
+
+### Fixed
+- Settings: Save and Apply only write the settings that changed. They used to rewrite every setting of every tab to disk, which spiked cortex-lib's CPU for a second or two on each save.
+- Settings: Escape while searching clears the search and keeps unsaved changes; the next Escape leaves. It used to discard and close at once.
+- Settings: the count reads "1 RESULT" and "1 SETTING" instead of "1 RESULTS".
+- Dialogs: the Cancel and Confirm row lines up with the fields above it.
+- Notifications: the "+N held" count, and the progress cancel hint, are body size so they stay legible at 720p.
+- Settings: the search bar and text fields drew the browser's grey input border inside their ink well, so search showed a box within a box. Both now reset it, like the hex and dialog inputs.
+- Settings reopens on the tab, section and Advanced switch the player last used instead of jumping back to Cortex. The place is matched by tab id and kept across reconnects; if that tab is gone, Settings opens on the first tab.
+- Notifications: a notice sent without a title and longer than one short line used to show as bare body text with no display title. It now takes its title from its own lead: the text before a colon ("Applied Parka layers: ..."), or a short first line or first sentence. Copy with no lead is titled by its type (Done, Notice, Warning, Error). Notices that already have a title, and short single lines, are unchanged.
+- Callouts: a leader that ran straight into another pin used to lose its label to hover. It now steps round the pin: a label beside the entity steps up or down within its first row, and a label above goes along to either end first. Layouts that already routed clear are unchanged. The `draft` bar sits across the first row wherever the leader meets it.
+
 ## 3.4.0 (2026-10-18)
 
 ### Added

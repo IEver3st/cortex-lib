@@ -52,7 +52,7 @@ function normalizeSettingsField(field, index) {
 
 function normalizeSettingsTabs(tabs) {
     if (!Array.isArray(tabs)) return [];
-    return tabs.slice(0, 32).map((tab, index) => {
+    return tabs.slice(0, 33).map((tab, index) => {
         if (!isRecord(tab)) return null;
         const id = boundedText(tab.id, '', 96);
         if (!isSafeObjectKey(id)) return null;
@@ -74,6 +74,7 @@ function normalizeSettingsTabs(tabs) {
         return {
             id,
             label: boundedText(tab.label, id, 160),
+            group: boundedText(tab.group, '', 32).trim(),
             fields,
             values,
             defaults
@@ -243,9 +244,10 @@ function SettingsGlyph({ kind }) {
         return React.createElement('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' },
             React.createElement('path', { d: 'M7 4.5v15l12.5-7.5Z', className: 'cx-settings-glyph-fill' }));
     }
-    if (kind === 'prev' || kind === 'next') {
+    if (kind === 'search') {
         return React.createElement('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' },
-            React.createElement('path', { d: kind === 'prev' ? 'M14.5 5.5 8 12l6.5 6.5' : 'M9.5 5.5 16 12l-6.5 6.5', className: 'cx-settings-glyph-line' }));
+            React.createElement('circle', { cx: 10.5, cy: 10.5, r: 6.5, className: 'cx-settings-glyph-line' }),
+            React.createElement('path', { d: 'M15.5 15.5 20.5 20.5', className: 'cx-settings-glyph-line' }));
     }
     return React.createElement('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' },
         React.createElement('path', { d: 'M5.5 12a6.5 6.5 0 1 0 2-4.7', className: 'cx-settings-glyph-line' }),
@@ -380,105 +382,92 @@ function SettingsField({ field, value, defaultValue, hasDefault, dirty, tabId, o
     );
 }
 
-const SETTINGS_TAB_EDGES = { overflow: false, prev: false, next: false, prevDirty: false, nextDirty: false };
-
 function settingsScrollBehavior() {
     const motion = document.documentElement.dataset.cxMotion;
     return (motion ? motion === 'reduced' : window.matchMedia('(prefers-reduced-motion: reduce)').matches) ? 'auto' : 'smooth';
 }
 
-/** The tab row scrolls once registered scripts outgrow it. Arrows appear only
- * then, page to the next clipped tab, and carry the dirty dot when unsaved work
- * is out of view. They are pointer-only: keyboard and pad step the tablist. Its
- * own component, so scroll state never rebuilds the settings rows. */
-function SettingsTabStrip({ active, label, children }) {
+function SettingsRail({ active, label, children }) {
     const listRef = useRef(null);
-    const [edges, setEdges] = useState(SETTINGS_TAB_EDGES);
-
-    const measure = useCallback(() => {
-        const node = listRef.current;
-        if (!node) return;
-        const left = node.scrollLeft, right = left + node.clientWidth;
-        const overflow = node.scrollWidth - node.clientWidth > 1;
-        const dirty = Array.from(node.children).filter(tab => tab.classList.contains('is-dirty'));
-        const next = {
-            overflow,
-            prev: overflow && left > 1,
-            next: overflow && right < node.scrollWidth - 1,
-            prevDirty: overflow && dirty.some(tab => tab.offsetLeft < left - 1),
-            nextDirty: overflow && dirty.some(tab => tab.offsetLeft + tab.offsetWidth > right + 1)
-        };
-        setEdges(current => Object.keys(next).every(key => current[key] === next[key]) ? current : next);
-    }, []);
-
-    // Tabs register, rename and turn dirty while open: re-read after each render.
-    useEffect(measure);
     useEffect(() => {
         const node = listRef.current;
-        if (!node) return undefined;
-        const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
-        observer?.observe(node);
-        document.fonts?.ready.then(measure);
-        return () => observer?.disconnect();
-    }, [measure]);
-
-    // Bring the selected tab fully into view, whichever input selected it, and
-    // again when its dirty dot widens it.
-    const activeClass = Array.isArray(children) ? children[active]?.props?.className : '';
-    useEffect(() => {
-        const node = listRef.current;
-        const tab = node?.children[active];
+        const tab = node?.querySelector(`#cortex-settings-tab-${active}`);
         if (!tab) return;
-        const start = tab.offsetLeft, end = start + tab.offsetWidth;
-        if (start < node.scrollLeft) node.scrollTo({ left: start, behavior: settingsScrollBehavior() });
-        else if (end > node.scrollLeft + node.clientWidth) node.scrollTo({ left: end - node.clientWidth, behavior: settingsScrollBehavior() });
-    }, [active, activeClass]);
+        const top = tab.offsetTop, bottom = top + tab.offsetHeight;
+        if (top < node.scrollTop) node.scrollTo({ top, behavior: settingsScrollBehavior() });
+        else if (bottom > node.scrollTop + node.clientHeight) node.scrollTo({ top: bottom - node.clientHeight, behavior: settingsScrollBehavior() });
+    }, [active]);
 
-    const page = direction => {
-        const node = listRef.current;
-        if (!node) return;
-        const left = node.scrollLeft, view = node.clientWidth;
-        const tabs = Array.from(node.children);
-        let target;
-        if (direction > 0) {
-            // The first clipped tab on the right lands flush with the left edge.
-            const clipped = tabs.find(tab => tab.offsetLeft + tab.offsetWidth > left + view + 1);
-            target = clipped && clipped.offsetLeft > left + 1 ? clipped.offsetLeft : left + view;
-        } else {
-            // The last clipped tab on the left lands flush with the right edge.
-            const clipped = tabs.filter(tab => tab.offsetLeft < left - 1).pop();
-            const end = clipped ? clipped.offsetLeft + clipped.offsetWidth : 0;
-            target = clipped && end < left + view - 1 ? end - view : left - view;
-        }
-        node.scrollTo({ left: Math.max(0, target), behavior: settingsScrollBehavior() });
+    return React.createElement('div', {
+        ref: listRef, className: 'cortex-settings-tabs', role: 'tablist', 'aria-label': label, 'aria-orientation': 'vertical'
+    }, children);
+}
+
+// ============================================================================
+// PLACE. Reopening Settings returns to the tab, section and Advanced switch the
+// player last used. Tabs are matched by id, so scripts that register or stop
+// between opens cannot shift it. Navigation only: values never live here. CEF
+// storage carries it across reconnects; without storage it lasts the session.
+// ============================================================================
+
+const SETTINGS_PLACE_KEY = 'cortex-lib:settings-place';
+let settingsPlace = null;
+
+function normalizeSettingsPlace(data) {
+    const record = isRecord(data) ? data : {};
+    return {
+        tabId: boundedText(record.tabId, '', 128) || null,
+        section: boundedText(record.section, '', 160),
+        advanced: record.advanced === true
     };
+}
 
-    // A mouse wheel only scrolls vertically; turn it sideways over the row.
-    const handleWheel = event => {
-        const node = listRef.current;
-        if (!node || !edges.overflow || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
-        node.scrollLeft += event.deltaY;
+function getSettingsPlace() {
+    if (settingsPlace) return settingsPlace;
+    let stored = null;
+    try { stored = JSON.parse(window.localStorage.getItem(SETTINGS_PLACE_KEY)); } catch { stored = null; }
+    settingsPlace = normalizeSettingsPlace(stored);
+    return settingsPlace;
+}
+
+function rememberSettingsPlace(next) {
+    settingsPlace = normalizeSettingsPlace({ ...getSettingsPlace(), ...next });
+    try { window.localStorage.setItem(SETTINGS_PLACE_KEY, JSON.stringify(settingsPlace)); } catch { /* the session copy still holds */ }
+}
+
+function settingsTabKey(tab) {
+    return isRecord(tab) && tab.id != null ? String(tab.id) : null;
+}
+
+/** Index of the remembered tab, or -1 when it is not registered now. */
+function findSettingsTab(tabs, tabId) {
+    if (!Array.isArray(tabs) || !tabId) return -1;
+    return tabs.findIndex(tab => settingsTabKey(tab) === tabId);
+}
+
+const SETTINGS_GROUP_ORDER = ['everyday', 'equipment', 'activities', 'staff'];
+const SETTINGS_OTHER_GROUP = 'Other';
+
+function settingsLibrary(tabs) {
+    const groups = new Map();
+    tabs.forEach((tab, index) => {
+        const name = (typeof tab?.group === 'string' && tab.group.trim()) || SETTINGS_OTHER_GROUP;
+        const key = name.toLowerCase();
+        if (!groups.has(key)) groups.set(key, { key, name, items: [] });
+        groups.get(key).items.push(index);
+    });
+    const rank = group => {
+        const known = SETTINGS_GROUP_ORDER.indexOf(group.key);
+        if (known !== -1) return known;
+        return group.key === SETTINGS_OTHER_GROUP.toLowerCase() ? SETTINGS_GROUP_ORDER.length + 1 : SETTINGS_GROUP_ORDER.length;
     };
-
-    const arrow = direction => {
-        const back = direction < 0;
-        return React.createElement('button', {
-            type: 'button', tabIndex: -1, 'aria-hidden': 'true',
-            className: `cortex-settings-tab-arrow ${back ? 'is-prev' : 'is-next'}${(back ? edges.prevDirty : edges.nextDirty) ? ' is-dirty' : ''}`,
-            disabled: !(back ? edges.prev : edges.next),
-            // Focus stays on the tab the player is working in.
-            onMouseDown: event => event.preventDefault(),
-            onClick: () => page(direction)
-        }, React.createElement(SettingsGlyph, { kind: back ? 'prev' : 'next' }));
-    };
-
-    return React.createElement('div', { className: `cortex-settings-tabbar${edges.overflow ? ' is-overflowing' : ''}` },
-        edges.overflow && arrow(-1),
-        React.createElement('div', {
-            ref: listRef, className: 'cortex-settings-tabs', role: 'tablist', 'aria-label': label,
-            onScroll: measure, onWheel: handleWheel
-        }, children),
-        edges.overflow && arrow(1));
+    const label = index => String(tabs[index]?.label ?? '');
+    const isCortex = index => settingsTabKey(tabs[index]) === 'cortex';
+    const library = [...groups.values()].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+    for (const group of library) {
+        group.items.sort((a, b) => isCortex(b) - isCortex(a) || label(a).localeCompare(label(b), undefined, { sensitivity: 'base' }));
+    }
+    return library;
 }
 
 // ============================================================================
@@ -502,10 +491,12 @@ function SettingsPanel({ open, session, tabs, page: initialPage, pause, onClose 
     sessionRef.current = normalizeSession(session);
 
     useEffect(() => {
+        const place = getSettingsPlace();
+        const placed = findSettingsTab(tabs, place.tabId) !== -1;
         setPage(initialPage === 'home' ? 'home' : 'settings');
         setSearch('');
-        setSection('');
-        setShowAdvanced(false);
+        setSection(placed ? place.section : '');
+        setShowAdvanced(placed && place.advanced);
     }, [open, session, initialPage]);
 
     useEffect(() => {
@@ -539,7 +530,7 @@ function SettingsPanel({ open, session, tabs, page: initialPage, pause, onClose 
         setSavedValues(init);
         setApplyStatus('');
         commitBusy.current = false;
-        setActiveTab(0);
+        setActiveTab(Math.max(0, findSettingsTab(tabs, getSettingsPlace().tabId)));
         setSubmitError('');
         setSubmitting(false);
     }, [open, session, tabs]);
@@ -667,13 +658,16 @@ function SettingsPanel({ open, session, tabs, page: initialPage, pause, onClose 
     const handleBack = useCallback(() => {
         if (submitting) return;
         if (!window.dispatchEvent(new CustomEvent('cortex-page-back', { cancelable: true }))) return;
+        // A search is the innermost state: the first Escape clears it and keeps
+        // every unsaved change; the next one leaves.
+        if (page === 'settings' && search) { setSearch(''); return; }
         // Script settings is a standalone surface, even on servers that enable
         // the optional quick menu. Escape discards and returns to gameplay.
         const top = pause?.quickMenu === true ? 'home' : 'settings';
         if (page === 'settings') { void handleCancel(); return; }
         if (page !== top) setPage(top);
         else void handleCancel();
-    }, [page, pause, submitting, handleCancel]);
+    }, [page, pause, submitting, handleCancel, search]);
 
     useModalFocus(open, dialogRef, handleBack, session);
 
@@ -728,17 +722,42 @@ function SettingsPanel({ open, session, tabs, page: initialPage, pause, onClose 
 
     const selectTab = index => {
         setActiveTab(index); setSection(''); setSearch(''); setShowAdvanced(false);
+        rememberSettingsPlace({ tabId: settingsTabKey(tabs[index]), section: '', advanced: false });
     };
+    const library = page === 'settings' ? settingsLibrary(tabs) : [];
+    const order = library.flatMap(group => group.items);
     const handleTabKeyDown = (event, index) => {
+        const at = Math.max(0, order.indexOf(index));
         let nextIndex = index;
-        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = (index + 1) % tabs.length;
-        else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = (index - 1 + tabs.length) % tabs.length;
-        else if (event.key === 'Home') nextIndex = 0;
-        else if (event.key === 'End') nextIndex = tabs.length - 1;
+        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = order[(at + 1) % order.length];
+        else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = order[(at - 1 + order.length) % order.length];
+        else if (event.key === 'Home') nextIndex = order[0];
+        else if (event.key === 'End') nextIndex = order[order.length - 1];
         else return;
         event.preventDefault();
         selectTab(nextIndex);
         window.requestAnimationFrame(() => dialogRef.current?.querySelector(`#cortex-settings-tab-${nextIndex}`)?.focus());
+    };
+    const shownCount = item => (item.fields || []).filter(field => (showAdvanced || !field.advanced) && isRelevant(field, item)).length;
+    const tabButton = (i, groupIndex) => {
+        const t = tabs[i];
+        const tabDirty = Object.keys(values[t.id] || {}).some(key => isDirty(t, key));
+        return React.createElement('button', {
+            key: t && t.id != null ? String(t.id) : `tab-${i}`,
+            type: 'button',
+            id: `cortex-settings-tab-${i}`,
+            role: 'tab',
+            'aria-selected': i === activeTab,
+            'aria-controls': 'cortex-settings-tabpanel',
+            'aria-describedby': `cortex-settings-group-${groupIndex}`,
+            tabIndex: i === activeTab ? 0 : -1,
+            'data-autofocus': i === activeTab ? 'true' : undefined,
+            className: `cortex-settings-tab${i === activeTab ? ' active' : ''}${tabDirty ? ' is-dirty' : ''}`,
+            onClick: () => selectTab(i),
+            onKeyDown: event => handleTabKeyDown(event, i)
+        },
+            React.createElement('span', { className: 'cortex-settings-tab-name' }, t && t.label != null ? t.label : ''),
+            React.createElement('span', { className: 'cortex-settings-tab-count', 'aria-hidden': 'true' }, shownCount(t)));
     };
     const escapeKey = window.CortexKit
         ? React.createElement(window.CortexKit.Keycap, { value: 'ESC', size: 'sm' })
@@ -749,63 +768,56 @@ function SettingsPanel({ open, session, tabs, page: initialPage, pause, onClose 
         onResume: handleCancel, onSave: handleSave, onApply: () => handleSave(true), onBack: handleBack, submitting, dirtyCount, error: submitError
     },
         page === 'settings' && React.createElement('fieldset', { className: 'pause-settings-body', disabled: submitting, 'aria-busy': submitting },
-            // Only Cortex and registered script preferences belong here.
-            React.createElement(SettingsTabStrip, { active: activeTab, label: 'Settings' },
-                tabs.map((t, i) => {
-                    const tabDirty = Object.keys(values[t.id] || {}).some(key => isDirty(t, key));
-                    return React.createElement('button', {
-                        key: t && t.id != null ? String(t.id) : `tab-${i}`,
-                        type: 'button',
-                        id: `cortex-settings-tab-${i}`,
-                        role: 'tab',
-                        'aria-selected': i === activeTab,
-                        'aria-controls': 'cortex-settings-tabpanel',
-                        tabIndex: i === activeTab ? 0 : -1,
-                        'data-autofocus': i === activeTab ? 'true' : undefined,
-                        className: `cortex-settings-tab${i === activeTab ? ' active' : ''}${tabDirty ? ' is-dirty' : ''}`,
-                        onClick: () => selectTab(i),
-                        onKeyDown: event => handleTabKeyDown(event, i)
-                    }, t && t.label != null ? t.label : '');
-                })
-            ),
             React.createElement('div', { className: 'pause-settings-workspace' },
-                React.createElement('nav', { className: 'pause-sections', 'aria-label': `${tab.label} sections` },
-                    React.createElement('div', { className: 'pause-section-label' }, tab.label),
-                    ['', ...sections].map(name => {
-                        const count = name ? visibleFields.filter(field => (field.section || 'General') === name).length : visibleFields.length;
-                        const current = activeSection === name && !query;
-                        return React.createElement('button', {
-                            key: name, type: 'button',
-                            className: `${current ? 'active' : ''}${(name ? sectionDirty(name) : dirtyCount > 0) ? ' is-dirty' : ''}`.trim(),
-                            'aria-pressed': current,
-                            onClick: () => { setSection(name); setSearch(''); }
-                        },
-                            React.createElement('span', { className: 'pause-section-name' }, name || 'All settings'),
-                            React.createElement('span', { className: 'pause-section-count', 'aria-hidden': 'true' }, count));
-                    })
+                React.createElement('aside', { className: 'cortex-settings-rail' },
+                    React.createElement('label', { className: 'pause-search' },
+                        React.createElement(SettingsGlyph, { kind: 'search' }),
+                        React.createElement('input', { type: 'search', value: search, maxLength: 128,
+                            placeholder: 'Find a setting', 'aria-label': 'Search all script settings',
+                            onChange: event => setSearch(event.target.value) })),
+                    React.createElement(SettingsRail, { active: activeTab, label: 'Scripts' },
+                        library.flatMap((group, groupIndex) => [
+                            React.createElement('div', { key: `group-${group.key}`, id: `cortex-settings-group-${groupIndex}`, className: 'cortex-settings-group', 'aria-hidden': 'true' }, group.name),
+                            ...group.items.map(i => tabButton(i, groupIndex))
+                        ]))
                 ),
                 React.createElement('div', { className: 'pause-settings-main' },
-                    React.createElement('div', { className: 'pause-search' },
-                        React.createElement('input', { type: 'search', value: search, maxLength: 128,
-                            placeholder: 'Search every settings tab', 'aria-label': 'Search all script settings',
-                            onChange: event => setSearch(event.target.value) }),
-                        hasAdvanced && !query && React.createElement('button', {
+                    React.createElement('div', { className: 'cortex-settings-script-head' },
+                        React.createElement('h2', { className: 'cortex-settings-script-title' }, query ? 'Search results' : tab.label),
+                        React.createElement('span', { className: 'pause-search-count' }, `${visibleCount} ${query ? 'RESULT' : 'SETTING'}${visibleCount === 1 ? '' : 'S'}`)),
+                    !query && (sections.length > 1 || hasAdvanced) && React.createElement('div', { className: 'cortex-settings-sectionbar' },
+                        sections.length > 1 && React.createElement('nav', { className: 'cortex-settings-sections', 'aria-label': `${tab.label} sections` },
+                            ['', ...sections].map(name => {
+                                const count = name ? visibleFields.filter(field => (field.section || 'General') === name).length : visibleFields.length;
+                                const current = activeSection === name;
+                                return React.createElement('button', {
+                                    key: name, type: 'button',
+                                    className: `${current ? 'active' : ''}${(name ? sectionDirty(name) : dirtyCount > 0) ? ' is-dirty' : ''}`.trim(),
+                                    'aria-pressed': current,
+                                    onClick: () => { setSection(name); setSearch(''); rememberSettingsPlace({ tabId: settingsTabKey(tab), section: name }); }
+                                },
+                                    React.createElement('span', { className: 'cortex-settings-section-name' }, name || 'All'),
+                                    React.createElement('span', { className: 'cortex-settings-section-count', 'aria-hidden': 'true' }, count));
+                            })),
+                        hasAdvanced && React.createElement('button', {
                             type: 'button', className: 'pause-advanced-toggle',
                             role: 'switch', 'aria-checked': showAdvanced,
                             'aria-controls': 'cortex-settings-tabpanel',
-                            onClick: () => { setShowAdvanced(current => !current); setSection(''); }
+                            onClick: () => {
+                                setShowAdvanced(current => !current); setSection('');
+                                rememberSettingsPlace({ tabId: settingsTabKey(tab), section: '', advanced: !showAdvanced });
+                            }
                         },
                             React.createElement('span', { className: 'pause-advanced-label' }, 'Advanced'),
                             React.createElement('span', { className: `cx-toggle${showAdvanced ? ' is-on' : ''}`, 'aria-hidden': 'true' },
-                                React.createElement('span', { className: 'cx-toggle-knob' }))),
-                        React.createElement('span', { className: 'pause-search-count' }, query ? `${visibleCount} RESULTS` : `${visibleCount} SETTINGS`)
+                                React.createElement('span', { className: 'cx-toggle-knob' })))
                     ),
                     React.createElement('div', {
                         id: 'cortex-settings-tabpanel', className: 'cortex-settings-content', role: 'tabpanel',
                         'aria-labelledby': query ? undefined : `cortex-settings-tab-${activeTab}`,
                         'aria-label': query ? 'Search results across all scripts' : undefined
                     }, rows.length ? rows : React.createElement('div', { className: 'cortex-settings-empty' },
-                        query ? 'No settings match your search.' : 'This tab has no settings yet.'))
+                        query ? 'No settings match your search.' : hasAdvanced && !showAdvanced ? 'Turn on Advanced to see these settings.' : 'This tab has no settings yet.'))
                 )
             ),
             React.createElement('div', { className: 'cortex-settings-footer' },

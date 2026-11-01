@@ -95,3 +95,113 @@
     background: var(--accent);
     box-shadow: 0 0 0 calc(3 * var(--u)) var(--ink), 0 0 0 calc(6 * var(--u)) var(--paper);
 }
+
+/* Styles. Everything above is Ink, the default. A style changes only how a
+   cell looks: every box keeps the size Lua measured, so the layout is the
+   same in each. The leaders are drawn by client/callout_renderer.lua
+   (STYLES there). */
+
+/* Slip: each row an ink slip whose chip is the lighter end, run out to the
+   row's edge. Square pins. */
+[data-style='slip'] .row { background: var(--slip); text-shadow: none; }
+[data-style='slip'] .chip {
+    align-self: stretch;
+    height: auto;
+    margin-right: calc(-1 * var(--pad-r));
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    background: var(--rule);
+}
+[data-style='slip'] .row.sm .chip { height: auto; }
+[data-style='slip'] .tone-on .chip, [data-style='slip'] .tone-you .chip { background: var(--accent); color: var(--ink); }
+[data-style='slip'] .row.hot { background: var(--paper); }
+[data-style='slip'] .row.hot .chip { background: var(--ink); color: var(--accent); }
+[data-style='slip'] .row.hot.tone-no .chip { color: var(--error); }
+[data-style='slip'] .pin { border-radius: calc(2 * var(--u)); }
+
+/* Paper: printed tags, paper with ink caps and an ink chip; the picked one
+   turns over to ink with an accent bar. Diamond pins. */
+[data-style='paper'] .row {
+    background: var(--paper);
+    color: var(--ink);
+    text-shadow: none;
+    box-shadow: 0 calc(3 * var(--u)) 0 var(--ink);
+}
+[data-style='paper'] .chip {
+    align-self: stretch;
+    height: auto;
+    margin-right: calc(-1 * var(--pad-r));
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    background: var(--ink);
+    color: var(--paper);
+}
+[data-style='paper'] .row.sm .chip { height: auto; }
+[data-style='paper'] .tone-on .chip, [data-style='paper'] .tone-you .chip { background: var(--accent); color: var(--ink); }
+[data-style='paper'] .tone-no .chip { color: var(--error); }
+[data-style='paper'] .row.hot {
+    background: var(--ink);
+    color: var(--paper);
+    box-shadow: inset calc(4 * var(--u)) 0 0 var(--accent), 0 calc(3 * var(--u)) 0 var(--paper);
+}
+[data-style='paper'] .row.hot .chip { background: var(--paper); color: var(--ink); }
+[data-style='paper'] .row.hot.tone-on .chip, [data-style='paper'] .row.hot.tone-you .chip { background: var(--accent); color: var(--ink); }
+[data-style='paper'] .row.hot.tone-no .chip { background: var(--ink); color: var(--error); }
+[data-style='paper'] .switch { background: var(--paper); color: var(--ink); box-shadow: 0 calc(3 * var(--u)) 0 var(--ink); }
+[data-style='paper'] .switch.tone-on { background: var(--accent); }
+[data-style='paper'] .switch.tone-no { background: var(--ink); color: var(--error); }
+[data-style='paper'] .switch.hot { background: var(--ink); color: var(--paper); box-shadow: inset calc(4 * var(--u)) 0 0 var(--accent), 0 calc(3 * var(--u)) 0 var(--paper); }
+[data-style='paper'] .pin {
+    width: calc(12 * var(--u));
+    height: calc(12 * var(--u));
+    border-radius: calc(1 * var(--u));
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+[data-style='paper'] .pin.hot { width: calc(13 * var(--u)); height: calc(13 * var(--u)); }
+
+/* Drafting: upright lettering like a technical drawing, no plates; the chip
+   is underlined and the leader ends on a bar. Ring pins. */
+[data-style='draft'] .row, [data-style='draft'] .switch { font-style: normal; }
+[data-style='draft'] .chip {
+    border-radius: 0;
+    background: none;
+    color: var(--muted);
+    text-shadow: var(--halo);
+    box-shadow: inset 0 calc(-3 * var(--u)) 0 currentColor;
+}
+[data-style='draft'] .tone-on .chip, [data-style='draft'] .tone-you .chip { background: none; color: var(--accent); }
+[data-style='draft'] .tone-no .chip { color: var(--error); }
+[data-style='draft'] .row.hot .chip { background: none; color: var(--ink); text-shadow: none; }
+/* Soft red does not read on paper: a refused chip under the pointer is ink. */
+[data-style='draft'] .row.hot.tone-no .chip { background: var(--ink); color: var(--error); }
+[data-style='draft'] .switch {
+    background: none;
+    text-shadow: var(--halo);
+    box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--muted);
+}
+[data-style='draft'] .switch.tone-on { background: none; color: var(--accent); box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--accent); }
+[data-style='draft'] .switch.hot { background: var(--paper); color: var(--ink); text-shadow: none; box-shadow: 0 calc(3 * var(--u)) 0 var(--ink); }
+[data-style='draft'] .pin {
+    width: calc(18 * var(--u));
+    height: calc(18 * var(--u));
+    background: none;
+    box-shadow: inset 0 0 0 calc(3 * var(--u)) var(--paper), inset 0 0 0 calc(5 * var(--u)) var(--ink), 0 0 0 calc(2 * var(--u)) var(--ink);
+}
+[data-style='draft'] .pin.on { box-shadow: inset 0 0 0 calc(3 * var(--u)) var(--accent), inset 0 0 0 calc(5 * var(--u)) var(--ink), 0 0 0 calc(2 * var(--u)) var(--ink); }
+[data-style='draft'] .pin.hot {
+    width: calc(22 * var(--u));
+    height: calc(22 * var(--u));
+    background: none;
+    box-shadow: inset 0 0 0 calc(4 * var(--u)) var(--accent), inset 0 0 0 calc(6 * var(--u)) var(--ink), 0 0 0 calc(2 * var(--u)) var(--ink), 0 0 0 calc(5 * var(--u)) var(--paper);
+}
+[data-style='draft'] .pin::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: calc(6 * var(--u));
+    height: calc(6 * var(--u));
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--paper);
+    box-shadow: 0 0 0 calc(2 * var(--u)) var(--ink);
+}
+[data-style='draft'] .pin.on::after, [data-style='draft'] .pin.hot::after { background: var(--accent); }

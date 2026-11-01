@@ -259,9 +259,11 @@ local function meets(a, b)
     return a[1] < b[3] and b[1] < a[3] and a[2] < b[4] and b[2] < a[4]
 end
 
--- The routes a label can take, best first. r: { side, px, py, edge, ly } for
--- a column label (edge, ly: where the leader meets it), { side = 'top', px,
--- py, ax, yb } above the car; r.rect: the label; r.lane: its nested lane.
+-- The routes a label can take, best first. r: { side, px, py, edge, ly, row1 }
+-- for a column label (edge, ly: where the leader meets it), { side = 'top',
+-- px, py, ax, yb } above the car; r.rect: the label; r.lane: its nested lane.
+-- Last come fallbacks for a pin in the way; they are tried only after the
+-- rest, so a layout that routes clear is the same with or without them.
 local function routesOf(r, u, jog, lane)
     local list = {}
     local px, py, rect = r.px, r.py, r.rect
@@ -275,12 +277,19 @@ local function routesOf(r, u, jog, lane)
     if r.side == 'top' then
         local ax, yb = r.ax, r.yb
         if py - yb < 6 * u then return list end
-        if ax == px then add('v', px, py, px, yb); return list end
-        lanes(function(n, d)
-            local gy = yb + d
-            if py - gy >= 6 * u then add('l' .. n, px, py, px, gy, ax, gy, ax, yb) end
-        end)
-        add('hv', px, py, ax, py, ax, yb)
+        if ax == px then
+            add('v', px, py, px, yb)
+        else
+            lanes(function(n, d)
+                local gy = yb + d
+                if py - gy >= 6 * u then add('l' .. n, px, py, px, gy, ax, gy, ax, yb) end
+            end)
+            add('hv', px, py, ax, py, ax, yb)
+        end
+        -- Along to either end of the label first, then up.
+        for i, x in ipairs({ rect.x + 14 * u, rect.x + rect.w - 14 * u }) do
+            if x ~= ax and abs(x - px) >= 6 * u then add('a' .. i, px, py, x, py, x, yb) end
+        end
         return list
     end
     local s = r.side == 'left' and 1 or -1 -- from the labels toward the car
@@ -298,7 +307,15 @@ local function routesOf(r, u, jog, lane)
         end
         return list
     end
-    if ly == py then add('h', px, py, edge, ly); return list end
+    if ly == py then
+        add('h', px, py, edge, ly)
+        -- A step up or down, still within the first row, then across.
+        local step = (r.row1 or 0) / 2 - 6 * u
+        if step >= 6 * u then
+            for i, y in ipairs({ ly - step, ly + step }) do add('s' .. i, px, py, px, y, edge, y) end
+        end
+        return list
+    end
     lanes(function(n, d)
         local gx = edge + s * d
         if s * (px - gx) >= 6 * u then add('l' .. n, px, py, gx, py, gx, ly, edge, ly) end
@@ -558,7 +575,7 @@ function C.layout(view, box, items, block, prev, now)
                         local placed = { side = side, x = x, y = e.at, w = it.w, h = it.h }
                         placedItems[it.id] = placed
                         leaders[#leaders + 1] = { id = it.id, side = side, px = it.px, py = it.py, edge = edge, ly = e.ly,
-                            rect = placed, order = it.order, straight = e.ly == it.py, e = e }
+                            row1 = it.row1, rect = placed, order = it.order, straight = e.ly == it.py, e = e }
                     end
                 end
                 laneOrder(up, down, 'ly')

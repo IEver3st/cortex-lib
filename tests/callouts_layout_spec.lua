@@ -126,6 +126,50 @@ check('a ring of pins: labels on screen, clear of each other and the switches, l
     end
     truthy(#rects >= 9, 'most of the ring is labelled')
 end)
+-- Whether a leader passes over a pin other than its own (PIN_R 10u, half a
+-- line 4u).
+local function crossesPin(path, items, own, u)
+    for _, it in ipairs(items) do
+        if it.id ~= own then
+            for i = 1, #path - 2, 2 do
+                local x0, x1 = math.min(path[i], path[i + 2]) - 4 * u, math.max(path[i], path[i + 2]) + 4 * u
+                local y0, y1 = math.min(path[i + 1], path[i + 3]) - 4 * u, math.max(path[i + 1], path[i + 3]) + 4 * u
+                if x0 < it.px + 10 * u and it.px - 10 * u < x1 and y0 < it.py + 10 * u and it.py - 10 * u < y1 then return true end
+            end
+        end
+    end
+    return false
+end
+check('a level leader with a pin in its way steps round it instead of losing its label', function()
+    local items = {
+        { id = 'a', px = 1100, py = 500, w = 200, h = 36, row1 = 36, order = 1 },
+        { id = 'b', px = 1160, py = 505, w = 120, h = 36, row1 = 36, order = 2, minor = true },
+    }
+    local layout = C.layout(VIEW, BOX, items, nil, nil)
+    local p = layout.items.a
+    truthy(p and p.side == 'right' and p.path, 'a is labelled beside the car')
+    truthy(not crossesPin(p.path, items, 'a', VIEW.u), 'clear of b')
+    eq(p.path[#p.path] - p.y > 0 and p.path[#p.path] < p.y + 36, true, 'meets the first row')
+end)
+check('leaders up to the top row go along first round a pin above', function()
+    -- A coupe from the side (cortex-pinpoint's carbonizzare): the near door's
+    -- pin sits under the far door's, with the seats on hover beside them.
+    local box = { x0 = 402, y0 = 485, x1 = 1503, y1 = 848 }
+    local items = {
+        { id = 'door:0', px = 986, py = 662, w = 182, h = 36, row1 = 36, order = 1 },
+        { id = 'door:1', px = 979, py = 580, w = 192, h = 36, row1 = 36, order = 2 },
+        { id = 'door:4', px = 686, py = 578, w = 132, h = 67, row1 = 36, order = 3 },
+        { id = 'door:5', px = 1270, py = 556, w = 144, h = 36, row1 = 36, order = 4 },
+        { id = 'seat:-1', px = 1006, py = 623, w = 185, h = 36, row1 = 36, order = 5, minor = true },
+        { id = 'seat:0', px = 999, py = 582, w = 248, h = 36, row1 = 36, order = 6, minor = true },
+    }
+    local layout = C.layout(VIEW, box, items, nil, nil)
+    for _, id in ipairs({ 'door:0', 'door:1' }) do
+        local p = layout.items[id]
+        truthy(p and p.side == 'top' and p.path, id .. ' is labelled above the car')
+        truthy(not crossesPin(p.path, items, id, VIEW.u), id .. ' clear of every other pin')
+    end
+end)
 check('pins that land on each other become one callout with all their rows', function()
     local items = {
         { id = 'a', px = 100, py = 100, w = 120, h = 36, row1 = 36, order = 2, rows = { 'a1' } },

@@ -389,7 +389,8 @@
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: calc(8 * var(--u));
-    padding: calc(22 * var(--u)) calc(22 * var(--u)) calc(22 * var(--u));
+    /* The same side padding as the head and body, so buttons end on the field column. */
+    padding: calc(22 * var(--u)) var(--cx-dialog-pad);
 }
 
 /* No body (empty form, header-only alert): keep the title clear of the actions. */

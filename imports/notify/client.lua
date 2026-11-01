@@ -670,9 +670,10 @@ local function releaseModal(surface, generation)
     return true
 end
 
-local function settleAlert(entry, result)
+local function settleAlert(entry, result, reason)
     if not entry or entry.settled then return false end
     entry.settled = true
+    entry.reason = reason
     if alertSession == entry then alertSession = nil end
     releaseModal('alert', entry.generation)
     SendNUIMessage({ action = 'alertDialogClose', data = { session = entry.generation } })
@@ -734,13 +735,13 @@ local function normalizeDialogText(data)
 end
 
 local function alertDialog(data)
-    if alertSession then return 'cancel' end
+    if alertSession then return 'cancel', 'busy' end
     local normalized = normalizeDialogText(data or {})
-    if not normalized then return 'cancel' end
+    if not normalized then return 'cancel', 'invalid' end
 
     local owner = getInvokingOwner()
     local generation = acquireModal('alert', owner)
-    if not generation then return 'cancel' end
+    if not generation then return 'cancel', 'busy' end
     local entry = {
         owner = owner, generation = generation, promise = promise.new(),
         settled = false, cancel = normalized.cancel,
@@ -751,13 +752,13 @@ local function alertDialog(data)
         header = normalized.header, content = normalized.content, centered = normalized.centered,
         cancel = normalized.cancel, labels = normalized.labels, style = normalized.style, session = generation,
     } })
-    if not focusModal('alert', generation) then settleAlert(entry, 'cancel'); return 'cancel' end
+    if not focusModal('alert', generation) then settleAlert(entry, 'cancel', 'focus'); return 'cancel', 'focus' end
 
     SetTimeout(normalized.timeout, function()
-        if alertSession == entry then settleAlert(entry, 'cancel') end
+        if alertSession == entry then settleAlert(entry, 'cancel', 'timeout') end
     end)
     local result = Citizen.Await(entry.promise)
-    return result == 'confirm' and 'confirm' or 'cancel'
+    return result == 'confirm' and 'confirm' or 'cancel', entry.reason
 end
 
 RegisterNUICallback('alertDialogResult', function(data, cb)
@@ -771,7 +772,7 @@ RegisterNUICallback('alertDialogResult', function(data, cb)
     if data.result == 'cancel' and entry.cancel == false then
         cb({ ok = false, error = 'cancel_not_allowed' }); return
     end
-    settleAlert(entry, data.result)
+    settleAlert(entry, data.result, 'chosen')
     cb({ ok = true })
 end)
 
@@ -1010,7 +1011,7 @@ end)
 local function closeAlertForModal(generation)
     local entry = alertSession
     if not entry or entry.generation ~= generation then return end
-    settleAlert(entry, 'cancel')
+    settleAlert(entry, 'cancel', 'replaced')
 end
 
 local function closeContextForModal(generation)
@@ -1039,7 +1040,7 @@ AddEventHandler('onResourceStop', function(resourceName)
         cleanupProgress(activeProgress)
     end
     if alertSession and (alertSession.owner == resourceName or resourceName == CURRENT_RESOURCE) then
-        settleAlert(alertSession, 'cancel')
+        settleAlert(alertSession, 'cancel', 'stopped')
     end
     if contextSession and (contextSession.owner == resourceName or resourceName == CURRENT_RESOURCE) then
         settleContext(contextSession, nil)

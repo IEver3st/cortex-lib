@@ -32,6 +32,8 @@ function SendNUIMessage(message) sentMessages[#sentMessages + 1] = message end
 function RegisterNUICallback(name, callback) nuiCallbacks[name] = callback end
 function AddEventHandler(name, callback) eventHandlers[name] = callback end
 function RegisterCommand() end
+function RegisterKeyMapping() end
+function GetConvar(_, fallback) return fallback end
 function GetSoundId() return 1 end
 function PlaySoundFrontend() end
 function ReleaseSoundId() end

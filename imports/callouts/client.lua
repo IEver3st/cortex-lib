@@ -16,6 +16,11 @@
 local CURRENT_RESOURCE = GetCurrentResourceName()
 local MAX_CALLOUTS, MAX_ROWS, MAX_SWITCHES, MAX_CHIPS, MAX_TEXTS = 48, 4, 24, 64, 8
 local TONES = { off = true, on = true, you = true, no = true }
+-- How the callouts look (ui/callouts.css, client/callout_renderer.lua). The
+-- first is the default.
+local STYLES = { 'ink', 'slip', 'paper', 'draft' }
+local STYLE_OK = {}
+for _, name in ipairs(STYLES) do STYLE_OK[name] = true end
 
 local function getInvokingOwner()
     local owner = GetInvokingResource and GetInvokingResource() or nil
@@ -155,10 +160,11 @@ local function normalize(data)
     end
 
     if data.onEvent ~= nil and not isCallable(data.onEvent) then return nil, 'invalid_onEvent' end
+    if data.style ~= nil and not STYLE_OK[data.style] then return nil, 'invalid_style' end
     if #callouts == 0 and #switches == 0 and not title then return nil, 'empty' end
 
     return { entity = entity, model = model, bounds = bounds, callouts = callouts, switches = switches,
-        title = title, chips = chips, onEvent = data.onEvent }
+        title = title, chips = chips, onEvent = data.onEvent, style = data.style or STYLES[1] }
 end
 
 local function renderer()
@@ -198,9 +204,17 @@ local function getCalloutState()
     return R.state(getInvokingOwner())
 end
 
-local function prepareCallouts()
+-- `style` (optional): the look the first session will use, so its pins are
+-- painted that way ahead of it.
+local function prepareCallouts(style)
+    if style ~= nil and not STYLE_OK[style] then return false end
     local R = renderer()
-    return R ~= nil and R.prepare()
+    return R ~= nil and R.prepare(style or STYLES[1])
+end
+
+-- The styles showCallouts accepts, the default first.
+local function getCalloutStyles()
+    return { table.unpack(STYLES) }
 end
 
 exports('showCallouts', showCallouts)
@@ -209,6 +223,7 @@ exports('calloutEffect', calloutEffect)
 exports('isCalloutsOpen', isCalloutsOpen)
 exports('getCalloutState', getCalloutState)
 exports('prepareCallouts', prepareCallouts)
+exports('getCalloutStyles', getCalloutStyles)
 
 lib.showCallouts = showCallouts
 lib.hideCallouts = hideCallouts
@@ -216,6 +231,7 @@ lib.calloutEffect = calloutEffect
 lib.isCalloutsOpen = isCalloutsOpen
 lib.getCalloutState = getCalloutState
 lib.prepareCallouts = prepareCallouts
+lib.getCalloutStyles = getCalloutStyles
 
 return {
     showCallouts = showCallouts,
@@ -224,4 +240,5 @@ return {
     isCalloutsOpen = isCalloutsOpen,
     getCalloutState = getCalloutState,
     prepareCallouts = prepareCallouts,
+    getCalloutStyles = getCalloutStyles,
 }

@@ -12,6 +12,28 @@ local MAX_TABS = 32
 local MAX_FIELDS = 64
 local MAX_OPTIONS = 64
 local MAX_SETTINGS_PER_TAB = 128
+local MAX_GROUP_LENGTH = 32
+local CORTEX_GROUP = 'Everyday'
+local DEFAULT_TAB_GROUPS = {
+    ['cortex-hud'] = 'Everyday',
+    ['cortex-chat'] = 'Everyday',
+    ['cortex-inventory'] = 'Everyday',
+    ['cortex-emotemenu'] = 'Everyday',
+    ['cortex-pinpoint'] = 'Everyday',
+    ['cortex-banking'] = 'Everyday',
+    ['cortex-flashlight'] = 'Equipment',
+    ['cortex-arges'] = 'Equipment',
+    gunsmith = 'Equipment',
+    ['cortex-megaphone'] = 'Equipment',
+    ['cortex-radar'] = 'Equipment',
+    ['cortex-radio'] = 'Equipment',
+    ['cortex-thrusters'] = 'Equipment',
+    ['cortex-drone'] = 'Equipment',
+    polcam = 'Equipment',
+    ['cortex-minigames'] = 'Activities',
+    ['cortex-rewind'] = 'Activities',
+    ['cortex-admin'] = 'Staff',
+}
 
 local registeredTabs = {}
 local registeredOrder = {}
@@ -52,6 +74,13 @@ local function safeObjectKey(value, maxLength)
         and value ~= '__proto__'
         and value ~= 'prototype'
         and value ~= 'constructor'
+end
+
+local function resolveTabGroup(tabId, group)
+    if boundedString(group, MAX_GROUP_LENGTH, false) and not group:find('%c') and group:find('%S') then
+        return group
+    end
+    return DEFAULT_TAB_GROUPS[tabId]
 end
 
 local function safeErrorText(value)
@@ -742,6 +771,7 @@ local function buildLegacyTab(scriptId, definition, kvpPrefix)
         id = scriptId,
         label = definition.label or scriptId,
         icon = definition.icon,
+        group = resolveTabGroup(scriptId, definition.group),
         kvpPrefix = kvpPrefix,
         fields = fields,
         defaults = defaults,
@@ -749,7 +779,7 @@ local function buildLegacyTab(scriptId, definition, kvpPrefix)
     }
 end
 
-local function buildModernTab(tabId, label, icon, kvpPrefix, fields, defaults)
+local function buildModernTab(tabId, label, icon, kvpPrefix, fields, defaults, group)
     local normalizedFields = {}
     local normalizedDefaults = shallowCopy(defaults)
 
@@ -779,6 +809,7 @@ local function buildModernTab(tabId, label, icon, kvpPrefix, fields, defaults)
         id = tabId,
         label = label or tabId,
         icon = icon,
+        group = resolveTabGroup(tabId, group),
         kvpPrefix = kvpPrefix,
         fields = normalizedFields,
         defaults = normalizedDefaults,
@@ -870,6 +901,7 @@ local function validateTab(tab)
         or tab.id == CORTEX_TAB_ID
         or not boundedString(tab.label, 128, false)
         or (tab.icon ~= nil and not boundedString(tab.icon, 64, true))
+        or (tab.group ~= nil and not boundedString(tab.group, MAX_GROUP_LENGTH, false))
         or not boundedString(tab.kvpPrefix, 96, false)
         or not isDenseArray(tab.fields, MAX_FIELDS)
         or type(tab.defaults) ~= 'table'
@@ -1140,6 +1172,7 @@ local function buildTabsPayload()
         {
             id = CORTEX_TAB_ID,
             label = 'CORTEX',
+            group = CORTEX_GROUP,
             fields = cortexFields,
             values = shallowCopy(cortexSettings),
             defaults = shallowCopy(cortexDefaults),
@@ -1156,6 +1189,7 @@ local function buildTabsPayload()
                 id = tab.id,
                 label = tab.label,
                 icon = tab.icon,
+                group = tab.group,
                 fields = tab.fields,
                 values = shallowCopy(tab.values),
                 defaults = shallowCopy(tab.defaults),
@@ -1620,6 +1654,23 @@ local function validatePreviewSubmission(tabs)
     return normalizedTabs
 end
 
+local function changedSubmissionValues(tabs)
+    local changed = {}
+    for tabId, values in next, tabs do
+        local baseline = previewSnapshot and previewSnapshot[tabId]
+        local _, _, runtimeValues = getTabState(tabId)
+        local tabChanges
+        for key, value in next, values do
+            if not baseline or baseline[key] ~= value or not runtimeValues or runtimeValues[key] ~= value then
+                tabChanges = tabChanges or {}
+                tabChanges[key] = value
+            end
+        end
+        if tabChanges then changed[tabId] = tabChanges end
+    end
+    return changed
+end
+
 function lib.getSetting(key)
     if cortexDefaults[key] ~= nil and not ownsTabKey(key) then
         return cortexSettings[key]
@@ -1711,19 +1762,21 @@ function lib.registerSettingsScript(scriptId, definition)
     return registerTab(tab, getRegistrationOwner(scriptId))
 end
 
-function lib.registerSettings(tabId, tabLabel, kvpPrefix, fields, defaults)
+function lib.registerSettings(tabId, tabLabel, kvpPrefix, fields, defaults, options)
     if type(tabLabel) == 'table' and kvpPrefix == nil then
         return lib.registerSettingsScript(tabId, tabLabel)
     end
 
     local resolvedFields = fields
     local resolvedDefaults = defaults
+    local resolvedOptions = options
     local resolvedIcon = nil
     local resolvedPrefix = nil
 
     if type(kvpPrefix) == 'table' then
         resolvedFields = kvpPrefix
         resolvedDefaults = fields
+        resolvedOptions = defaults
     elseif type(kvpPrefix) == 'string' then
         if kvpPrefix:sub(-1) == ':' then
             resolvedPrefix = kvpPrefix
@@ -1749,7 +1802,8 @@ function lib.registerSettings(tabId, tabLabel, kvpPrefix, fields, defaults)
 
     resolvedPrefix = normalizeStoragePrefix(tabId, resolvedPrefix)
     if not resolvedPrefix then return false, 'invalid_kvp_prefix' end
-    local tab = buildModernTab(tabId, tabLabel, resolvedIcon, resolvedPrefix, resolvedFields or {}, resolvedDefaults or {})
+    local group = type(resolvedOptions) == 'table' and resolvedOptions.group or nil
+    local tab = buildModernTab(tabId, tabLabel, resolvedIcon, resolvedPrefix, resolvedFields or {}, resolvedDefaults or {}, group)
     if not tab then return false, 'invalid_fields' end
     return registerTab(tab, getRegistrationOwner(tabId))
 end
@@ -1869,6 +1923,7 @@ RegisterNUICallback('settingsSave', function(data, cb)
         cb({ ok = false, error = 'invalid_settings' })
         return
     end
+    tabs = changedSubmissionValues(tabs)
 
     local persistedOriginals, captureError = capturePersistedValues(tabs)
     if not persistedOriginals then
@@ -2059,6 +2114,11 @@ exports('getNotifySoundCatalog', lib.getNotifySoundCatalog)
 RegisterCommand('cortexsettings', function()
     lib.openSettings()
 end, false)
+-- I opens Settings on every server, with or without cortex-hud. Players rebind
+-- it in Settings > Key Bindings > FiveM; `setr cortex_lib_settings_key <key>`
+-- changes the default ('' registers it unbound). FiveM keeps a player's first
+-- default, so a later convar change only reaches new players.
+RegisterKeyMapping('cortexsettings', 'Cortex: open settings', 'keyboard', GetConvar('cortex_lib_settings_key', 'I'))
 
 return {
     registerSettings = lib.registerSettings,

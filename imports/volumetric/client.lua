@@ -5,11 +5,12 @@
 -- camera, is brightest along the axis where the eye looks through the most lit haze, and softens
 -- to nothing at the edges. It brightens when seen down its length, dims away from the lamp as the
 -- light spreads, and fades out against the surface it lands on rather than cutting into it.
+-- With `discs` set, a row of soft camera-facing discs along the axis replaces the band.
 --
 -- Cost is one DrawSpritePoly_2 per triangle, so each segment of the band is one quad, each
 -- triangle is drawn once, facing the camera, and beams or segments outside the view are skipped.
 -- The soft profile across the band comes from a texture (see Paint), which keeps it exact however
--- the quad is split.
+-- the quad is split. A disc beam costs two calls per disc, plus two for the lamp glare.
 --
 -- Use through the loader (`lib.volumetric`) or include it directly as a client script
 -- (`@cortex-lib/imports/volumetric/client.lua`, which also exposes the global `CortexVolumetric`).
@@ -38,6 +39,9 @@ local MAX_ASPECT = 2.4
 -- ring), and both are linear over the quad, so any split samples the right texel. One strip per
 -- narrow-to-wide width ratio holds (1 - z^2)^softness with z = offset / local width.
 local TEX_W, STRIP_H, STRIPS = 32, 8, 32
+local DISC_SIZE = 64
+local DISC_ROWS = 8
+local DISC_NEAR = 0.4
 local TEX_H = STRIP_H * STRIPS
 volumetric.texture = { width = TEX_W, stripHeight = STRIP_H, strips = STRIPS, height = TEX_H }
 
@@ -142,8 +146,14 @@ end
 --   traceFlags         surface ray flags (19)
 --   rayStart           metres past the lamp where the surface ray starts (1.0)
 --   minLength          beams shorter than this are not drawn, metres (1.0)
---   contactSoftness    soft contact depth at the lamp end, metres; grows with the band (0.3)
+--   contactSoftness    soft contact depth at the lamp end, metres; grows with the band; for discs, the clearance above the surface (0.3)
 --   inside             camera-in-cone fade { behind = 2.0, margin = 1.0, soften = 1.0 }
+--   discs              soft camera-facing discs along the beam in place of the band, 0 for the band (0)
+--   discAlpha          disc alpha per metre of beam at the lamp, before falloff (60)
+--   discFalloff        how fast the discs dim away from the lamp; 2 is physical (1.5)
+--   discNear           metres from the lamp to the first disc (0.4)
+--   phase              forward scattering of the discs, 0 even to 0.9; dimmer seen from behind the lamp (0)
+--   glare              lamp glare alpha when the lamp points at the camera, 0 for none (0)
 --   doubleSided        draw both windings (debug aid; false)
 --   cull               skip beams and segments outside the view (true)
 --   maxBeams           beams drawn per frame (unlimited)
@@ -174,7 +184,17 @@ function volumetric.new(options)
         contactSoftness = option(options.contactSoftness, 0.3),
         insideBehind = option(inside.behind, 2.0),
         insideMargin = option(inside.margin, 1.0),
-        insideSoften = option(inside.soften, 1.0),
+        insideSoften = math_max(0.01, option(inside.soften, 1.0)),
+        discs = math_max(0, math_floor(option(options.discs, 0))),
+        discAlpha = option(options.discAlpha, 60.0),
+        discFalloff = option(options.discFalloff, 1.5),
+        discNear = math_max(0.01, option(options.discNear, DISC_NEAR)),
+        discFadeIn = math_max(0.0, option(options.discFadeIn, 0.0)),
+        contactFit = options.contactFit == true,
+        discCoverage = options.discCoverage == true,
+        phase = math_min(0.9, math_max(0.0, option(options.phase, 0.0))),
+        glare = math_max(0.0, option(options.glare, 0.0)),
+        discTex = (options.tex or 'profile') .. '_disc', discPainted = false, discRow = 0,
         doubleSided = options.doubleSided == true,
         cull = options.cull ~= false,
         maxBeams = tonumber(options.maxBeams),
@@ -193,10 +213,11 @@ function volumetric.new(options)
     }, Beam)
     if options.paintEarly ~= false and type(CreateThread) == 'function' and type(Wait) == 'function' then
         CreateThread(function()
-            while self.paintedSoftness ~= self.softness do
+            while self.discs == 0 and self.paintedSoftness ~= self.softness do
                 if not self:paint(self.softness, 1) and not self.texture then return end
                 Wait(0)
             end
+            while self:wantsDisc() and not self:paintDisc(DISC_ROWS) and self.discTexture do Wait(0) end
         end)
     end
     return self
@@ -208,7 +229,8 @@ end
 function Beam:paint(softness, strips)
     if self.paintedSoftness == softness then return true end
     if not self.texture then
-        local tex = CreateRuntimeTexture(CreateRuntimeTxd(self.txd), self.tex, TEX_W, TEX_H)
+        self.txdHandle = self.txdHandle or CreateRuntimeTxd(self.txd)
+        local tex = CreateRuntimeTexture(self.txdHandle, self.tex, TEX_W, TEX_H)
         if not tex or tex == 0 then return false end
         self.texture = tex
     end
@@ -239,8 +261,61 @@ function Beam:setRings(count)
     if count ~= self.ringCount then self.ringT, self.ringCount = BuildRings(count), count end
 end
 
+local function Hash(i)
+    local x = math_sin(i * 12.9898) * 43758.5453
+    return x - math_floor(x)
+end
+
+local function AngularNoise(angle, cells)
+    local x = angle / (2.0 * math.pi) * cells
+    local i = math_floor(x)
+    local f = x - i
+    f = f * f * (3.0 - 2.0 * f)
+    return Hash(i % cells + cells) * (1.0 - f) + Hash((i + 1) % cells + cells) * f
+end
+
+function Beam:wantsDisc()
+    return self.discs > 0 or self.glare > 0.0
+end
+
+function Beam:paintDisc(rows)
+    if self.discPainted then return true end
+    local tex = self.discTexture
+    if not tex then
+        self.txdHandle = self.txdHandle or CreateRuntimeTxd(self.txd)
+        tex = CreateRuntimeTexture(self.txdHandle, self.discTex, DISC_SIZE, DISC_SIZE)
+        if not tex or tex == 0 then return false end
+        self.discTexture = tex
+    end
+    local half = DISC_SIZE * 0.5
+    local last = math_min(DISC_SIZE, self.discRow + rows) - 1
+    for y = self.discRow, last do
+        local gy = (y + 0.5 - half) / half
+        for x = 0, DISC_SIZE - 1 do
+            local gx = (x + 0.5 - half) / half
+            local r2 = gx * gx + gy * gy
+            local a = 0
+            if r2 < 1.0 then
+                local angle = math_atan(gy, gx)
+                local shafts = 1.0 + r2 * (0.6 * (AngularNoise(angle, 9) - 0.5) + 0.3 * (AngularNoise(angle, 23) - 0.5))
+                local core = 0.35 * math.exp(-r2 / 0.15) + 0.65 * (1.0 - r2) ^ 1.2
+                local edge = Smoothstep((1.0 - r2) * 4.0)
+                a = math_floor(math_min(255.0, 255.0 * core * shafts * edge) + 0.5)
+            end
+            SetRuntimeTexturePixel(tex, x, y, 255, 255, 255, a)
+        end
+    end
+    self.discRow = last + 1
+    if self.discRow < DISC_SIZE then return false end
+    CommitRuntimeTexture(tex)
+    self.discPainted = true
+    return true
+end
+
 function Beam:ensureTexture()
-    return self:paint(self.softness, STRIPS)
+    if self.discs == 0 and not self:paint(self.softness, STRIPS) then return false end
+    if self:wantsDisc() and not self.discPainted then self:paintDisc(self.discs > 0 and DISC_ROWS or DISC_SIZE) end
+    return self.discs == 0 or self.discPainted
 end
 
 -- Darkness for this beam's day factor, re-read a few times a second.
@@ -300,15 +375,20 @@ volumetric.inView = InView
 -- surface plane. The ray is up to RAY_INTERVAL_MS old and was cast from where the lamp was then,
 -- so while the lamp moves (a torch swinging as its holder walks) the distance is re-solved every
 -- frame against the hit plane; the old ray distance stepped the beam's end ten times a second.
-function Beam:surface(key, ox, oy, oz, dx, dy, dz, reach, ignore, now)
+function Beam:surface(key, ox, oy, oz, dx, dy, dz, reach, ignore, now, mount)
     local c = self.rays[key]
     if not c then c = { at = 0 }; self.rays[key] = c end
     c.seen = now
     if c.handle then
-        local status, hit, at, normal = GetShapeTestResult(c.handle)
+        local status, hit, at, normal, entity = GetShapeTestResult(c.handle)
         if status == 2 then
             c.dist, c.plane = nil, nil
-            if (hit == 1 or hit == true) and at then
+            local struck = (hit == 1 or hit == true) and at
+            if struck and mount and entity == mount and not c.skipMount and normal
+                and c.dx * normal.x + c.dy * normal.y + c.dz * normal.z > 0.0 then
+                c.skipMount, c.at, struck = true, 0, false
+            end
+            if struck then
                 local x, y, z = at.x - c.fx, at.y - c.fy, at.z - c.fz
                 c.dist = math_sqrt(x * x + y * y + z * z)
                 local nl = normal and math_sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z) or 0.0
@@ -324,9 +404,12 @@ function Beam:surface(key, ox, oy, oz, dx, dy, dz, reach, ignore, now)
     if not c.handle and now - c.at > RAY_INTERVAL_MS then
         c.at = now
         c.fx, c.fy, c.fz = ox, oy, oz
+        c.dx, c.dy, c.dz = dx, dy, dz
         local s = self.rayStart
+        local skip = ignore or 0
+        if mount and c.skipMount then skip = mount end
         c.handle = StartShapeTestLosProbe(ox + dx * s, oy + dy * s, oz + dz * s,
-            ox + dx * reach, oy + dy * reach, oz + dz * reach, self.traceFlags, ignore or 0, 7)
+            ox + dx * reach, oy + dy * reach, oz + dz * reach, self.traceFlags, skip, 7)
     end
     local dist, plane = c.dist, c.plane
     if dist and plane then
@@ -367,16 +450,29 @@ local function Tri(i1, u1, v1, i2, u2, v2, i3, u3, v3)
         t_txd, t_tex, u1, v1, 1.0, u2, v2, 1.0, u3, v3, 1.0)
 end
 
+local function Quad(n, both)
+    Tri(n + 1, 0.0, 0.0, n + 3, 1.0, 1.0, n + 2, 1.0, 0.0)
+    Tri(n + 1, 0.0, 0.0, n + 4, 0.0, 1.0, n + 3, 1.0, 1.0)
+    if both then
+        Tri(n + 1, 0.0, 0.0, n + 2, 1.0, 0.0, n + 3, 1.0, 1.0)
+        Tri(n + 1, 0.0, 0.0, n + 3, 1.0, 1.0, n + 4, 0.0, 1.0)
+    end
+end
+
 -- A camera inside the cone (an operator at its apex) would see the band as a veil over the whole
--- view. Fade it out from just outside the edge.
+-- view. Fade it out from just outside the edge. Behind the lamp it returns over the last insideSoften
+-- metres before insideBehind, so a camera crossing that plane sees no jump.
 local function OutsideFactor(self, cam, ox, oy, oz, dx, dy, dz, length, spread)
     local rx, ry, rz = cam.x - ox, cam.y - oy, cam.z - oz
     local along = rx * dx + ry * dy + rz * dz
-    if along < -self.insideBehind or along > length then return 1.0 end
+    if along > length then return 1.0 end
+    local back = (-along - self.insideBehind) / self.insideSoften + 1.0
+    if back >= 1.0 then return 1.0 end
     local perpSq = rx * rx + ry * ry + rz * rz - along * along
     local perp = perpSq > 0.0 and math_sqrt(perpSq) or 0.0
     local edge = self.sourceRadius + (along > 0.0 and along or 0.0) * spread
     local fade = (perp - edge - self.insideMargin) / (edge * 0.5 + self.insideSoften)
+    if back > fade then fade = back end
     if fade <= 0.0 then return 0.0 end
     return fade < 1.0 and fade or 1.0
 end
@@ -408,16 +504,18 @@ function Beam:draw(p)
     end
 
     -- Length and the surface the beam lands on.
-    local length, plane = p.length, nil
+    local length, plane, open = p.length, nil, 1.0
     if length then
         if length < self.minLength then return false end
     else
         local range = p.range or 100.0
+        local beyond = range * self.openFade
         local hit
-        if p.key ~= nil then hit, plane = self:surface(p.key, ox, oy, oz, dx, dy, dz, range, p.ignore, now) end
+        if p.key ~= nil then hit, plane = self:surface(p.key, ox, oy, oz, dx, dy, dz, range + beyond, p.ignore, now, p.mount) end
         length = hit and math_min(hit, range) or range
-        if not (hit and hit < range) then plane = nil end
+        if not hit then plane = nil end
         if length < self.minLength then return false end
+        if plane then open = Smoothstep((hit - range) / beyond) end
     end
 
     local half = length * 0.5
@@ -432,14 +530,16 @@ function Beam:draw(p)
         half + math_min(maxEnd, source + length * spread)) then
         return false
     end
+    local lit = strength
     strength = strength * OutsideFactor(self, cam, ox, oy, oz, dx, dy, dz, length, spread)
-    if strength <= 0.01 or not self:ensureTexture() then return false end
+    if (strength <= 0.01 and (self.glare <= 0.0 or self.discs == 0)) or not self:ensureTexture() then return false end
 
     -- With a known length the ray only supplies the contact plane.
     if p.length and p.key ~= nil then
         local _
-        _, plane = self:surface(p.key, ox, oy, oz, dx, dy, dz, length + 3.0, p.ignore, now)
+        _, plane = self:surface(p.key, ox, oy, oz, dx, dy, dz, length + 3.0, p.ignore, now, p.mount)
     end
+    if p.length and plane then open = 0.0 end
 
     local profile = self.profile
     local profiling = profile and profile.enabled
@@ -464,6 +564,19 @@ function Beam:draw(p)
     local al = math_sqrt(ax * ax + ay * ay + az * az)
     local nsx, nsy, nsz = 0.0, 0.0, 0.0
     if al > 0.0 then nsx, nsy, nsz = ax / al, ay / al, az / al end
+
+    if self.discs > 0 then
+        t_vx, t_vy, t_vz, t_va = vx, vy, vz, va
+        t_cr, t_cg, t_cb = (p.r or 255) * 1.0, (p.g or 255) * 1.0, (p.b or 255) * 1.0
+        t_txd, t_poly = self.txd, DrawSpritePoly_2
+        if profiling then profile.leave(); profile.enter(self.profilePolys) end
+        local n = strength > 0.01 and self:discStack(f, 0, length, plane, open, spread, strength, nsx, nsy, nsz, al,
+            ox, oy, oz, dx, dy, dz, camX, camY, camZ) or 0
+        if self.glare > 0.0 then self:lampGlare(f, n, lit, ox, oy, oz, dx, dy, dz, camX, camY, camZ) end
+        if profiling then profile.leave() end
+        f.drawn = f.drawn + 1
+        return true
+    end
 
     local n = 0
     for i = 1, ringCount do
@@ -493,7 +606,7 @@ function Beam:draw(p)
         -- The light spreads over a wider disc further out, so the haze dims.
         local spreadDim = math_min(1.0, (refRadius / ringRadius) ^ falloff)
         -- No surface known: trail off over the last openFade of the beam.
-        local tail = plane and 1.0 or Smoothstep((1.0 - t) / openFade)
+        local tail = open > 0.0 and 1.0 - open * (1.0 - Smoothstep((1.0 - t) / openFade)) or 1.0
         local ringAlpha = peak * boost * spreadDim * tail
         local soft = contact + 0.35 * ringRadius
         rr[i] = ringRadius
@@ -506,7 +619,8 @@ function Beam:draw(p)
             if plane and a > 0.0 then
                 -- Soft contact: fade out approaching the surface instead of cutting through it.
                 local h = (x - plane.x) * plane.nx + (y - plane.y) * plane.ny + (z - plane.z) * plane.nz
-                a = a * Smoothstep(h / soft)
+                local c = Smoothstep(h / soft)
+                a = a * (c + open * (1.0 - c))
             end
             n = n + 1
             vx[n], vy[n], vz[n] = x, y, z
@@ -552,9 +666,137 @@ function Beam:draw(p)
             end
         end
     end
+    if self.glare > 0.0 and self.discPainted then
+        self:lampGlare(f, 2 * ringCount, strength, ox, oy, oz, dx, dy, dz, camX, camY, camZ)
+    end
     if profiling then profile.leave() end
     f.drawn = f.drawn + 1
     return true
+end
+
+function Beam:discStack(f, n, length, plane, open, spread, strength, sx, sy, sz, al, ox, oy, oz, dx, dy, dz, camX, camY, camZ)
+    if al <= 0.0 then
+        local hx, hz = 0.0, 1.0
+        if math_abs(dz) > 0.9 then hx, hz = 1.0, 0.0 end
+        sx, sy, sz = dy * hz, dz * hx - dx * hz, -dy * hx
+        local sl = math_sqrt(sx * sx + sy * sy + sz * sz)
+        sx, sy, sz = sx / sl, sy / sl, sz / sl
+    end
+    local count, source, maxEnd = self.discs, self.sourceRadius, self.maxEndRadius
+    local near = math_min(self.discNear, length * 0.5)
+    local step = (length / near) ^ (1.0 / math_max(1, count - 1))
+    local base = self.discAlpha * strength
+    local falloff, margin, openFade = self.discFalloff, self.contactSoftness, self.openFade
+    local fadeIn, contactFit, coverage = self.discFadeIn, self.contactFit, self.discCoverage
+    local refRadius = source + spread
+    local g = self.phase
+    local g1, g2 = 1.0 + g * g, 2.0 * g
+    local vx, vy, vz, va = self.vx, self.vy, self.vz, self.va
+    t_tex = self.discTex
+    for k = count - 1, 0, -1 do
+        local dk = near * step ^ k
+        local d0, d1 = dk * (1.0 + 1.0 / step) * 0.5, math_min(length, dk * (1.0 + step) * 0.5)
+        local d = (d0 + d1) * 0.5
+        local radius = math_min(maxEnd, source + d * spread)
+        local a
+        if coverage then
+            a = base * (refRadius / radius) ^ falloff
+        else
+            a = base * (d1 - d0) / math_max(d, near) ^ falloff
+        end
+        if fadeIn > 0.0 and d < fadeIn then a = a * Smoothstep(d / fadeIn) end
+        a = a * (open > 0.0 and 1.0 - open * (1.0 - Smoothstep((1.0 - d / length) / openFade)) or 1.0)
+        local cx, cy, cz = ox + dx * d, oy + dy * d, oz + dz * d
+        local wx, wy, wz = cx - camX, cy - camY, cz - camZ
+        local wl = math_sqrt(wx * wx + wy * wy + wz * wz)
+        if a >= 0.5 and wl > radius then
+            local along = (wx * dx + wy * dy + wz * dz) / wl
+            if g > 0.0 then a = a * math_min(3.0, (g1 / (g1 + g2 * along)) ^ 1.5) end
+            local side = math_sqrt(math_max(0.0, 1.0 - along * along))
+            local stretch
+            if coverage then
+                stretch = radius + (d1 - d0) * side
+                a = a * (d1 - d0) / (2.0 * stretch)
+            else
+                stretch = radius + 0.5 * (d1 - d0) * side
+            end
+            local mx, my, mz = (wy * sz - wz * sy) / wl, (wz * sx - wx * sz) / wl, (wx * sy - wy * sx) / wl
+            local fs, fu = 1.0, 1.0
+            if plane then
+                local hs = math_abs(radius * (sx * plane.nx + sy * plane.ny + sz * plane.nz))
+                local hm = math_abs(stretch * (mx * plane.nx + my * plane.ny + mz * plane.nz))
+                local height = (cx - plane.x) * plane.nx + (cy - plane.y) * plane.ny + (cz - plane.z) * plane.nz
+                if contactFit then
+                    local reach = hs + hm
+                    local h = height - math_min(margin, reach)
+                    if reach > 0.0 and h < reach then
+                        local fit = math_max(0.0, h) / reach
+                        local fade = Smoothstep(h / (0.5 * reach))
+                        fs = fit + open * (1.0 - fit)
+                        fu = fs
+                        a = a * (fade + open * (1.0 - fade))
+                    end
+                end
+                local reach = math_sqrt(hs * hs + hm * hm)
+                local h = height - margin
+                if not contactFit and reach > 0.0 and h < reach then
+                    local room = math_max(0.0, h)
+                    if hs > room then fs = math_max(0.5, room / hs) end
+                    if hm > 0.0 then
+                        local left = room * room - hs * hs * fs * fs
+                        fu = math_min(1.0, math_max(0.5, math_sqrt(math_max(0.0, left)) / hm))
+                    end
+                    local fade = Smoothstep(h / (0.5 * reach))
+                    fs, fu = fs + open * (1.0 - fs), fu + open * (1.0 - fu)
+                    a = a * (fade + open * (1.0 - fade))
+                end
+            end
+            local across, up = radius * fs, stretch * fu
+            if a >= 0.5 and (not f.view or InView(f, cx, cy, cz, math_sqrt(across * across + up * up))) then
+                local alpha = math_min(255, math_floor(a + 0.5))
+                for corner = 0, 3 do
+                    local cs = (corner == 1 or corner == 2) and across or -across
+                    local cu = corner >= 2 and up or -up
+                    local i = n + 1 + corner
+                    vx[i], vy[i], vz[i], va[i] = cx + sx * cs + mx * cu, cy + sy * cs + my * cu, cz + sz * cs + mz * cu, alpha
+                end
+                Quad(n, self.doubleSided)
+                n = n + 4
+            end
+        end
+    end
+    t_tex = self.tex
+    return n
+end
+
+function Beam:lampGlare(f, n, strength, ox, oy, oz, dx, dy, dz, camX, camY, camZ)
+    local wx, wy, wz = ox - camX, oy - camY, oz - camZ
+    local wl = math_sqrt(wx * wx + wy * wy + wz * wz)
+    if wl < 1.0 then return n end
+    local facing = -(wx * dx + wy * dy + wz * dz) / wl
+    if facing <= 0.0 then return n end
+    local a = self.glare * strength * facing * facing * facing * facing
+    if a < 0.5 then return n end
+    local sx, sy, sz = wy, -wx, 0.0
+    local sl = math_sqrt(sx * sx + sy * sy)
+    if sl < 0.001 then sx, sy, sl = 1.0, 0.0, 1.0 end
+    sx, sy = sx / sl, sy / sl
+    local mx, my, mz = (wy * sz - wz * sy) / wl, (wz * sx - wx * sz) / wl, (wx * sy - wy * sx) / wl
+    local size = 0.3 + 0.012 * wl
+    local gx, gy, gz = ox - wx / wl * 0.3, oy - wy / wl * 0.3, oz - wz / wl * 0.3
+    if f.view and not InView(f, gx, gy, gz, size * 1.42) then return n end
+    local vx, vy, vz, va = self.vx, self.vy, self.vz, self.va
+    local alpha = math_min(255, math_floor(a + 0.5))
+    for corner = 0, 3 do
+        local cs = (corner == 1 or corner == 2) and size or -size
+        local cu = corner >= 2 and size or -size
+        local i = n + 1 + corner
+        vx[i], vy[i], vz[i], va[i] = gx + sx * cs + mx * cu, gy + sy * cs + my * cu, gz + sz * cs + mz * cu, alpha
+    end
+    t_tex = self.discTex
+    Quad(n, self.doubleSided)
+    t_tex = self.tex
+    return n + 4
 end
 
 CortexVolumetric = volumetric

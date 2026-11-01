@@ -105,12 +105,13 @@
     --mdt-bezel-edge: var(--cx-rule);
 }
 .cortex-shared-style[data-cortex-resource="cortex-lib"] .cortex-pause-overlay {
-    --pause-scrim: rgba(8, 14, 13, calc(var(--cx-surface-alpha) * 0.848));
-    --pause-home-scrim: rgba(8, 14, 13, calc(var(--cx-surface-alpha) * 0.3913));
-    --pause-panel: var(--cx-panel);
-    --pause-panel-hover: rgba(27, 43, 37, var(--cx-surface-alpha));
+    /* The canonical neutral ink (15, 16, 18), as on every other Cortex slip. */
+    --pause-scrim: rgba(15, 16, 18, calc(var(--cx-surface-alpha) * 0.848));
+    --pause-home-scrim: rgba(15, 16, 18, calc(var(--cx-surface-alpha) * 0.3913));
+    --pause-panel: rgba(15, 16, 18, var(--cx-surface-alpha));
+    --pause-panel-hover: rgba(26, 28, 31, var(--cx-surface-alpha));
     --pause-control: rgba(0, 0, 0, calc(var(--cx-surface-alpha) * 0.326));
-    --pause-ink-fill: var(--cx-ink-surface);
+    --pause-ink-fill: rgba(15, 16, 18, var(--cx-surface-alpha));
     --pause-paper-fill: var(--cx-paper-surface);
     --pause-accent-fill: rgba(var(--cx-accent-rgb), var(--cx-surface-alpha));
 }

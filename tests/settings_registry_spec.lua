@@ -33,6 +33,9 @@ function SendNUIMessage(message) messages[#messages + 1] = message end
 function RegisterNUICallback(name, callback) callbacks[name] = callback end
 function AddEventHandler(name, callback) events[name] = callback end
 function RegisterCommand() end
+keyMappings = {}
+function RegisterKeyMapping(command, description, mapper, key) keyMappings[command] = { description = description, mapper = mapper, key = key } end
+function GetConvar(_, fallback) return fallback end
 function GetSoundId() return 1 end
 function PlaySoundFrontend() end
 function ReleaseSoundId() end
@@ -84,6 +87,8 @@ exports = setmetatable({}, {
 lib = {}
 
 local api = assert(dofile(scriptPath))
+assert(keyMappings.cortexsettings and keyMappings.cortexsettings.mapper == 'keyboard' and keyMappings.cortexsettings.key == 'I',
+    'Settings must own a rebindable key, I by default, without cortex-hud')
 local poison = function() end
 local field = { key = 'shared', label = 'Shared', type = 'toggle', poison = poison }
 field.cycle = field

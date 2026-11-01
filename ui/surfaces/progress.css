@@ -95,7 +95,8 @@
 .progress-cancel .cx-hint {
     gap: calc(8 * var(--u));
     color: var(--paper);
-    font-size: calc(15 * var(--u));
+    /* 16u keeps the hint at body size on a 720p screen. */
+    font-size: calc(16 * var(--u));
     text-shadow: var(--legible);
 }
 

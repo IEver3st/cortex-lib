@@ -1,4 +1,5 @@
--- Startup update notice: one GitHub request, one console line, off by convar.
+-- Startup banner and update notice: one GitHub request, the Cortex banner, a
+-- status line with the update link only when outdated, off by convar.
 local printed, requests, threads, convar, installed = {}, {}, {}, 1, '3.3.1'
 
 json = {
@@ -30,37 +31,62 @@ local function run(status, body)
     request.callback(status, body)
 end
 
-local function expect(pattern, message)
-    assert(#printed == 1 and printed[1]:find(pattern), message .. ': ' .. tostring(printed[1]))
+local function has(text, message)
+    local output = table.concat(printed, '\n')
+    assert(output:find(text, 1, true), message .. ': missing ' .. text .. '\n' .. output)
+end
+
+local function lacks(text, message)
+    local output = table.concat(printed, '\n')
+    assert(not output:find(text, 1, true), message .. ': unexpected ' .. text .. '\n' .. output)
+end
+
+-- Banner and version lines print on every checked start, and no line leaves a
+-- colour set for the next resource's output.
+local function expectBanner(latest)
+    has('[Cortex] My Version: [' .. installed .. ']', 'installed version line')
+    has('[Cortex] Latest Version: [' .. latest .. ']', 'latest version line')
+    has('▄████▄   ▒█████', 'CORTEX art')
+    has('CORTEX LIB', 'product line')
+    for _, line in ipairs(printed) do
+        local last
+        for code in line:gmatch('%^(%d)') do last = code end
+        assert(last == nil or last == '7', 'colour leaks past: ' .. line)
+    end
 end
 
 run(200, '{"tag_name":"v3.4.0"}')
-expect('Update available: ^2' .. '3.4.0', 'newer release is announced')
-assert(printed[1]:find('installed 3.3.1', 1, true) and printed[1]:find('/releases/latest', 1, true))
+expectBanner('v3.4.0')
+has('Update available: 3.4.0 (installed 3.3.1)', 'newer release is announced')
+has('Update now at ^5https://gsdmods.com/scripts', 'update link')
 
 run(200, '{"tag_name":"v3.3.1"}')
-expect('up to date', 'same version is up to date')
+expectBanner('v3.3.1')
+has('[Cortex] Up to date!', 'same version is up to date')
+lacks('https://', 'no link when current')
 
 run(200, '{"tag_name":"v3.3.0"}')
-expect('up to date', 'older release is not announced')
+has('[Cortex] Up to date!', 'older release is not announced')
 
 run(200, '{"tag_name":"v3.10.0"}')
-expect('Update available', 'numeric, not text, comparison')
+has('Update available', 'numeric, not text, comparison')
 
 installed = '3.3.1-rc.2'
 run(200, '{"tag_name":"v3.3.1"}')
-expect('Update available', 'a release is newer than its pre-release')
+has('Update available', 'a release is newer than its pre-release')
 installed = '3.3.1'
 
 run(403, '')
-expect('Could not check for updates %(HTTP 403%)', 'API failure is one quiet line')
+expectBanner('unknown')
+has('Could not check for updates (HTTP 403)', 'API failure is one quiet line')
 
 run(200, 'not json')
-assert(#printed == 0, 'malformed body prints nothing')
+expectBanner('unknown')
+has('Could not read the release versions', 'malformed body does not throw')
 
 convar = 0
 run(200, '{"tag_name":"v9.0.0"}')
 assert(#requests == 0 and #printed == 0, 'cortex_lib_version_check 0 disables the request')
 
 print = nil
-io.write('version check: newer/same/older/pre-release/HTTP failure/opt-out passed\n')
+io.write('version check: banner/newer/same/older/pre-release/HTTP failure/malformed/opt-out passed\n')

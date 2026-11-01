@@ -41,7 +41,7 @@ local function boot(options)
     options = options or {}
     s = {
         exported = {}, handlers = {}, callbacks = {}, threads = {}, prints = {}, decoded = {}, messages = {},
-        created = {}, destroyed = {}, sprites = 0, rects = 0, texts = {}, cursorAt = nil,
+        created = {}, destroyed = {}, sprites = 0, rects = 0, rectColors = {}, texts = {}, cursorAt = nil,
         clock = 1000, entities = { [42] = 111, [43] = 222 }, invoking = 'cortex-pinpoint',
         pressed = {}, mouse = { 0.5, 0.5 }, pause = false, focus = false, available = true,
         noDui = options.noDui,
@@ -101,7 +101,10 @@ local function boot(options)
     end
     function SetDrawOrigin() end
     function ClearDrawOrigin() end
-    function DrawRect() s.rects = s.rects + 1 end
+    function DrawRect(_, _, _, _, r, g, b)
+        s.rects = s.rects + 1
+        s.rectColors[#s.rectColors + 1] = ('%d,%d,%d'):format(r, g, b)
+    end
     function SetTextFont() end
     function SetTextScale() end
     function SetTextColour() end
@@ -581,6 +584,79 @@ check('the owner stopping closes its callouts without an event', function()
     eq(#events, 0)
     eq(as('cortex-pinpoint', 'isCalloutsOpen'), false)
 end)
+-- Styles -----------------------------------------------------------------------------------
+
+check('a style is checked, defaults to ink and reaches the atlas page', function()
+    boot()
+    local ok, err = as('cortex-pinpoint', 'showCallouts', data({ style = 'neon' }))
+    eq(ok, false); eq(err, 'invalid_style')
+    ok, err = as('cortex-pinpoint', 'showCallouts', data({ style = 3 }))
+    eq(ok, false); eq(err, 'invalid_style')
+    eq(as('cortex-pinpoint', 'isCalloutsOpen'), false, 'nothing opened')
+    eq(as('cortex-pinpoint', 'showCallouts', data()), true)
+    step(3)
+    eq(lastAtlas().data.style, 'ink', 'the default')
+end)
+check('a new style on the open callouts repaints every cell before labels draw', function()
+    boot()
+    as('cortex-pinpoint', 'showCallouts', data({ style = 'slip' }))
+    step(3)
+    eq(lastAtlas().data.style, 'slip')
+    s.callbacks.calloutsPainted({ dui = 1, revision = lastAtlas().data.revision }, function() end)
+    step(20)
+    s.sprites = 0
+    step()
+    local painted = s.sprites
+    eq(as('cortex-pinpoint', 'showCallouts', data({ style = 'draft' })), true)
+    step()
+    local m = lastAtlas()
+    eq(m.data.style, 'draft'); eq(m.data.revision, 2)
+    s.sprites = 0
+    step()
+    truthy(s.sprites > 0 and s.sprites < painted, 'only the pins until the new cells are painted')
+    s.callbacks.calloutsPainted({ dui = 1, revision = 2 }, function() end)
+    s.sprites = 0
+    step()
+    eq(s.sprites, painted, 'everything once painted')
+end)
+check('the styles are listed, ink first, and the list is a copy', function()
+    boot()
+    local list = as('cortex-pinpoint', 'getCalloutStyles')
+    eq(table.concat(list, ','), 'ink,slip,paper,draft')
+    list[1] = 'neon'
+    eq(as('cortex-pinpoint', 'getCalloutStyles')[1], 'ink')
+end)
+check('prepare paints the pins in the style given and refuses an unknown one', function()
+    boot()
+    eq(as('cortex-pinpoint', 'prepareCallouts', 'neon'), false)
+    eq(#s.created, 0, 'nothing started')
+    eq(as('cortex-pinpoint', 'prepareCallouts', 'paper'), true)
+    step(3)
+    eq(lastAtlas().data.style, 'paper')
+end)
+check('each style draws its own leaders: paper an ink line on paper, drafting a bar at each label', function()
+    local function frame(style)
+        boot()
+        as('cortex-pinpoint', 'showCallouts', data({ style = style }))
+        step(3)
+        s.callbacks.calloutsPainted({ dui = 1, revision = lastAtlas().data.revision }, function() end)
+        step(30) -- the leaders have grown whole
+        s.rects, s.rectColors = 0, {}
+        step()
+        local colors = {}
+        for _, c in ipairs(s.rectColors) do colors[c] = (colors[c] or 0) + 1 end
+        return s.rects, colors
+    end
+    local ink, inkColors = frame('ink')
+    truthy(ink > 0, 'leaders drawn')
+    eq(inkColors['15,16,18'], nil, 'no ink line in ink')
+    local paper, paperColors = frame('paper')
+    eq(paper, ink, 'the same segments')
+    truthy(paperColors['15,16,18'] and paperColors['240,240,233'], 'an ink core on a paper ribbon')
+    local draft = frame('draft')
+    truthy(draft > ink and (draft - ink) % 2 == 0, 'a bar, halo and core, at each label')
+end)
+
 check('the cursor starts on the entity and controls are held while open', function()
     boot()
     as('cortex-pinpoint', 'showCallouts', data())

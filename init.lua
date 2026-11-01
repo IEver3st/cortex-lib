@@ -200,6 +200,7 @@ local clientOwnedModules = {
             isOpen = self.isCalloutsOpen,
             getState = self.getCalloutState,
             prepare = self.prepareCallouts,
+            styles = self.getCalloutStyles,
         }
     end,
 }
@@ -482,8 +483,8 @@ if context == 'client' then
         return callCortexExport('hideHelp')
     end
 
-    function lib.registerSettings(tabId, tabLabel, kvpPrefix, fields, defaults)
-        return callCortexExport('registerSettings', tabId, tabLabel, kvpPrefix, fields, defaults)
+    function lib.registerSettings(tabId, tabLabel, kvpPrefix, fields, defaults, ...)
+        return callCortexExport('registerSettings', tabId, tabLabel, kvpPrefix, fields, defaults, ...)
     end
 
     function lib.registerSettingsScript(scriptId, definition)
@@ -686,8 +687,12 @@ if context == 'client' then
         return callCortexExport('getCalloutState')
     end
 
-    function lib.prepareCallouts()
-        return callCortexExport('prepareCallouts')
+    function lib.prepareCallouts(...)
+        return callCortexExport('prepareCallouts', ...)
+    end
+
+    function lib.getCalloutStyles()
+        return callCortexExport('getCalloutStyles')
     end
 else
     function lib.notify(target, data)

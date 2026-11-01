@@ -1,9 +1,27 @@
--- Startup update notice. Asks GitHub once for the latest stable release and
--- prints one console line when it is newer than this install.
+-- Startup banner and update notice. Asks GitHub once for the latest stable
+-- release, prints the Cortex banner, then whether this install is current.
 -- Owners turn it off with: set cortex_lib_version_check 0
 local REPOSITORY = 'IEver3st/cortex-lib'
-local RELEASES_URL = ('https://github.com/%s/releases/latest'):format(REPOSITORY)
 local API_URL = ('https://api.github.com/repos/%s/releases/latest'):format(REPOSITORY)
+local UPDATE_URL = 'https://gsdmods.com/scripts'
+
+-- Console colour persists across prints, so every line sets its own and resets.
+local BANNER = [==[
+^7     ▄████▄   ▒█████   ██▀███  ▄▄▄█████▓▓█████ ▒██   ██▒
+    ▒██▀ ▀█  ▒██▒  ██▒▓██ ▒ ██▒▓  ██▒ ▓▒▓█   ▀ ▒▒ █ █ ▒░
+    ▒▓█    ▄ ▒██░  ██▒▓██ ░▄█ ▒▒ ▓██░ ▒░▒███   ░░  █   ░
+    ▒▓▓▄ ▄██▒▒██   ██░▒██▀▀█▄  ░ ▓██▓ ░ ▒▓█  ▄  ░ █ █ ▒
+    ▒ ▓███▀ ░░ ████▓▒░░██▓ ▒██▒  ▒██▒ ░ ░▒████▒▒██▒ ▒██▒
+    ░ ░▒ ▒  ░░ ▒░▒░▒░ ░ ▒▓ ░▒▓░  ▒ ░░   ░░ ▒░ ░▒▒ ░ ░▓ ░
+      ░  ▒     ░ ▒ ▒░   ░▒ ░ ▒░    ░     ░ ░  ░░░   ░▒ ░
+    ░        ░ ░ ░ ▒    ░░   ░   ░         ░    ░    ░
+    ░ ░          ░ ░     ░                 ░  ░ ░    ░
+    ░
+
+    CORTEX LIB
+    by Ever3st, GSD Modifications
+    ^2Loaded^7
+]==]
 
 local function parseVersion(value)
     if type(value) ~= 'string' then return nil end
@@ -38,19 +56,28 @@ local function compareVersions(a, b)
 end
 
 local function report(status, body, installed)
-    if status ~= 200 or type(body) ~= 'string' then
-        print(('^3[cortex-lib]^7 Could not check for updates (HTTP %s).'):format(tostring(status)))
-        return
+    local latestText
+    if status == 200 and type(body) == 'string' then
+        local ok, release = pcall(json.decode, body)
+        if ok and type(release) == 'table' and type(release.tag_name) == 'string' then
+            latestText = release.tag_name
+        end
     end
-    local ok, release = pcall(json.decode, body)
-    local latestText = ok and type(release) == 'table' and release.tag_name or nil
     local latest, current = parseVersion(latestText), parseVersion(installed)
-    if not latest or not current then return end
-    local tag = latestText:gsub('^v', '')
-    if compareVersions(latest, current) > 0 then
-        print(('^3[cortex-lib]^7 Update available: ^2%s^7 (installed %s). Download: %s'):format(tag, installed, RELEASES_URL))
+
+    print(('^7[Cortex] My Version: [%s]'):format(installed or 'unknown'))
+    print(('^7[Cortex] Latest Version: [%s]'):format(latestText or 'unknown'))
+    print(BANNER)
+
+    if status ~= 200 then
+        print(('^3[Cortex] Could not check for updates (HTTP %s).^7'):format(tostring(status)))
+    elseif not latest or not current then
+        print('^3[Cortex] Could not read the release versions.^7')
+    elseif compareVersions(latest, current) > 0 then
+        print(('^3[Cortex] Update available: %s (installed %s).^7'):format(latestText:gsub('^v', ''), installed))
+        print(('^3[Cortex] Update now at ^5%s^7'):format(UPDATE_URL))
     else
-        print(('^2[cortex-lib]^7 Version %s is up to date.'):format(installed))
+        print('^2[Cortex] Up to date!^7')
     end
 end
 

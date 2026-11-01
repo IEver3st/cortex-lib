@@ -185,6 +185,8 @@ local facadeCases = {
     { 'isCalloutsOpen', table.pack() },
     { 'getCalloutState', table.pack() },
     { 'prepareCallouts', table.pack() },
+    { 'prepareCallouts', table.pack('paper') },
+    { 'getCalloutStyles', table.pack() },
 }
 
 for index = 1, #facadeCases do
@@ -228,6 +230,7 @@ assertEqual(interaction.get(), 'export:getInteractions', 'interaction module sho
 local callouts = loaded('callouts')
 assertEqual(callouts.show({ entity = 1 }), 'export:showCallouts', 'callouts module method should proxy')
 assertEqual(callouts.getState(), 'export:getCalloutState', 'callouts module should preserve its getState method')
+assertEqual(callouts.styles(), 'export:getCalloutStyles', 'callouts module should list the styles')
 
 for _, moduleName in ipairs({ 'menu', 'radial', 'help', 'settings', 'interaction', 'callouts' }) do
     assertEqual(loadCounts[('imports/%s/client.lua'):format(moduleName)], nil, moduleName .. ' code must not execute in a consumer')

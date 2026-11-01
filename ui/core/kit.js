@@ -80,11 +80,17 @@
         MOUSE3: 'MMB', MOUSE_MIDDLE: 'MMB',
         IOM_WHEEL_UP: 'WHEEL', IOM_WHEEL_DOWN: 'WHEEL', MOUSE_WHEEL: 'WHEEL', SCROLL: 'WHEEL',
         ESCAPE: 'ESC', RETURN: 'ENTER', DELETE: 'DEL', CONTROL: 'CTRL', LCONTROL: 'CTRL', RCONTROL: 'CTRL',
-        LSHIFT: 'SHIFT', RSHIFT: 'SHIFT', LMENU: 'ALT', RMENU: 'ALT', SPACEBAR: 'SPACE', BACK: 'BACKSPACE',
+        LSHIFT: 'SHIFT', RSHIFT: 'SHIFT', LMENU: 'ALT', RMENU: 'ALT', SPACEBAR: 'SPACE',
+        // One short form everywhere, as on world prompts and the help legend.
+        BACK: 'BKSP', BACKSPACE: 'BKSP',
         ARROWUP: 'UP', ARROWDOWN: 'DOWN', ARROWLEFT: 'LEFT', ARROWRIGHT: 'RIGHT',
+        '↑': 'UP', '↓': 'DOWN', '←': 'LEFT', '→': 'RIGHT',
         PAGEUP: 'PGUP', PAGEDOWN: 'PGDN'
     });
-    const KEY_GLYPHS = Object.freeze({ UP: '↑', DOWN: '↓', LEFT: '←', RIGHT: '→', ARROWS: '↑↓' });
+    const KEY_GLYPHS = Object.freeze({ UP: '↑', DOWN: '↓', LEFT: '←', RIGHT: '→' });
+    // Two opposite arrows are one axis keycap ("↑ ↓" moves, "← →" adjusts), as on world prompts.
+    const KEY_AXES = Object.freeze({ ARROWS: 'v', 'UP DOWN': 'v', 'DOWN UP': 'v', 'LEFT RIGHT': 'h', 'RIGHT LEFT': 'h' });
+    const AXIS_NAMES = Object.freeze({ v: 'Up and down arrows', h: 'Left and right arrows' });
     const MOUSE_KEYS = new Set(['LMB', 'RMB', 'MMB', 'WHEEL', 'MOUSE']);
 
     function normalizeKey(value) {
@@ -123,22 +129,31 @@
         );
     }
 
+    /** A double-headed arrow drawn on its side for the vertical axis. */
+    function AxisGlyph({ axis }) {
+        return h('svg', { className: `cx-key-axis is-${axis}`, viewBox: '0 0 20 20', 'aria-hidden': 'true', focusable: 'false' },
+            h('path', { d: 'M3.5 10h13M7.5 5.5 3 10l4.5 4.5M12.5 5.5 17 10l-4.5 4.5' }));
+    }
+
     /** The Cortex keycap: paper block, ink italic caps, 2u ink drop shadow. */
     function Keycap({ value, size = 'md', tone = 'paper', pressed = false, className = '' }) {
         const key = normalizeKey(value);
         const mouse = MOUSE_KEYS.has(key);
         const glyph = KEY_GLYPHS[key];
+        const axis = KEY_AXES[key];
         const classes = ['cx-key', `cx-key--${size}`, `cx-key--${tone}`,
-            mouse ? 'is-mouse' : '', glyph ? 'is-glyph' : '', key.length > 3 && !mouse && !glyph ? 'is-wide' : '',
+            mouse ? 'is-mouse' : '', glyph ? 'is-glyph' : '', axis ? 'is-axis' : '',
+            key.length > 3 && !mouse && !glyph && !axis ? 'is-wide' : '',
             pressed ? 'is-pressed' : '', className].filter(Boolean).join(' ');
         const mouseNames = { WHEEL: 'Mouse wheel', MOUSE: 'Mouse', LMB: 'Left mouse button', RMB: 'Right mouse button', MMB: 'Middle mouse button' };
-        return h('kbd', { className: classes, 'aria-label': mouse ? mouseNames[key] : undefined },
-            mouse ? h(MouseGlyph, { button: key }) : (glyph || key));
+        return h('kbd', { className: classes, 'aria-label': mouse ? mouseNames[key] : axis ? AXIS_NAMES[axis] : undefined },
+            mouse ? h(MouseGlyph, { button: key }) : axis ? h(AxisGlyph, { axis }) : (glyph || key));
     }
 
     /** Label + keycap(s). `order: 'key-first'` for lists, `'label-first'` for edge legends. */
     function KeyHint({ keys, label, order = 'key-first', size = 'md', tone = 'paper', pressed = false, disabled = false }) {
-        const caps = (Array.isArray(keys) ? keys.flatMap(splitKeys) : splitKeys(keys));
+        let caps = (Array.isArray(keys) ? keys.flatMap(splitKeys) : splitKeys(keys));
+        if (caps.length === 2 && KEY_AXES[caps.join(' ')]) caps = [caps.join(' ')];
         const keyNodes = caps.map((key, index) => h(Keycap, { key: `${key}-${index}`, value: key, size, tone, pressed }));
         const labelNode = label ? h('span', { className: 'cx-hint-label' }, label) : null;
         return h('span', { className: `cx-hint cx-hint--${order}${disabled ? ' is-disabled' : ''}` },

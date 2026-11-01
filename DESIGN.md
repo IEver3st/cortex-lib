@@ -154,6 +154,17 @@ avoid overlapping overlays, control hints), **Notifications** (position, duratio
 **Prompts** (nearby markers, prompt size, invert list scroll), **Progress** (show percentage). Choices of ≤4
 use `Segmented`, longer lists `Dropdown`.
 
+### Settings (library rail)
+Twenty-odd script tabs outgrew the horizontal tab strip and the per-tab section nav. The page is now a library:
+a 292u rail on the left holds search and the scripts grouped Everyday, Equipment, Activities, Staff, custom
+groups, Other, each row with its setting count. The selected script flips to paper; hover and focus are a wash
+plus the accent bar, the same language as setting rows. The right side leads with the script title (36u
+display) and its count, then one row of section chips (All plus each section, active chip on paper) with the
+Advanced switch at its far end; the chip row is hidden when a script has one section and no advanced fields,
+and while searching (the title reads Search results). Unsaved changes mark both the script row and its section
+chip. The rail scrolls on its own and keeps the active script in view; arrow keys, Home and End walk it in
+library order. At 1100px the rail narrows to 230u; under 700px it stacks above the content at 240u tall.
+
 ### Skill checks (restyle + trace fix)
 Match cortex-minigames: compact slip lower-centre (480u, 150u above bottom), keycaps that follow input, mint =
 the player's marker, targets paper, misses soft red, outcome slip tag `CLEAR | 92`. Trace is one smooth

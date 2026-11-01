@@ -576,7 +576,7 @@ function RadialMenu({ open, id, session, items, canGoBack, visible, appearance, 
 
     const legend = [
         empty ? null : { keys: 'LMB', label: 'Select', disabled: !hoveredItem || hoveredItem.disabled },
-        { keys: 'RMB', label: backLabel },
+        // RMB back/close is named once, in the idle hub (the centre does the same).
         displayItems.length > 0 ? { keys: displayItems.length > 1 ? `1-${displayItems.length}` : '1', label: 'Pick' } : null,
         totalPages > 1 ? { keys: 'WHEEL', label: 'Page' } : null,
         canGoBack ? { keys: 'ESC', label: 'Close' } : null

@@ -14,6 +14,8 @@
     const { useState, useEffect, useRef } = React;
     const MAX_CELLS = 512;
     const TONES = new Set(['off', 'on', 'you', 'no']);
+    // The looks the owner can pick (imports/callouts/client.lua STYLES).
+    const STYLES = new Set(['ink', 'slip', 'paper', 'draft']);
     const params = new URLSearchParams(window.location.search);
     const resource = params.get('resource') || 'cortex-lib';
     // Which DUI this is: a replaced page may still report.
@@ -67,7 +69,8 @@
         if (!metrics) return null;
         const cells = data.cells.map(readCell).filter(Boolean);
         const accent = str(data.accent) && /^#[0-9a-f]{6}$/i.test(data.accent) ? data.accent : '#8fcbbf';
-        return { revision: data.revision, r: data.r, accent, cells, metrics };
+        const style = STYLES.has(data.style) ? data.style : 'ink';
+        return { revision: data.revision, r: data.r, accent, style, cells, metrics };
     }
 
     const u = (value) => `calc(${value} * var(--u))`;
@@ -85,7 +88,9 @@
                 style: {
                     left: u(metrics.pad), top: u(metrics.pad), width: u(cell.rw), height: u(m.h),
                     paddingLeft: u(m.padL), paddingRight: u(m.padR), gap: u(m.gap),
-                    fontSize: u(m.name), letterSpacing: `${metrics.nameSpacing}em`
+                    fontSize: u(m.name), letterSpacing: `${metrics.nameSpacing}em`,
+                    // A style may run the chip out to the row's right edge.
+                    '--pad-r': u(m.padR)
                 }
             },
             h('span', { className: 'name' }, cell.name),
@@ -165,6 +170,7 @@
         if (!atlas) return null;
         return h('div', {
             className: 'atlas',
+            'data-style': atlas.style,
             style: { '--u': `${atlas.r}px`, '--accent': atlas.accent }
         }, atlas.cells.map((cell, index) => h(Cell, { key: index, cell, metrics: atlas.metrics })));
     }

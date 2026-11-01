@@ -186,16 +186,19 @@ test('radial hub names the aimed action in full and the idle hub names the centr
         assert.ok(byClass(elements(tree).find(node => node.props.id === 'cortex-radial-item-0'), 'is-hover'),
             'the aimed slip carries the hover (paper) state');
         assert.equal(elements(tree).find(node => node.props.role === 'menuitem').props['aria-label'], label);
-        assert.equal(legendOf(tree, Kit).find(item => item.keys === 'RMB').label, canGoBack ? 'Back' : 'Close');
+        assert.equal(legendOf(tree, Kit).find(item => item.keys === 'RMB'), undefined, 'RMB is named once, in the idle hub');
         assert.equal(Boolean(legendOf(tree, Kit).find(item => item.keys === 'ESC')), canGoBack, 'Esc is listed separately only in a submenu');
 
-        const idle = radialTree({ items, canGoBack, trail: canGoBack ? ['Vehicle'] : [] }).tree;
-        assert.equal(text(byClass(idle, 'cortex-radial-hub-action')).trim(), canGoBack ? 'Back' : 'Close');
-        assert.equal(text(byClass(idle, 'cortex-radial-hub-title')), canGoBack ? 'Vehicle' : '', 'a submenu names itself from the breadcrumb');
+        const idle = radialTree({ items, canGoBack, trail: canGoBack ? ['Vehicle'] : [] });
+        assert.equal(text(byClass(idle.tree, 'cortex-radial-hub-action')).trim(), canGoBack ? 'Back' : 'Close');
+        assert.equal(text(byClass(idle.tree, 'cortex-radial-hub-title')), canGoBack ? 'Vehicle' : '', 'a submenu names itself from the breadcrumb');
+        const closeLabels = legendOf(idle.tree, idle.Kit).filter(item => item.label === (canGoBack ? 'Back' : 'Close'));
+        assert.equal(closeLabels.length, 0, 'the idle hub and the legend never name the same action twice');
     }
     const empty = radialTree({ items: [] });
     assert.equal(text(byClass(empty.tree, 'cortex-radial-hub-title')), 'No actions');
-    assert.deepEqual([...legendOf(empty.tree, empty.Kit).map(item => item.keys)], ['RMB'], 'an empty wheel only offers close');
+    assert.equal(text(byClass(empty.tree, 'cortex-radial-hub-action')).trim(), 'Close', 'an empty wheel offers close in the hub');
+    assert.deepEqual([...legendOf(empty.tree, empty.Kit).map(item => item.keys)], [], 'and nothing else to list');
 
     const compact = radialTree({ items, appearance: 'compact-control' }, { hover: 0 });
     assert.equal(byType(compact.tree, compact.Kit.ControlsLegend).length, 0, 'compact-control carries no legend');
@@ -284,6 +287,21 @@ test('notifications preserve message variants, urgency and truthful lifetime cue
     assert.equal(byClass(plain, 'notify-icon'), undefined);
     assert.equal(byClass(plain, 'notify-title'), undefined);
     assert.equal(byClass(plain, 'notify-duration'), undefined);
+    const heading = (description, type = 'success') => {
+        const tree = Notification({ id: 'long', type, description, duration: 5000 });
+        return { title: text(byClass(tree, 'notify-title')), body: byType(tree, NotifyText)[0]?.props.text, className: tree.props.className };
+    };
+    const outfit = heading('Applied Parka layers: Gray Camo Closed Parka, Ash Large Cargos, Black Loggers (utility outfit).');
+    assert.equal(outfit.title, 'Applied Parka layers', 'long title-free copy lends its lead to the display title');
+    assert.equal(outfit.body, 'Gray Camo Closed Parka, Ash Large Cargos, Black Loggers (utility outfit).');
+    assert.doesNotMatch(outfit.className, /notify-headline/);
+    assert.deepEqual(heading('Vehicle repaired. Body, engine and tyre damage on the current vehicle were cleared.'),
+        { title: 'Vehicle repaired', body: 'Body, engine and tyre damage on the current vehicle were cleared.', className: 'notify success has-glyph' });
+    assert.deepEqual(heading('No compatible clothing pieces were available for this freemode model at all.', 'error'),
+        { title: 'Error', body: 'No compatible clothing pieces were available for this freemode model at all.', className: 'notify error has-glyph' },
+        'copy with no natural lead is titled by its severity');
+    assert.equal(heading('Hold [E] to open the trunk: the vehicle must be unlocked and you must be standing behind it.', 'info').title, 'Notice',
+        'keycap tokens never move into the plain-text title');
     const keyed = NotifyText({ text: 'Press [E] to open' });
     assert.equal(keyed[0], 'Press ');
     assert.equal(keyed[1].props.value, 'E');
@@ -295,6 +313,62 @@ test('notifications preserve message variants, urgency and truthful lifetime cue
     assert.match(css, /\.notify::before, \.notify::after\s*{\s*content:\s*none/);
     assert.match(css, /@keyframes notifyReveal\s*{\s*from\s*{\s*opacity:\s*0/);
     assert.doesNotMatch(notifyCss, /notify-grain\.svg/);
+});
+
+test('settings reopen at the tab, section and Advanced switch the player last used', () => {
+    const store = new Map();
+    const localStorage = { getItem: key => store.has(key) ? store.get(key) : null, setItem: (key, value) => store.set(key, String(value)) };
+    const load = storage => surface('settings.js', { extra: {
+        React: { createElement: () => null, memo: component => component },
+        window: { addEventListener() {}, localStorage: storage }
+    } });
+    const tabs = [{ id: 'cortex', label: 'Cortex' }, { id: 'cortex-hud', label: 'HUD' }, { id: 'cortex-radio', label: 'Radio' }];
+
+    let get = load(localStorage);
+    assert.equal(get('findSettingsTab')(tabs, get('getSettingsPlace')().tabId), -1, 'a first open starts on the first tab');
+    get('rememberSettingsPlace')({ tabId: 'cortex-radio', section: 'Audio', advanced: true });
+
+    get = load(localStorage);
+    const place = get('getSettingsPlace')();
+    assert.deepEqual({ ...place }, { tabId: 'cortex-radio', section: 'Audio', advanced: true }, 'the place survives a reload');
+    assert.equal(get('findSettingsTab')(tabs, place.tabId), 2);
+    assert.equal(get('findSettingsTab')([tabs[2], tabs[0]], place.tabId), 0, 'tabs are matched by id, not position');
+    assert.equal(get('findSettingsTab')(tabs.slice(0, 2), place.tabId), -1, 'a stopped tab falls back to the first');
+
+    store.set('cortex-lib:settings-place', JSON.stringify({ tabId: 'x'.repeat(400), section: { evil: true }, advanced: 'yes' }));
+    assert.deepEqual({ ...load(localStorage)('getSettingsPlace')() }, { tabId: 'x'.repeat(128), section: '', advanced: false }, 'stored data is bounded');
+    store.set('cortex-lib:settings-place', '{broken');
+    assert.equal(load(localStorage)('getSettingsPlace')().tabId, null, 'corrupt storage is ignored');
+    const throwing = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); } };
+    get = load(throwing);
+    get('rememberSettingsPlace')({ tabId: 'cortex-hud' });
+    assert.equal(get('getSettingsPlace')().tabId, 'cortex-hud', 'without storage the place still lasts the session');
+
+    const source = readFileSync(new URL('../ui/surfaces/settings.js', import.meta.url), 'utf8');
+    assert.match(source, /setActiveTab\(Math\.max\(0, findSettingsTab\(tabs, getSettingsPlace\(\)\.tabId\)\)\)/, 'opening restores the remembered tab');
+    const back = source.match(/const handleBack = useCallback\(\(\) => \{[\s\S]*?\n {4}\}, \[[^\]]*\]\);/)?.[0] || '';
+    assert.ok(back.indexOf("if (page === 'settings' && search) { setSearch(''); return; }") > 0
+        && back.indexOf("if (page === 'settings' && search)") < back.indexOf('handleCancel()'), 'Escape clears a search before it discards and closes');
+    assert.match(back, /\[[^\]]*\bsearch\b[^\]]*\]\);$/, 'the back handler sees the current search');
+});
+
+test('keycaps share one short form and draw opposite arrows as one axis', () => {
+    const { Keycap, KeyHint, normalizeKey } = realKit;
+    assert.equal(normalizeKey('BACKSPACE'), 'BKSP');
+    assert.equal(normalizeKey('Back'), 'BKSP', 'world prompts and kit keycaps agree');
+    assert.equal(text(Keycap({ value: 'BACKSPACE' })), 'BKSP');
+    for (const [keys, axis] of [[['UP', 'DOWN'], 'v'], ['UP DOWN', 'v'], [['ArrowLeft', 'ArrowRight'], 'h'], ['↑ ↓', 'v']]) {
+        const caps = byType(KeyHint({ keys, label: 'Move' }), Keycap);
+        assert.equal(caps.length, 1, `${keys} is one keycap`);
+        const cap = Keycap(caps[0].props);
+        assert.match(cap.props.className, /\bis-axis\b/);
+        assert.doesNotMatch(cap.props.className, /\bis-wide\b/, 'an axis cap stays square');
+        assert.equal(cap.props['aria-label'], axis === 'v' ? 'Up and down arrows' : 'Left and right arrows');
+        assert.equal(cap.children[0].props.axis, axis);
+    }
+    assert.equal(Keycap({ value: 'ARROWS' }).children[0].props.axis, 'v');
+    assert.equal(byType(KeyHint({ keys: ['UP', 'LEFT'] }), Keycap).length, 2, 'two arrows on different axes stay separate');
+    assert.equal(text(Keycap({ value: 'UP' })), '↑', 'a single arrow keeps its glyph');
 });
 
 test('notifications apply the player limit and lifetime preferences', () => {

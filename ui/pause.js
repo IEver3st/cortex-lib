@@ -246,7 +246,7 @@
                         h('h1', { id: 'cortex-settings-title' }, heading)),
                     Kit ? h(Kit.ControlsLegend, { className: 'cortex-settings-legend', align: 'end', label: 'Settings controls', items: [
                         { keys: ['UP', 'DOWN'], label: 'Move' }, { keys: ['LEFT', 'RIGHT'], label: 'Adjust' },
-                        { keys: 'ENTER', label: 'Select' }, { keys: 'ESC', label: 'Discard & close' }] }) : null
+                        { keys: 'ENTER', label: 'Select' }, { keys: 'ESC', label: 'Discard & resume' }] }) : null
                 ) : h('header', { className: 'pause-heading' },
                     h('div', { className: 'pause-brand' }, h('span', { className: 'pause-mark', 'aria-hidden': true }, '//'), data.title),
                     h('h1', { id: 'cortex-settings-title' }, heading),

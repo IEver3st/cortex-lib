@@ -2,7 +2,7 @@
 
 Shared UI and Lua utilities for FiveM resources, maintained by Ever3st and GSD Modifications.
 
-[![Version 3.4.0](https://img.shields.io/badge/version-3.4.0-blue?style=flat-square)](https://github.com/IEver3st/cortex-lib/releases)
+[![Version 3.5.0](https://img.shields.io/badge/version-3.5.0-blue?style=flat-square)](https://github.com/IEver3st/cortex-lib/releases)
 ![Cortex Lib: menus, radial menus and interaction prompts](https://raw.githubusercontent.com/IEver3st/cortex-lib/main/marketing/2026-09-27/final/01-cortex-lib.png)
 
 **[Download cortex-lib.zip](https://github.com/IEver3st/cortex-lib/releases/latest/download/cortex-lib.zip)** · [Release notes](https://github.com/IEver3st/cortex-lib/releases) · [API reference](https://github.com/IEver3st/cortex-lib/blob/main/docs/api.md) · [Report a problem](https://github.com/IEver3st/cortex-lib/issues)
@@ -58,7 +58,7 @@ After a new installation, run `refresh` in the server console, start the resourc
 
 ## Settings and server configuration
 
-Players open **`/cortexsettings`** for the library and registered resource tabs. The Cortex tab controls interface size, text size, accent, opacity, motion, overlay placement, notifications, prompts and progress readouts. See the [settings reference](https://github.com/IEver3st/cortex-lib/blob/main/docs/api.md#settings) for defaults and field definitions.
+Players press **I** (or run `/cortexsettings`) for the library and registered resource tabs. Settings reopens on the tab and section the player last used. The Cortex tab controls interface size, text size, accent, opacity, motion, overlay placement, notifications, prompts and progress readouts. See the [settings reference](https://github.com/IEver3st/cortex-lib/blob/main/docs/api.md#settings) for defaults and field definitions.
 
 Changes can preview while the menu is open. **Apply** saves and keeps it open; **Save & Resume** saves and closes; **Discard & Resume** restores the values from opening or the latest Apply. Closing with Escape discards unsaved changes. Preferences live in the player's client KVP storage and survive resource updates.
 
@@ -78,13 +78,13 @@ set cortex_lib_version_check 1
 ensure cortex-lib
 ```
 
-On start the server console reports `Update available: <version>` with the download link when GitHub has a newer release, or `Version <x> is up to date`. It makes one request to the GitHub API per start and never downloads or changes files.
+On start the server console prints the installed and latest versions and the Cortex banner, then `[Cortex] Up to date!` or `[Cortex] Update available: <version>` followed by `Update now at https://gsdmods.com/scripts`. It makes one request to the GitHub API per start and never downloads or changes files. Setting the convar to `0` skips the request and the banner.
 
 Only the server controls the quick-menu switch. Players use FiveM's native keybinding editor for script controls.
 
 | Command | Behavior |
 | --- | --- |
-| `/cortexsettings` | Opens shared settings. |
+| `/cortexsettings` | Opens shared settings. Bound to I; players rebind it in Settings > Key Bindings > FiveM, and `setr cortex_lib_settings_key <key>` changes the default for new players. |
 | `/cortexpause` | Opens the quick menu when enabled; otherwise opens settings. |
 | `/cortexnative` | Opens the native map/pause frontend when input is available. |
 

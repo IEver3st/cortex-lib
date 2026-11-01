@@ -66,6 +66,61 @@ export const cortexSettingsTab = { id: 'cortex', label: 'CORTEX', defaults: cort
     ] };
 const settings = (more = {}) => ({ session: 1, tabs: [cortexSettingsTab, ...settingsTabs], pause, ...more });
 const cortexSettings = (more = {}) => settings({ pause: { ...pause, notice: '' }, tabs: [cortexSettingsTab, { ...settingsTabs[0], label: 'Police MDT' }], ...more });
+const libraryToggles = labels => labels.map((label, index) => ({ key: `option${index}`, type: 'toggle', label, section: 'General' }));
+const libraryChoices = labels => labels.map(label => ({ value: label.toLowerCase(), label }));
+const adminFields = [
+    { key: 'interfaceStyle', section: 'Menu', type: 'select', label: 'Menu style', description: "The panel, the classic list menu, or vMenu mode (vMenu's menus and keys).", options: libraryChoices(['Panel', 'Classic', 'vMenu']) },
+    { key: 'uiScale', section: 'Menu', type: 'select', label: 'UI scale', description: 'Adjust admin menu scale', options: libraryChoices(['Default', 'Large', 'Extra large', 'Ultra', 'Maximum']) },
+    { key: 'uiOpacity', section: 'Menu', type: 'slider', label: 'Menu opacity', description: 'How solid the admin menu is over the game.', min: 35, max: 100, step: 5, suffix: '%' },
+    { key: 'menuPosition', section: 'Menu', type: 'select', label: 'Menu position', description: 'Centre the menu or dock it to a screen edge.', options: libraryChoices(['Left', 'Centre', 'Right']) },
+    { key: 'mouseMenuControls', section: 'Menu', type: 'toggle', label: 'Mouse menu controls', description: 'Classic list: scroll to move, left click to select, right click to go back while you keep moving. Panel: right click goes back' },
+    { key: 'doubleClickToRun', section: 'Menu', type: 'toggle', label: 'Double-click to run', description: 'Enable double-clicking on actions to execute them immediately' },
+    { key: 'showTargetInfo', section: 'Menu', type: 'toggle', label: 'Show target info', description: 'Display target info in header' },
+    { key: 'disableControllerSupport', section: 'Menu', type: 'toggle', label: 'Ignore controller', description: 'Keep the controller from driving the classic menu or opening vMenu mode.' },
+    { key: 'autoLoadSavedPed', section: 'Character', type: 'toggle', label: 'Auto-load saved ped', description: 'Automatically load your last saved MP Ped on spawn' },
+    { key: 'restorePedOnDeath', section: 'Character', type: 'toggle', label: 'Restore ped on death' },
+    { key: 'defaultToMpPed', section: 'Character', type: 'toggle', label: 'Default to MP ped' },
+    { key: 'mpPedPreviews', section: 'Character', type: 'toggle', label: 'Character previews', description: 'Preview saved characters and ped models while browsing.' },
+    { key: 'restoreWeaponsOnDeath', section: 'Character', type: 'toggle', label: 'Keep weapons on death', description: 'Give back the weapons you held when you died once you are up again.' },
+    { key: 'vmenuNoclipControls', section: 'Controls', type: 'toggle', label: 'vMenu noclip controls' },
+    { key: 'recordingControls', section: 'Controls', type: 'toggle', label: 'Recording controls', description: 'Enable recording shortcuts on keyboard and controller.' },
+    { key: 'minimapControls', section: 'Controls', type: 'toggle', label: 'Minimap key', description: 'Enable the expanded radar key.' },
+    { key: 'fingerPointControls', section: 'Controls', type: 'toggle', label: 'Finger point key', description: 'Enable the finger point key.' },
+    { key: 'disablePrivateMessages', section: 'Controls', type: 'toggle', label: 'Block private messages', description: 'Refuse private messages from other players.' },
+    { key: 'replacePersonalVehicle', section: 'Vehicles', type: 'toggle', label: 'Replace personal vehicle' },
+    { key: 'spawnInsideVehicle', section: 'Vehicles', type: 'toggle', label: 'Spawn inside vehicle', description: 'Sit in a vehicle as soon as it is spawned.' },
+    { key: 'disableAircraftTurbulence', section: 'Vehicles', type: 'toggle', label: 'No aircraft turbulence' },
+    { key: 'disablePlaneTurbulence', section: 'Vehicles', type: 'toggle', label: 'No plane turbulence', description: 'Removes turbulence shake in planes only.' },
+    { key: 'disableHelicopterTurbulence', section: 'Vehicles', type: 'toggle', label: 'No helicopter turbulence', description: 'Removes turbulence shake in helicopters only.' },
+    { key: 'speedHudUnits', section: 'Speed readout', type: 'select', label: 'Speed units', description: 'Units for the developer speed readout.', options: libraryChoices(['MPH', 'KPH']) },
+    { key: 'speedHudPosition', section: 'Speed readout', type: 'select', label: 'Speed readout position', description: 'Where the developer speed readout sits.', options: libraryChoices(['Top left', 'Top centre', 'Top right', 'Bottom left', 'Bottom centre', 'Bottom right']) },
+    { key: 'vmenuImport', section: 'System', type: 'buttons', label: 'Import from vMenu', description: 'Copy your vMenu characters, peds, vehicles, loadouts and settings into Cortex.', buttons: [{ value: 'vmenu_import', label: 'Import now' }] }
+];
+const adminValues = { interfaceStyle: 'vmenu', uiScale: 'default', uiOpacity: 100, menuPosition: 'right', mouseMenuControls: true, doubleClickToRun: true, showTargetInfo: true, disableControllerSupport: true,
+    autoLoadSavedPed: true, restorePedOnDeath: true, mpPedPreviews: true, vmenuNoclipControls: true, recordingControls: true, minimapControls: true, fingerPointControls: true,
+    replacePersonalVehicle: true, spawnInsideVehicle: true, speedHudUnits: 'mph', speedHudPosition: 'top centre' };
+const libraryTabs = [
+    ['cortex-minigames', 'Minigames', 'Activities', libraryToggles(['Mute minigame sounds', 'Reduced motion', 'Larger minigames'])],
+    ['polcam', 'Polcam', 'Equipment', libraryToggles(['High contrast', 'Night vision phosphor', 'Track label follows theme'])],
+    ['cortex-flashlight', 'Flashlight', 'Equipment', libraryToggles(['Switch sounds', 'Reduce flashing', 'High quality light', 'Battery and beam readout', 'Glare'])],
+    ['cortex-emotemenu', 'Emote Menu', 'Everyday', libraryToggles(['Rehearse before performing', 'Preview on hover', 'Open in free camera', 'Smooth transitions', 'Idle emotes', 'Seat prompts'])],
+    ['cortex-pinpoint', 'Pinpoint', 'Everyday', libraryToggles(['Slide into a free driver\'s seat', 'Prompts on parts you look at'])],
+    ['cortex-arges', 'Arges', 'Equipment', libraryToggles(['Follow weapon aim', 'Arrow key aiming', 'Dial pointers'])],
+    ['gunsmith', 'Gunsmith', 'Equipment', libraryToggles(['Control hints', 'Depth of field'])],
+    ['cortex-megaphone', 'Megaphone', 'Equipment', libraryToggles(['Control hints', 'Overlay'])],
+    ['cortex-radar', 'Radar', 'Equipment', libraryToggles(['Control hints', 'Sight', 'Show prompt'])],
+    ['cortex-thrusters', 'Thrusters', 'Equipment', libraryToggles(['Control hints', 'HUD', 'Landing'])],
+    ['cortex-drone', 'Drone', 'Equipment', libraryToggles(['Invert', 'Control hints', 'Chase view'])],
+    ['cortex-chat', 'Chat', 'Everyday', libraryToggles(['Follow Cortex accent', 'Timestamps'])],
+    ['cortex-inventory', 'Inventory', 'Everyday', libraryToggles(['Inventory sounds', 'Reduced motion', 'Compact inventory', 'Pickup notices'])],
+    ['cortex-admin', 'Admin', 'Staff', adminFields, adminValues],
+    ['cortex-hud', 'HUD', 'Everyday', libraryToggles(['Hide speedometer', 'Postal code', 'Voice indicator', 'Weapon reticles', 'Crosshair dot', 'Always show cash'])],
+    ['cortex-banking', 'Banking', 'Everyday', libraryToggles(['Teller camera', 'ATM sounds'])],
+    ['cortex-radio', 'Radio', 'Equipment', libraryToggles(['Backlight', 'Tooltips'])],
+    ['cortex-rewind', 'Rewind', 'Activities', libraryToggles(['Rewind speed'])],
+    ['third-party-garage', 'Garage', '', libraryToggles(['Show vehicle stats'])]
+].map(([id, label, group, fields, values = {}]) => ({ id, label, group, fields, values, defaults: { ...values, interfaceStyle: 'panel', menuPosition: 'left', disableControllerSupport: false } }));
+const librarySettings = () => settings({ tabs: [{ ...cortexSettingsTab, group: 'Everyday' }, ...libraryTabs] });
 const radialNames = [['Vehicle', 'car', 'Engine, doors, windows and seats.'], ['Inventory', 'box', 'Open your pockets and bag.'], ['Phone', 'phone', 'Calls, messages and apps.'], ['Keys', 'key', 'Share or revoke vehicle keys.'],
     ['Emotes', 'user', 'Play an animation.'], ['Settings', 'sliders', 'Cortex interface and controls.'], ['Radio', 'radio', 'Tune the handheld radio.'], ['House', 'house', 'Lock, enter and manage your property.'],
     ['GPS', 'pin', 'Set a waypoint.'], ['Wallet', 'money', 'Cash, cards and ID.'], ['Repair', 'wrench', 'Use a repair kit.'], ['Medical', 'heart', 'Treat yourself or others.'],
@@ -84,6 +139,7 @@ add('notify-types', 'Notifications', 'All status types', 'Compare each severity 
 for (const position of positions) add(`notify-${position}`, 'Notifications', `Position / ${position}`, 'Notification placement, independent of the playground controls.', [m('notify', notice('info', { position }))]);
 add('notify-long', 'Notifications', 'Long text & plain notice', 'Wrapping, title-free text, hidden timer, and a persistent notice.', [m('notify', notice('warning', { title: 'A long notification title for narrow screen layouts', description: 'Return to the equipment depot. '.repeat(15), duration: 0, showDuration: false })), m('notify', { id: 'plain', description: 'Started cortex-subtleadditions', plain: true, hideIcon: true, duration: 8000 })]);
 add('notify-keys', 'Notifications', 'Headline, keycaps & persistent', 'A title-free headline, inline [KEY] keycaps in a body, and a persistent notice with its dismiss keycap.', [m('notify', { id: 'headline', type: 'success', description: 'Vehicle stored', duration: 12000 }), m('notify', notice('info', { id: 'keys', title: 'Trunk unlocked', description: 'Press [E] to open the trunk or [G] to lock it again.', duration: 12000 })), m('notify', notice('error', { id: 'persist', title: 'Connection lost', description: 'Reconnect from the pause menu.', duration: 0 }))]);
+add('notify-untitled', 'Notifications', 'Long title-free copy', 'Long description-only notices: the lead ("Lead: rest" or a first sentence) becomes the display title; copy with no lead is titled by its severity.', [m('notify', { id: 'lead', type: 'success', description: 'Applied Parka layers: Gray Camo Closed Parka, Ash Large Cargos, Black Loggers (utility outfit).', duration: 60000 }), m('notify', { id: 'sentence', type: 'info', description: 'Vehicle repaired. Body, engine and tyre damage on the current vehicle were cleared.', duration: 60000 }), m('notify', { id: 'severity', type: 'error', description: 'No compatible clothing pieces were available for this freemode model at all.', duration: 60000 })]);
 add('notify-stack', 'Notifications', 'Stack / capacity', 'Sixteen notices arrive together to exercise the production queue cap.', Array.from({ length: 16 }, (_, i) => m('notify', notice('info', { id: `notice-${i}`, title: `Notice ${i + 1}`, duration: 15000 }))));
 add('notify-limit', 'Notifications', 'Player limit & duration prefs', 'Player prefs: limit 3, lifetime x2. Two persistent notices are held past the cap (+N held); timed ones beyond it leave.', [m('cortex:prefs', { prefs: { notifyLimit: 3, notifyDuration: 2 } }), m('notify', notice('warning', { id: 'held-1', title: 'Persistent one', duration: 0 })), m('notify', notice('warning', { id: 'held-2', title: 'Persistent two', duration: 0 })), ...Array.from({ length: 4 }, (_, i) => m('notify', notice(['info', 'success', 'info', 'success'][i], { id: `limit-${i}`, title: `Timed ${i + 1}`, duration: 6000 }), 150 * (i + 1)))]);
 add('notify-update', 'Notifications', 'Update, hide & clear', 'Same-ID replacement at 1.5s, hide at 3s, and clear owner at 4.5s.', [m('notify', notice('info', { duration: 0 })), m('notify', notice('success', { title: 'Same ID, updated', duration: 0 }), 1500), m('hideNotify', { id: 'sample' }, 3000), m('notify', notice('warning'), 3500), m('clearNotifications', { owner: 'cortex-lib' }, 4500)]);
@@ -221,8 +277,9 @@ add('interactions-screen-help', 'Interactions', 'Screen prompts + help legend', 
 add('settings-all', 'Settings', 'All field types', 'Search, tabs, sections, advanced and conditional fields, reset, preview, Apply, Save, and Discard. Persistence is browser-only.', [m('settingsOpen', settings())]);
 add('settings-cortex', 'Settings', 'Cortex tab', 'The built-in player preferences: Interface, Notifications, Prompts and Progress. Interface size and text size preview live through cortex:prefs; Discard rolls them back.', [m('settingsOpen', cortexSettings())]);
 add('settings-scrim', 'Settings', 'Scrim over a bright scene', 'Pick the bright or image backdrop: the 55% ink scrim must keep every row legible. The heavy game blur is native (client/pause.lua) and cannot appear in a browser.', [m('notify', notice('info', { duration: 60000 })), m('settingsOpen', cortexSettings())]);
-add('settings-720p', 'Settings', 'Cortex tab / 720p', 'Review at 1280x720: header, tabs, section index, rows and the action footer fit without clipping; the list scrolls inside its slip.', [m('settingsOpen', cortexSettings())]);
+add('settings-720p', 'Settings', 'Cortex tab / 720p', 'Review at 1280x720: header, script rail, section chips, rows and the action footer fit without clipping; the rail and the list scroll on their own.', [m('settingsOpen', cortexSettings())]);
 add('settings-empty', 'Settings', 'No registered tabs', 'Empty settings registry.', [m('settingsOpen', settings({ tabs: [] }))]);
+add('settings-library', 'Settings', 'Script library', 'Every registered script on the grouped rail: Cortex first, Everyday, Equipment, Activities and Staff in order, scripts by name, an ungrouped script under Other. Admin carries sections for the chips; change a value to see the dirty marks.', [m('settingsOpen', librarySettings())]);
 add('settings-many', 'Settings', 'Many tabs & long content', 'Long tab labels, scrolling fields, search, and empty results.', [m('settingsOpen', settings({ tabs: Array.from({ length: 12 }, (_, i) => ({ ...settingsTabs[0], id: `tab-${i}`, label: `Resource ${i + 1} configuration`, fields: [...settingsTabs[0].fields, ...Array.from({ length: 20 }, (_, n) => ({ key: `extra-${n}`, type: 'toggle', label: `Extended field ${n + 1} with a long readable label`, section: 'More fields' }))] })) }))]);
 add('settings-failure', 'Settings', 'Failed preview / save', 'The next user callback fails once. Check rollback or error feedback, then retry. Readiness callbacks still succeed.', [m('settingsOpen', settings())], { failNext: true });
 add('pause-home', 'Quick menu', 'Home & native handoffs', 'Quick menu, guide, locations, and disconnect UI. Native game actions return an explicit unavailable response.', [m('settingsOpen', settings({ page: 'home' }))]);

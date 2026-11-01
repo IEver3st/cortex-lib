@@ -164,7 +164,8 @@
     align-self: flex-start;
     padding-left: calc(16 * var(--u));
     color: var(--paper);
-    font: italic 800 calc(14 * var(--u)) / 1 var(--display);
+    /* 16u keeps the count at body size on a 720p screen. */
+    font: italic 800 calc(16 * var(--u)) / 1 var(--display);
     font-synthesis: style;
     letter-spacing: 0.04em;
     text-transform: uppercase;

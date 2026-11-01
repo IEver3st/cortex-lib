@@ -114,6 +114,41 @@ function partitionNotifications(notifications, limit) {
     };
 }
 
+// ============================================================================
+// HEADING. Every notice leads with a display-caps line. A short title-free
+// line is the headline itself; longer title-free copy lends its lead (a
+// "Lead: rest" prefix, a short first line or first sentence) to the title, and
+// copy with no natural lead is titled by its severity.
+// ============================================================================
+
+const NOTIFY_HEADLINE_MAX = 64;
+const NOTIFY_LEAD_MAX = 48;
+const notifyTypeTitles = { success: 'Done', error: 'Error', warning: 'Warning', info: 'Notice', inform: 'Notice' };
+
+function splitNotificationLead(text) {
+    const lines = text.split('\n');
+    if (lines.length > 1) {
+        const first = lines[0].trim().replace(/[:.]$/, '');
+        const rest = lines.slice(1).join('\n').trim();
+        if (first.length >= 2 && first.length <= NOTIFY_LEAD_MAX && rest && !/[[\]]/.test(first)) return { title: first, body: rest };
+    }
+    const colon = /^([^.!?:[\]\n]{3,40}):\s+(\S[\s\S]*)$/.exec(text);
+    if (colon) return { title: colon[1].trim(), body: colon[2] };
+    const sentence = /^([^.!?[\]\n]{3,47}[.!?])\s+(\S[\s\S]*)$/.exec(text);
+    if (sentence) return { title: sentence[1].replace(/\.$/, '').trim(), body: sentence[2] };
+    return null;
+}
+
+function resolveNotificationHeading(type, title, description) {
+    const ownTitle = typeof title === 'string' ? title : '';
+    const body = typeof description === 'string' ? description : '';
+    if (ownTitle || !body) return { title: ownTitle, description: body, headline: false };
+    if (body.length <= NOTIFY_HEADLINE_MAX && !body.includes('\n')) return { title: '', description: body, headline: true };
+    const lead = splitNotificationLead(body);
+    if (lead) return { title: lead.title, description: lead.body, headline: false };
+    return { title: notifyTypeTitles[type] || notifyTypeTitles.info, description: body, headline: false };
+}
+
 /** Lifetime after the player's duration multiplier (0.5-3), bounded to 30 minutes. */
 function scaleNotificationLifetime(duration, multiplier) {
     const base = Number.isFinite(duration) ? Math.max(0, duration) : 0;
@@ -180,8 +215,9 @@ function Notification({ id, type, title, description, duration, showDuration, pe
     const notifyType = notifyGlyphPaths[type] ? type : 'info';
     const showLifetime = showDuration !== false && duration > 0 && !persistent;
     const showGlyph = hideIcon !== true;
-    // A title-free short line reads as a headline; long copy stays in Arial.
-    const headline = !title && description.length > 0 && description.length <= 64 && !description.includes('\n');
+    // A title-free short line reads as a headline; long copy keeps Arial under a display title.
+    const heading = resolveNotificationHeading(notifyType, title, description);
+    const headline = heading.headline;
     const urgent = notifyType === 'error' || notifyType === 'warning';
 
     const className = ['notify', notifyType, persistent ? 'persistent' : '', plain ? 'notify-plain' : '',
@@ -199,9 +235,9 @@ function Notification({ id, type, title, description, duration, showDuration, pe
         showGlyph && React.createElement('span', { className: 'notify-icon', 'aria-hidden': 'true' },
             React.createElement(NotifyGlyph, { type: notifyType })),
         React.createElement('div', { className: 'notify-content' },
-            title && React.createElement('div', { className: 'notify-title' }, title),
-            description && React.createElement('div', { className: 'notify-description' },
-                React.createElement(NotifyText, { text: description })),
+            heading.title && React.createElement('div', { className: 'notify-title' }, heading.title),
+            heading.description && React.createElement('div', { className: 'notify-description' },
+                React.createElement(NotifyText, { text: heading.description })),
             showLifetime && React.createElement('span', { className: 'notify-duration', 'aria-hidden': 'true' },
                 React.createElement('i', {
                     className: 'notify-duration-fill',

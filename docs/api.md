@@ -124,8 +124,10 @@ Both dialogs yield, take NUI focus, and open as a 520u slip centre-low over a li
 Escape cancels (unless `cancel = false`), and the focused action flips to paper.
 
 ```lua
--- Alert: returns 'confirm' or 'cancel' (timeout, stop or a second open also return 'cancel').
-local answer = lib.alertDialog({
+-- Alert: returns 'confirm' or 'cancel' (timeout, stop or a second open also return 'cancel'),
+-- then why it closed: 'chosen' (the player picked), 'timeout', 'busy' (another alert was open),
+-- 'focus' (NUI focus failed), 'replaced' (another modal took over), 'stopped' or 'invalid'.
+local answer, why = lib.alertDialog({
   header = 'Replace equipment?',
   content = 'Your current equipment will be returned.\n\nThis cannot be undone.', -- blank line = new paragraph
   centered = false,          -- true centres title, copy and actions
@@ -545,6 +547,7 @@ RegisterCommand('-carParts', function() lib.hideCallouts() end, false)
 | `title` | Optional `{ name, chip? }` above the switches, for a session with no callouts (a key fob at range). |
 | `chips` | Up to 64 strings: every chip a row can show. Each row's cell keeps room for the widest, so a state change repaints in place. |
 | `onEvent` | Optional function or funcref, called with the events below. |
+| `style` | Optional look: `ink` (default; frameless italic names, dark chips, round pins), `slip` (each row an ink slip, square pins), `paper` (paper tags with ink chips, paper leaders, diamond pins) or `draft` (upright lettering, underlined chips, leaders that end on a bar, ring pins). Every style keeps the same sizes, so the layout is the same. Let the player choose it; a new style on open callouts repaints them. |
 
 Row and switch ids share one namespace (at most 64 characters). At least one callout, switch or title is required; malformed data returns `false, reason` (`invalid_entity`, `invalid_row_tone`, `empty`, ...), never an error. A show from inside a `replaced` or `stopped` event returns `false, 'busy'`.
 
@@ -555,7 +558,8 @@ Row and switch ids share one namespace (at most 64 characters). At least one cal
 | `lib.calloutEffect(id, kind)` | `'pop'` after an action landed, `'shake'` after a refusal, on a row or switch id. |
 | `lib.isCalloutsOpen()` | Whether your session is up. |
 | `lib.getCalloutState()` | `{ open, hot = { id, callout, switch }, labels = { [calloutId] = { x, y, side } }, switches = { [id] = { x, y } }, hover = { ids }, screen = { width, height } }` in screen pixels, for tooling and tests. Presentation, not authorization. |
-| `lib.prepareCallouts()` | Starts the label texture and paints the pins ahead of the first session. Call once at start. |
+| `lib.prepareCallouts(style?)` | Starts the label texture and paints the pins (in `style`, default `ink`) ahead of the first session. Call once at start. Returns `false` for an unknown style. |
+| `lib.getCalloutStyles()` | The styles `showCallouts` accepts, the default first: `{ 'ink', 'slip', 'paper', 'draft' }`. A consumer can check it exists before offering a style choice. |
 
 | Event | Sent when |
 | :--- | :--- |
@@ -618,12 +622,24 @@ exports['cortex-lib']:registerSettings(
 )
 ```
 
-The third argument is either the legacy icon value or a validated KVP namespace ending in `:`. Built-in Cortex settings keep their existing `cortex:` keys; consumer tabs should use a stable resource-specific namespace such as `myResource:`. Duplicate tab IDs, field keys, and cross-resource registrations are rejected instead of silently overwriting another owner. Registration also rejects any concrete KVP key that would overlap a built-in field or a field owned by another registered tab; a prefix may be shared only when the resulting field keys remain distinct.
+The third argument is the legacy icon value, a validated KVP namespace ending in `:`, or the fields table itself (then the remaining arguments shift left and values are stored under `cortex:<tabId>:`). Built-in Cortex settings keep their existing `cortex:` keys; consumer tabs should use a stable resource-specific namespace such as `myResource:`. Duplicate tab IDs, field keys, and cross-resource registrations are rejected instead of silently overwriting another owner. Registration also rejects any concrete KVP key that would overlap a built-in field or a field owned by another registered tab; a prefix may be shared only when the resulting field keys remain distinct.
+
+Settings lists every tab in a script library down its left side, grouped under **Everyday**, **Equipment**, **Activities** and **Staff**, then any other group name alphabetically, then **Other**. Within a group the Cortex tab comes first and the rest sort by label. Pick your tab's group with a final options table:
+
+```lua
+exports['cortex-lib']:registerSettings('myResource', 'My Resource', 'myResource:', fields, defaults, { group = 'Equipment' })
+exports['cortex-lib']:registerSettings('myResource', 'My Resource', fields, defaults, { group = 'Equipment' })
+exports['cortex-lib']:registerSettings('myResource', { label = 'My Resource', group = 'Equipment', settings = settings })
+```
+
+A `group` field in a script definition (including one returned by a `getSettingsDefinition` export) works the same way. Group names are up to 32 characters and match case-insensitively; a group that is longer, blank or contains control characters is ignored, and the tab falls back as if it had none. Cortex resources without one fall back to a built-in map (cortex-hud, cortex-chat and cortex-inventory under Everyday; cortex-flashlight, cortex-drone and cortex-radio under Equipment; cortex-minigames under Activities; cortex-admin under Staff; and so on). Any other tab without a group goes under Other.
 
 ## Pause menu
 
-The quick menu is disabled by default. `/cortexsettings` and
-`openSettingsMenu()` open standalone Cortex Settings. It uses the shared modal,
+The quick menu is disabled by default. `/cortexsettings` (bound to I, rebindable
+in Key Bindings > FiveM; default set by `setr cortex_lib_settings_key <key>`) and
+`openSettingsMenu()` open standalone Cortex Settings. It reopens on the tab,
+section and Advanced switch the player last used. It uses the shared modal,
 script tabs and native game blur, with no back arrow, game-settings tab or
 keybinding link. Escape closes a dropdown first, then closes settings and rolls
 back unsaved changes. Apply saves without closing; Save & Resume saves and closes.

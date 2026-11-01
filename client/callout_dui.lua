@@ -115,18 +115,20 @@ local function deliver(now)
     SendDuiMessage(d.object, d.encoded)
 end
 
--- Sends the cells if they differ from the last ones sent. `moved`: cells sit
--- in new places, so nothing is drawn from them until this revision is painted.
-function Atlas.publish(cells, now, moved)
+-- Sends the cells, painted in `style`, if they differ from the last ones sent.
+-- `moved`: cells sit in new places, so nothing is drawn from them until this
+-- revision is painted.
+function Atlas.publish(cells, now, moved, style)
     local d = dui
     if not d or not d.availableAt then return false end
-    local content = json.encode({ cells, profile.accent, profile.motion, d.r })
+    style = style or 'ink'
+    local content = json.encode({ cells, profile.accent, profile.motion, d.r, style })
     if content == lastContent then return true end
     lastContent = content
     revision = revision + 1
     d.encoded = json.encode({
         action = 'callouts:atlas',
-        data = { revision = revision, r = d.r, accent = profile.accent, motion = profile.motion, cells = cells, metrics = metrics() },
+        data = { revision = revision, r = d.r, accent = profile.accent, motion = profile.motion, style = style, cells = cells, metrics = metrics() },
     })
     d.sent = revision
     d.resends = 0

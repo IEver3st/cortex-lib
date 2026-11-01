@@ -10,6 +10,8 @@
     --slip-deep: rgba(9, 10, 12, 0.95);
     --slip-soft: rgba(15, 16, 18, calc(var(--cx-surface-alpha, 0.9) * 0.8));
     --accent: var(--cx-accent, #8fcbbf);
+    --accent-deep: var(--cx-accent-deep, #2f6e62);
+    --accent-rgb: var(--cx-accent-rgb, 143, 203, 191);
     --ink-2: #1a1c1f;
     --wash-strong: rgba(240, 240, 233, 0.1);
     --shadow-drop: 0 calc(2 * var(--u)) 0 rgba(8, 12, 11, 0.45);
@@ -83,6 +85,11 @@
 .cx-key-mouse-wheel { fill: var(--cx-key-face); }
 .cx-key-mouse-lit { fill: var(--cx-key-lit); }
 .cx-key.is-pressed { --cx-key-face: var(--ink); --cx-key-lit: var(--accent); }
+
+/* An opposite arrow pair is one axis glyph, the same shape world prompts use. */
+.cx-key.is-axis { padding: 0 calc(4 * var(--u)); }
+.cx-key-axis { width: 1.2em; height: 1.2em; overflow: visible; fill: none; stroke: currentColor; stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+.cx-key-axis.is-v { transform: rotate(90deg); }
 
 /* --------------------------------------------------------- key hints --- */
 .cx-hint {
