@@ -19,6 +19,7 @@ local hostileDiscoveryError = setmetatable({}, {
 })
 
 function GetCurrentResourceName() return 'cortex-lib' end
+function GetGameTimer() return 0 end
 function GetInvokingResource() return invokingResource end
 function GetNumResources() resourceScans = resourceScans + 1; return #discoveredNames end
 function GetResourceByFindIndex(index) return discoveredNames[index + 1] end

@@ -194,6 +194,10 @@ function volumetric.new(options)
         discCoverage = options.discCoverage == true,
         phase = math_min(0.9, math_max(0.0, option(options.phase, 0.0))),
         glare = math_max(0.0, option(options.glare, 0.0)),
+        glareSize = math_max(0.01, option(options.glareSize, 0.3)),
+        glareGrowth = math_max(0.0, option(options.glareGrowth, 0.012)),
+        glareFocus = math_max(1.0, option(options.glareFocus, 4.0)),
+        glareLift = math_max(0.0, option(options.glareLift, 0.3)),
         discTex = (options.tex or 'profile') .. '_disc', discPainted = false, discRow = 0,
         doubleSided = options.doubleSided == true,
         cull = options.cull ~= false,
@@ -775,15 +779,16 @@ function Beam:lampGlare(f, n, strength, ox, oy, oz, dx, dy, dz, camX, camY, camZ
     if wl < 1.0 then return n end
     local facing = -(wx * dx + wy * dy + wz * dz) / wl
     if facing <= 0.0 then return n end
-    local a = self.glare * strength * facing * facing * facing * facing
+    local a = self.glare * strength * facing ^ self.glareFocus
     if a < 0.5 then return n end
     local sx, sy, sz = wy, -wx, 0.0
     local sl = math_sqrt(sx * sx + sy * sy)
     if sl < 0.001 then sx, sy, sl = 1.0, 0.0, 1.0 end
     sx, sy = sx / sl, sy / sl
     local mx, my, mz = (wy * sz - wz * sy) / wl, (wz * sx - wx * sz) / wl, (wx * sy - wy * sx) / wl
-    local size = 0.3 + 0.012 * wl
-    local gx, gy, gz = ox - wx / wl * 0.3, oy - wy / wl * 0.3, oz - wz / wl * 0.3
+    local size = self.glareSize + self.glareGrowth * wl
+    local lift = self.glareLift / wl
+    local gx, gy, gz = ox - wx * lift, oy - wy * lift, oz - wz * lift
     if f.view and not InView(f, gx, gy, gz, size * 1.42) then return n end
     local vx, vy, vz, va = self.vx, self.vy, self.vz, self.va
     local alpha = math_min(255, math_floor(a + 0.5))

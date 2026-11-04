@@ -3,7 +3,7 @@ game 'gta5'
 
 name 'cortex-lib'
 author 'GSDMODS/CORTEX'
-version '3.5.0'
+version '3.6.0'
 cortex_placement_api '1'
 -- Consumers read this to skip registering their own key for Settings.
 cortex_settings_key '1'

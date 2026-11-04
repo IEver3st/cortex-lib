@@ -40,6 +40,8 @@ local registeredOrder = {}
 local settingIndex = {}
 local settingListeners = {}
 local discoveredResources = {}
+local lazyProbedResources = {}
+local LAZY_PROBE_RETRY_MS = 1000
 local discoveryDirty = true
 
 local settingsOpen = false
@@ -1439,14 +1441,7 @@ rollbackPreviewValues = function()
     return restored
 end
 
-local function resolveTabForKey(key)
-    local owner = getInvokingOwner()
-    local tabId = settingIndex[key]
-    if owner == CURRENT_RESOURCE then
-        if type(tabId) == 'string' then return tabId, registeredTabs[tabId] end
-        if tabId ~= false then return nil, nil end
-    end
-
+local function findOwnedTabForKey(owner, key)
     for index = 1, #registeredOrder do
         local candidateId = registeredOrder[index]
         local candidate = registeredTabs[candidateId]
@@ -1455,6 +1450,30 @@ local function resolveTabForKey(key)
         end
     end
     return nil, nil
+end
+
+local function ensureOwnerDiscovered(owner)
+    if owner == CURRENT_RESOURCE or discoveredResources[owner] then return false end
+    local now = GetGameTimer()
+    local lastProbe = lazyProbedResources[owner]
+    if lastProbe and now >= lastProbe and now - lastProbe < LAZY_PROBE_RETRY_MS then return false end
+    if GetResourceState(owner) ~= 'started' then return false end
+    lazyProbedResources[owner] = now
+    tryRegisterResourceDefinition(owner)
+    return true
+end
+
+local function resolveTabForKey(key)
+    local owner = getInvokingOwner()
+    local tabId = settingIndex[key]
+    if owner == CURRENT_RESOURCE then
+        if type(tabId) == 'string' then return tabId, registeredTabs[tabId] end
+        if tabId ~= false then return nil, nil end
+    end
+
+    local foundId, found = findOwnedTabForKey(owner, key)
+    if found or not ensureOwnerDiscovered(owner) then return foundId, found end
+    return findOwnedTabForKey(owner, key)
 end
 
 -- A consumer tab that declares a key with the same name as a built-in Cortex
@@ -1689,6 +1708,7 @@ function lib.getAllSettings()
     local out = shallowCopy(cortexSettings)
 
     local owner = getInvokingOwner()
+    ensureOwnerDiscovered(owner)
     for key, indexedTabId in pairs(settingIndex) do
         local tabId, tab
         if owner == CURRENT_RESOURCE and type(indexedTabId) == 'string' then
@@ -1712,6 +1732,7 @@ end
 
 function lib.getTabSetting(tabId, key)
     local tab = registeredTabs[tabId]
+    if not tab and ensureOwnerDiscovered(getInvokingOwner()) then tab = registeredTabs[tabId] end
     if not tab or (getInvokingOwner() ~= CURRENT_RESOURCE and tab.resource ~= getInvokingOwner()) then
         return nil
     end
@@ -2063,12 +2084,14 @@ AddEventHandler('onResourceStart', function(resourceName)
     end
 
     discoveredResources[resourceName] = nil
+    lazyProbedResources[resourceName] = nil
     tryRegisterResourceDefinition(resourceName)
 end)
 
 AddEventHandler('onResourceStop', function(resourceName)
     discoveryDirty = true
     discoveredResources[resourceName] = nil
+    lazyProbedResources[resourceName] = nil
 
     local stoppedTabs = {}
     for tabId, tab in pairs(registeredTabs) do

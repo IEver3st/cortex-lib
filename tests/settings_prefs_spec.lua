@@ -23,6 +23,7 @@ function GetNumResources() return 0 end
 function GetResourceByFindIndex() return nil end
 function GetResourceState() return 'started' end
 function GetCurrentResourceName() return 'cortex-lib' end
+function GetGameTimer() return 0 end
 function GetInvokingResource() return invoking end
 function GetResourceKvpString(key) return kvp[key] end
 function SetResourceKvp(key, value) kvp[key] = value end

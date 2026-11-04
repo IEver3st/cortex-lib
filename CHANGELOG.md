@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.6.0 (2026-11-04)
+
+### Added
+- Volumetric lights: `glareSize`, `glareGrowth`, `glareFocus` and `glareLift` shape the glare at the lamp. The defaults keep the old glare.
+
+### Fixed
+- Settings: a resource's saved settings could read back as defaults after a relog, or after that resource restarted, so Cortex Chat and other scripts ignored what the player had saved even though Settings showed it. cortex-lib now finds a resource's settings the first time it asks for them, not only at startup.
+
 ## 3.5.0 (2026-11-01)
 
 ### Added
