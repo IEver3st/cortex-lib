@@ -172,6 +172,24 @@ Pushes to `main` run contract tests, Lua specs and archive validation before the
 
 [Open an issue](https://github.com/IEver3st/cortex-lib/issues) with the library and consumer versions, start order, reproduction steps and exact console errors. For layout problems, include resolution, safe zone and a screenshot. Remove credentials and private player or server details from logs. Consumer gameplay and permissions belong to that resource's author.
 
+## More from Cortex
+
+[![Cortex PolCam following a car from the police helicopter camera](https://raw.githubusercontent.com/IEver3st/gsd-tebex-media/main/forum/polcam/tracking-v2.webp)](https://gsdmods.com/scripts/cortex-polcam?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib)
+
+Cortex Library is free and stays free. Every script below is built on it, and the paid ones pay for the free ones.
+
+| Police | Interface | Driving and freeroam |
+| --- | --- | --- |
+| [PolCam](https://gsdmods.com/scripts/cortex-polcam?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib): FLIR helicopter camera with target tracking | [HUD](https://gsdmods.com/scripts/cortex-hud?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib): vitals, vehicle, aircraft, weapon and radar | [Handling](https://gsdmods.com/scripts/cortex-handling?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib): tune handling from the driver's seat |
+| [Arges](https://gsdmods.com/scripts/cortex-arges?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib): remote spotlight for patrol cars | [Chat](https://gsdmods.com/scripts/cortex-chat?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib): chat replacement with roleplay actions | [Rewind](https://gsdmods.com/scripts/cortex-rewind?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib): rewind a missed corner or a bad landing |
+| [Radio](https://gsdmods.com/scripts/cortex-radio?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib): handheld radio for pma-voice | [Spawn](https://gsdmods.com/scripts/cortex-spawn?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib): pick your spawn from a live view of the city | [Emote Studio](https://gsdmods.com/scripts/cortex-emote-studio?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib): preview, fit and pair emotes |
+| [Flashlight](https://gsdmods.com/scripts/cortex-flashlight?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib): weapon, vest and UV forensic torches | [Multicharacter](https://gsdmods.com/scripts/cortex-multicharacter?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib): character selection and creation for Qbox | |
+| [Binoculars](https://gsdmods.com/scripts/cortex-binoculars?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib): zoom, rangefinder, night and thermal vision | [Loading Screen](https://gsdmods.com/scripts/cortex-loading-screen?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib): cinematic arrival screen | |
+
+**[Browse every Cortex script](https://gsdmods.com/scripts?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib)** · [LEO Kit](https://gsdmods.com/scripts/cortex-leo-kit?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib): PolCam, Arges, Binoculars and Flashlight in one purchase · [All-Access](https://gsdmods.com/scripts/cortex-all-access?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib): every paid script for one monthly price
+
+Also free: [Admin](https://gsdmods.com/scripts/cortex-admin?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib) · [Drone](https://gsdmods.com/scripts/cortex-drone?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib) · [Drone Races](https://gsdmods.com/scripts/cortex-drone-races?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib) · [Gunsmith](https://gsdmods.com/scripts/cortex-gunsmith?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib) · [Megaphone](https://gsdmods.com/scripts/cortex-megaphone?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib) · [Minigames](https://gsdmods.com/scripts/cortex-minigames?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib) · [Thrusters](https://gsdmods.com/scripts/cortex-thrusters?utm_source=github&utm_medium=readme&utm_campaign=cortex-lib)
+
 ## License
 
 Free use license; see [LICENSE](LICENSE). No resale or redistribution. Copyright 2026 Ever3st. Bundled React and Barlow Condensed retain their licenses; see [Third-party notices](THIRD_PARTY_NOTICES.md). Consumer resources may have different terms.
