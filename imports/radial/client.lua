@@ -61,6 +61,16 @@ local function isDenseArray(value, maxItems)
     return count == length
 end
 
+local function validBadge(value)
+    if value == nil then return true end
+    if type(value) == 'number' then return math.tointeger(value) ~= nil and value >= 0 end
+    return boundedString(value, 8, true)
+end
+
+local function validConfirm(value)
+    return value == nil or type(value) == 'boolean' or boundedString(value, 128, true)
+end
+
 local function validateItems(items, maxItems)
     if not isDenseArray(items, maxItems) then return false, 'invalid_items' end
 
@@ -78,6 +88,8 @@ local function validateItems(items, maxItems)
             or (item.menu ~= nil and not boundedString(item.menu, 64, false))
             or (item.keepOpen ~= nil and type(item.keepOpen) ~= 'boolean')
             or (item.onSelect ~= nil and not isCallable(item.onSelect))
+            or not validBadge(item.badge)
+            or not validConfirm(item.confirm)
         then
             return false, 'invalid_item'
         end
@@ -134,6 +146,8 @@ local function sanitizeItem(item)
         disabled = item.disabled,
         menu = item.menu,
         keepOpen = item.keepOpen,
+        badge = item.badge,
+        confirm = item.confirm,
     }
 end
 
@@ -147,6 +161,8 @@ local function copyStoredItem(item, owner)
         disabled = item.disabled,
         menu = item.menu,
         keepOpen = item.keepOpen,
+        badge = item.badge,
+        confirm = item.confirm,
         onSelect = item.onSelect,
         _owner = owner,
     }
@@ -173,6 +189,12 @@ local function currentAppearance()
     return menu and menu.appearance or nil
 end
 
+local function currentTitle()
+    if not currentRadial then return nil end
+    local menu = menus[currentRadial]
+    return menu and menu.title or nil
+end
+
 local function getItemByIndex(index)
     return currentItems()[index]
 end
@@ -195,6 +217,7 @@ local function refreshRadial()
             items = buildNuiItems(),
             menuId = currentRadial,
             appearance = currentAppearance(),
+            title = currentTitle(),
             canGoBack = #menuHistory > 0,
             trail = buildTrail(),
             session = currentSession,
@@ -202,10 +225,33 @@ local function refreshRadial()
     })
 end
 
+local PAD_BLOCKED_CONTROLS = { 22, 24, 25, 37, 44, 45, 140, 141, 143, 263, 264 }
+local PAD_BUTTONS = { { 201, 'accept' }, { 202, 'back' }, { 206, 'next' }, { 205, 'prev' } }
+local PAD_AIM_STEP = 0.04
+
+local function readPad(lastAim)
+    if IsUsingKeyboard(0) then return lastAim end
+    for index = 1, #PAD_BLOCKED_CONTROLS do DisableControlAction(0, PAD_BLOCKED_CONTROLS[index], true) end
+    local x = GetDisabledControlNormal(0, 220)
+    local y = GetDisabledControlNormal(0, 221)
+    if not lastAim or math.abs(x - lastAim.x) > PAD_AIM_STEP or math.abs(y - lastAim.y) > PAD_AIM_STEP then
+        lastAim = { x = x, y = y }
+        SendNUIMessage({ action = 'radialPadAim', data = { session = currentSession, x = x, y = y } })
+    end
+    for index = 1, #PAD_BUTTONS do
+        local button = PAD_BUTTONS[index]
+        if IsDisabledControlJustPressed(0, button[1]) then
+            SendNUIMessage({ action = 'radialPadPress', data = { session = currentSession, button = button[2] } })
+        end
+    end
+    return lastAim
+end
+
 local function startControlThread()
     if controlThreadActive then return end
     controlThreadActive = true
     CreateThread(function()
+        local lastAim
         while isOpen do
             DisablePlayerFiring(PlayerId(), true)
             DisableControlAction(0, 1, true)
@@ -213,6 +259,8 @@ local function startControlThread()
             DisableControlAction(0, 142, true)
             DisableControlAction(2, 199, true)
             DisableControlAction(2, 200, true)
+            for index = 1, #PAD_BUTTONS do DisableControlAction(0, PAD_BUTTONS[index][1], true) end
+            lastAim = readPad(lastAim)
             Wait(0)
         end
         controlThreadActive = false
@@ -287,6 +335,9 @@ local function registerRadial(data)
     if data.releaseSelect ~= nil and type(data.releaseSelect) ~= 'boolean' then
         return false, 'invalid_release_select'
     end
+    if data.title ~= nil and not boundedString(data.title, 64, true) then
+        return false, 'invalid_title'
+    end
 
     local valid, err = validateItems(data.items or {}, MAX_MENU_ITEMS)
     if not valid then return false, err end
@@ -305,6 +356,7 @@ local function registerRadial(data)
         items = items,
         appearance = data.appearance,
         releaseSelect = data.releaseSelect == true,
+        title = data.title ~= '' and data.title or nil,
     }
     if isOpen and currentRadial == data.id then
         local session = clearOpenRadial(true, true)
@@ -360,6 +412,7 @@ local function showRadial(menuId)
             items = buildNuiItems(),
             menuId = currentRadial,
             appearance = currentAppearance(),
+            title = currentTitle(),
             canGoBack = false,
             trail = {},
             session = session,
@@ -410,6 +463,7 @@ local function transitionTo(menuId, historyEntry, meta)
             items = buildNuiItems(),
             menuId = currentRadial,
             appearance = currentAppearance(),
+            title = currentTitle(),
             canGoBack = #menuHistory > 0,
             trail = buildTrail(),
             session = session,
@@ -447,6 +501,7 @@ local function radialBack()
             items = buildNuiItems(),
             menuId = currentRadial,
             appearance = currentAppearance(),
+            title = currentTitle(),
             canGoBack = #menuHistory > 0,
             trail = buildTrail(),
             focusIndex = meta and meta.index or nil,

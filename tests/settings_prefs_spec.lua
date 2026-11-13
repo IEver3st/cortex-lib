@@ -100,7 +100,7 @@ for _, field in ipairs(open.data.tabs[1].fields) do
     assert(open.data.tabs[1].defaults[field.key] ~= nil, field.key .. ' has a default for per-row reset')
 end
 assert(sections.Interface and sections.Notifications and sections.Prompts and sections.Progress and sections.Graphics)
-assert(#keys == 17, 'the Cortex tab lists exactly the built-in preferences')
+assert(#keys == 18, 'the Cortex tab lists exactly the built-in preferences')
 assert(call('settingsReady', { session = open.data.session }).ok)
 
 -- Preview pushes prefs live and emits settingChanged; Cancel rolls both back.

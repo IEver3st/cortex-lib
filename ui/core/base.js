@@ -84,40 +84,47 @@ function normalizeAlertStyle(style) {
     return Object.keys(normalized).length ? normalized : undefined;
 }
 
+function copyTextWithSelection(text) {
+    if (!document.body || typeof document.execCommand !== 'function') return false;
+
+    const textarea = document.createElement('textarea');
+    const previousFocus = document.activeElement;
+    textarea.value = text;
+    textarea.setAttribute('aria-hidden', 'true');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '0';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+
+    try {
+        textarea.select();
+        textarea.setSelectionRange(0, text.length);
+        return document.execCommand('copy') === true;
+    } catch (_) {
+        return false;
+    } finally {
+        textarea.remove();
+        if (previousFocus && previousFocus !== document.body) {
+            focusElement(previousFocus);
+        }
+    }
+}
+
 async function copyTextToClipboard(value) {
     const text = boundedText(value, '', NUI_MAX_CLIPBOARD_LENGTH);
+    if (copyTextWithSelection(text)) return true;
 
     if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
         try {
             await navigator.clipboard.writeText(text);
             return true;
         } catch (_) {
-            // Fall through to the CEF-compatible textarea path.
+            return false;
         }
     }
 
-    const textarea = document.createElement('textarea');
-    const previousFocus = document.activeElement;
-    textarea.value = text;
-    textarea.setAttribute('readonly', '');
-    textarea.setAttribute('aria-hidden', 'true');
-    textarea.style.position = 'fixed';
-    textarea.style.left = '-9999px';
-    textarea.style.opacity = '0';
-    document.body.appendChild(textarea);
-
-    try {
-        textarea.focus();
-        textarea.select();
-        return typeof document.execCommand === 'function' && document.execCommand('copy') === true;
-    } catch (_) {
-        return false;
-    } finally {
-        textarea.remove();
-        if (previousFocus && typeof previousFocus.focus === 'function') {
-            focusElement(previousFocus);
-        }
-    }
+    return false;
 }
 
 async function nuiPost(name, payload, options = {}) {

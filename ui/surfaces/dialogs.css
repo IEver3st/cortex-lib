@@ -69,7 +69,6 @@
     white-space: normal;
     overflow-wrap: anywhere;
     line-height: 1;
-    padding-right: 0.08em;
 }
 
 .cx-dialog .cx-slip-title-row { align-items: flex-start; }
@@ -436,7 +435,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    padding-right: 0.08em;
+    padding: 0.15em 0.2em 0.2em 0.06em;
+    margin: -0.15em -0.2em -0.2em -0.06em;
 }
 
 .cx-dialog-action:hover:not(.is-paper) { background: var(--wash-strong); }

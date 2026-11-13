@@ -48,13 +48,13 @@
 }
 
 .cortex-menu-header .cx-slip-header { padding-top: calc(1 * var(--u)); padding-bottom: calc(1 * var(--u)); }
-.cortex-menu-header .cx-eyebrow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cortex-menu-header .cx-eyebrow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0.2em 0.2em 0.2em 0.06em; margin: -0.2em -0.2em -0.2em -0.06em; }
 
 /* Italic caps lean past their box; give clipped (ellipsized) runs room for the last glyph. */
 .cortex-menu-header .cx-slip-title,
-.cortex-menu-legend .cx-hint-label,
 .cortex-menu-option-label,
-.cortex-menu-value-label { padding-right: 0.14em; }
+.cortex-menu-value-label { padding: 0.2em 0.2em 0.2em 0.06em; margin: -0.2em -0.06em -0.2em -0.06em; }
+.cortex-menu-legend .cx-hint-label { padding: 0.2em 0.3em 0.2em 0.12em; margin: -0.2em -0.2em -0.2em -0.12em; }
 
 .cortex-menu-count { color: var(--dim); white-space: nowrap; }
 .cortex-menu-count b { color: var(--paper); font-weight: 700; }

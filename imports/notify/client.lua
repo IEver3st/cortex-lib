@@ -550,7 +550,12 @@ local function progress(data)
 
         if normalized.anim and normalized.anim.dict then
             if not requestAnimDict(normalized.anim.dict, 5000) then return end
+            if entry.cleaned then
+                pcall(RemoveAnimDict, normalized.anim.dict)
+                return
+            end
             entry.animDictRequested = true
+            if entry.cancelled then return end
             ped = resolveCurrentPed()
             if not ped then return end
             entry.ped = ped
@@ -565,6 +570,14 @@ local function progress(data)
 
         if normalized.prop then
             if not requestModel(normalized.prop.model, 5000) then return end
+            if entry.cleaned then
+                pcall(SetModelAsNoLongerNeeded, normalized.prop.model)
+                return
+            end
+            if entry.cancelled then
+                entry.propModel = normalized.prop.model
+                return
+            end
             ped = resolveCurrentPed()
             if not ped then return end
             entry.ped = ped

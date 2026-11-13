@@ -20,7 +20,8 @@
         promptMarkers: value => typeof value === 'boolean' ? value : undefined,
         promptScale: value => ['small', 'standard', 'large'].includes(value) ? value : undefined,
         controlHints: value => typeof value === 'boolean' ? value : undefined,
-        invertScroll: value => typeof value === 'boolean' ? value : undefined
+        invertScroll: value => typeof value === 'boolean' ? value : undefined,
+        radialStyle: value => value === 'wheel' || value === 'fan' ? value : undefined
     });
     const DEFAULT_PREFS = Object.freeze({
         scale: 1,
@@ -31,7 +32,8 @@
         promptMarkers: true,
         promptScale: 'standard',
         controlHints: true,
-        invertScroll: false
+        invertScroll: false,
+        radialStyle: 'wheel'
     });
     const PROMPT_SCALES = Object.freeze({ small: 0.88, standard: 1, large: 1.16 });
     let prefs = DEFAULT_PREFS;

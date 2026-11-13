@@ -119,6 +119,15 @@ segment; the centre shows the hovered label large, a description line, and bread
 dots under the wheel, never a fake "More" segment. Rejected: paper pie, text-glyph close button, footer box
 with prose instructions. States: 1, 2, 3-8, paged 18, empty, submenu with back, disabled item, compact-control.
 
+Two player-selectable styles share one API (`radialStyle` pref). **Wheel**: icon slips on the ring, the hub
+carries the title when idle and the aimed label + description when aimed; 1-3 items become wide petals, two sit
+left and right. **Fan**: replaces small list menus. A 26u ink hub disc at screen centre with a needle to the
+aimed row; rows are `--slip` bars on an arc to the right (icon, display-caps label, badge, chevron), the aimed
+row flips to paper with a 4u accent bar and opens a description line; title in display caps above the first
+row, page dots and `ControlsLegend` under the last. Badges are small chips beside the label. Confirm items arm
+on first select: the slip turns `--error`, the confirm copy replaces the description, and a second select
+within 3 s fires. States add: title, badge, armed confirm, fan 1/2/8/paged/long label.
+
 ### Dialogs (rebuild)
 Alert and input form; *answer one question*; keyboard first. A 520u slip placed centre-low, not a giant modal:
 `SlipHeader`, body copy in Arial, fields with eyebrow labels, inputs as ink wells with a 3u bottom rule that

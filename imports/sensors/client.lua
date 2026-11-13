@@ -28,6 +28,16 @@ local function Clamp(value, minValue, maxValue)
     return value
 end
 
+local function SetVar(name, var, value)
+    value = value + 0.0
+    SetTimecycleModifierVar(name, var, value, value)
+end
+
+local function ModifierName(base)
+    local resource = GetCurrentResourceName and GetCurrentResourceName() or 'cortex'
+    return (base .. resource:gsub('[^%w_]', '_'))
+end
+
 local sensors = { thermal = {}, night = {} }
 
 -- Shipped looks, shared so every Cortex optic reads the same. Callers may pass their own.
@@ -110,6 +120,26 @@ T.groups = VISUAL_GROUPS
 local thermalActive = false
 local originalVisual = nil
 local visualOverridden = false
+
+local LIGHT_VOLUME_VARS = { 'fog_volume_light_intensity', 'fog_volume_light_range', 'fog_volume_light_size' }
+local thermalModifier = nil
+
+local function PrepareThermalModifier()
+    if not (CreateTimecycleModifier and SetTimecycleModifierVar and GetTimecycleModifierIndexByName) then return nil end
+    local name = ModifierName('cortex_flir_')
+    if GetTimecycleModifierIndexByName(name) == -1 and CreateTimecycleModifier(name) == -1 then return nil end
+    if thermalModifier ~= name then
+        for _, var in ipairs(LIGHT_VOLUME_VARS) do SetVar(name, var, 0.0) end
+        thermalModifier = name
+    end
+    return name
+end
+
+local function ThermalModifierIsCurrent()
+    if not (thermalModifier and GetTimecycleModifierIndex and GetTimecycleModifierIndexByName) then return false end
+    local index = GetTimecycleModifierIndexByName(thermalModifier)
+    return index ~= -1 and GetTimecycleModifierIndex() == index
+end
 
 local function ColorChannel(color, index)
     local value = type(color) == 'table' and tonumber(color[index]) or nil
@@ -201,6 +231,11 @@ function T.enable(palette, sensor)
     CaptureOriginalVisualSettings()
     SetNightvision(false)
     ClearTimecycleModifier()
+    local modifier = PrepareThermalModifier()
+    if modifier then
+        SetTimecycleModifier(modifier)
+        SetTimecycleModifierStrength(1.0)
+    end
     T.apply(palette, sensor)
     thermalActive = true
 end
@@ -210,9 +245,16 @@ function T.disable()
     local wasActive = thermalActive
     thermalActive = false
     if wasActive then SetSeethrough(false) end
+    if wasActive and ThermalModifierIsCurrent() then ClearTimecycleModifier() end
     RestoreVisualSettings()
     if wasActive and SeethroughReset then SeethroughReset() end
     return wasActive
+end
+
+function T.release()
+    if not (thermalModifier and RemoveTimecycleModifier and GetTimecycleModifierIndexByName) then return end
+    if GetTimecycleModifierIndexByName(thermalModifier) ~= -1 then RemoveTimecycleModifier(thermalModifier) end
+    thermalModifier = nil
 end
 
 function T.isActive() return thermalActive end
@@ -240,10 +282,6 @@ function N.usesGameLook(cfg)
     return (cfg or nightCfg or {}).RenderMode == 'game'
 end
 
-local function SetVar(name, var, value)
-    value = value + 0.0
-    SetTimecycleModifierVar(name, var, value, value)
-end
 N.setVar = function(var, value)
     if not state.ModifierName then return false end
     SetVar(state.ModifierName, var, value)

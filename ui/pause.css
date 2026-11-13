@@ -41,6 +41,8 @@
     filter: none;
     overflow: hidden;
     outline: none;
+    top: calc(var(--pause-safe) - 6 * var(--pause-unit));
+    padding-top: calc(6 * var(--pause-unit));
 }
 
 .pause-heading { position: relative; flex: none; padding: 0 0 calc(22 * var(--pause-unit)); }
@@ -81,7 +83,7 @@
 .pause-id-value { position: relative; font: 800 calc(24 * var(--pause-unit))/1 var(--pause-type); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 .pause-id-badge.is-long .pause-id-value { font-size: calc(17 * var(--pause-unit)); }
 .pause-identity-text { min-width: 0; display: flex; flex-direction: column; gap: calc(7 * var(--pause-unit)); }
-.pause-player { overflow: hidden; color: var(--pause-ink); font: 800 calc(30 * var(--pause-unit))/1 var(--pause-type); letter-spacing: 0.005em; text-overflow: ellipsis; white-space: nowrap; }
+.pause-player { overflow: hidden; padding: 0.15em 0.2em 0.2em 0.06em; margin: -0.15em -0.2em -0.2em -0.06em; color: var(--pause-ink); font: 800 calc(30 * var(--pause-unit))/1 var(--pause-type); letter-spacing: 0.005em; text-overflow: ellipsis; white-space: nowrap; }
 .pause-location { display: flex; align-items: center; gap: calc(9 * var(--pause-unit)); min-width: 0; color: var(--ink-soft); font: 800 calc(14 * var(--pause-unit))/1 var(--pause-type); letter-spacing: 0.16em; text-transform: uppercase; overflow-wrap: anywhere; }
 /* Live session: a plain accent dot on paper. */
 .pause-session-dot { flex: none; width: calc(8 * var(--pause-unit)); height: calc(8 * var(--pause-unit)); border-radius: 50%; background: var(--pause-accent-deep); }

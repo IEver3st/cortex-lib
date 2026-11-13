@@ -76,6 +76,7 @@ function App() {
         appearance: null,
         releaseSelect: false,
         trail: [],
+        title: '',
         focusIndex: null,
         view: 0
     });
@@ -398,6 +399,7 @@ function App() {
                         releaseSelect: data.releaseSelect === true,
                         visible: true,
                         trail: normalizeRadialTrail(data.trail),
+                        title: normalizeRadialTitle(data.title),
                         focusIndex: null,
                         view: prev.view + 1
                     }));
@@ -414,7 +416,8 @@ function App() {
                         items: Array.isArray(data.items) ? normalizeRadialItems(data.items) : prev.items,
                         canGoBack: data.canGoBack !== undefined ? Boolean(data.canGoBack) : prev.canGoBack,
                         appearance: data.appearance !== undefined ? (data.appearance === 'compact-control' ? 'compact-control' : null) : prev.appearance,
-                        trail: Array.isArray(data.trail) ? normalizeRadialTrail(data.trail) : prev.trail
+                        trail: Array.isArray(data.trail) ? normalizeRadialTrail(data.trail) : prev.trail,
+                        title: data.title !== undefined ? normalizeRadialTitle(data.title) : prev.title
                     }) : prev);
                     break;
                 case 'radialTransitionOut':
@@ -432,6 +435,7 @@ function App() {
                         releaseSelect: false,
                         visible: true,
                         trail: normalizeRadialTrail(data.trail),
+                        title: normalizeRadialTitle(data.title),
                         focusIndex: normalizeRadialFocusIndex(data.focusIndex),
                         view: prev.view + 1
                     }) : prev);

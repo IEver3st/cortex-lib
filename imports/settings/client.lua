@@ -9,7 +9,7 @@ local CURRENT_RESOURCE = GetCurrentResourceName()
 local SETTINGS_PREFIX = 'cortex:'
 local CORTEX_TAB_ID = 'cortex'
 local MAX_TABS = 32
-local MAX_FIELDS = 64
+local MAX_FIELDS = 128
 local MAX_OPTIONS = 64
 local MAX_SETTINGS_PER_TAB = 128
 local MAX_GROUP_LENGTH = 32
@@ -225,6 +225,7 @@ local cortexDefaults = {
     dynamic_motion = 'system',
     dynamic_layout = true,
     controlHints = true,
+    radialStyle = 'wheel',
     notifyPosition = 'top-right',
     notifyDuration = 'standard',
     notifyLimit = 5,
@@ -283,6 +284,11 @@ local cortexFields = {
     {
         key = 'controlHints', section = SECTION_INTERFACE, type = 'toggle', label = 'Control hints',
         description = 'Show key hints under menus and prompts. A hint that is the only instruction always stays.',
+    },
+    {
+        key = 'radialStyle', section = SECTION_INTERFACE, type = 'select', label = 'Radial menu style',
+        description = 'Wheel puts actions on a ring of icons. Fan lists them to the right of the pointer with their names.',
+        options = { { value = 'wheel', label = 'Wheel' }, { value = 'fan', label = 'Fan' } },
     },
     {
         key = 'notifyPosition', section = SECTION_NOTIFICATIONS, type = 'select', label = 'Position',
@@ -347,11 +353,53 @@ local cortexFields = {
     },
 }
 
+local MAX_ACCENT_SWATCHES = 8
+local ACCENT_HEX_PATTERN = '^#%x%x%x%x%x%x$'
+
+local function applyServerAccents()
+    local field
+    for index = 1, #cortexFields do
+        if cortexFields[index].key == 'dynamic_accent' then field = cortexFields[index] break end
+    end
+    if not field then return end
+
+    local merged, seen = {}, {}
+    local function add(value, label)
+        value = value:lower()
+        if seen[value] or #merged >= MAX_ACCENT_SWATCHES then return end
+        seen[value] = true
+        merged[#merged + 1] = { value = value, label = label }
+    end
+
+    for entry in GetConvar('cortex_lib_accents', ''):gmatch('[^;]+') do
+        local label, hex = entry:match('^%s*(.-)%s*=%s*(#%x%x%x%x%x%x)%s*$')
+        if label and label ~= '' and #label <= 24 and not label:find('%c') then add(hex, label) end
+    end
+    local default = GetConvar('cortex_lib_accent_default', ''):lower()
+    local hasDefault = default:match(ACCENT_HEX_PATTERN) ~= nil
+    if #merged == 0 and not hasDefault then return end
+    if hasDefault and not seen[default] then
+        local known = false
+        for _, option in ipairs(field.options) do
+            if option.value:lower() == default then known = true break end
+        end
+        if not known then add(default, 'Server') end
+    end
+    for _, option in ipairs(field.options) do add(option.value, option.label) end
+    field.options = merged
+    if hasDefault then cortexDefaults.dynamic_accent = default end
+end
+
+applyServerAccents()
+
+local radialStyleDefault = GetConvar('cortex_lib_radial_style', '')
+if radialStyleDefault == 'wheel' or radialStyleDefault == 'fan' then cortexDefaults.radialStyle = radialStyleDefault end
+
 -- Enum values stay readable through lib.getSetting; the NUI receives multipliers.
 local NOTIFY_DURATION_SCALE = { short = 0.75, standard = 1.0, long = 1.5 }
 local PREF_KEYS = {
     uiScale = true, textSize = true, notifyDuration = true, notifyLimit = true, showPercent = true,
-    promptMarkers = true, promptScale = true, controlHints = true, invertScroll = true,
+    promptMarkers = true, promptScale = true, controlHints = true, invertScroll = true, radialStyle = true,
 }
 
 -- The retired "Dynamic UI" tab stored under its own registry prefix. Its four
@@ -1339,6 +1387,7 @@ local function buildUiPrefs()
             and cortexSettings.promptScale or 'standard',
         controlHints = cortexSettings.controlHints ~= false,
         invertScroll = cortexSettings.invertScroll == true,
+        radialStyle = cortexSettings.radialStyle == 'fan' and 'fan' or 'wheel',
     }
 end
 

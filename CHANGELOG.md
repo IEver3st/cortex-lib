@@ -1,5 +1,25 @@
 # Changelog
 
+## 3.7.0 (2026-11-13)
+
+### Added
+- World screens: `lib.worldScreen` puts a web page on a prop's screen and lets the player point at it, with texture swaps, variant pools and cursor hit tests. See docs/api.md.
+- Radial: a second style. Players pick **Wheel** or **Fan** in Settings > Interface > Radial menu style; `setr cortex_lib_radial_style fan` sets the server default. Fan lists the actions by name in a curved column to the right of the pointer, with the aimed row's description under it, so a radial can replace a small list menu.
+- Radial: `title` on `lib.registerRadial` names the menu, shown in the idle hub or above the fan.
+- Radial: items take `badge` (a count or short tag) and `confirm` (true or a message). A confirm item turns red on the first select and runs on the second, a guard against slips on destructive actions (not a permission check).
+- Radial: controller support. The right stick aims, A selects, B goes back, RB / LB change pages.
+- Server accent colours: `setr cortex_lib_accents "Name=#rrggbb;Other=#rrggbb"` puts up to 8 of your own swatches first in Settings > Shared accent, and `setr cortex_lib_accent_default "#rrggbb"` sets the default (on its own, it adds that colour as a "Server" swatch when it isn't one of the built-in ones).
+
+### Changed
+- Settings: a resource's tab can hold up to 128 fields instead of 64. Cortex Echo needs this to show shape and colour pickers for all of its sounds.
+- Radial: redesigned. One to three items are wide petals instead of thin slips, and two items sit left and right. The hub shows the menu title (or the label that opened a submenu) instead of the full breadcrumb, and an unknown icon name shows the item's label instead of a monogram.
+
+### Fixed
+- Italic titles, values and key hints in menus, dialogs, the radial, the pause menu and Settings no longer lose the edge of their last letter.
+- A progress bar cancelled while its animation or prop was still loading no longer starts that animation or spawns the prop afterwards.
+- Thermal: night light volumes (streetlight and lamp haze from graphics packs such as QuantV) no longer show as large flat blobs in thermal views. Cortex PolCam and Cortex Binoculars both get the fix.
+- Copy to clipboard works in the FiveM browser again.
+
 ## 3.6.0 (2026-11-04)
 
 ### Added

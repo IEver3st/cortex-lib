@@ -231,7 +231,7 @@
 .cortex-debug-header { flex: 0 0 auto; padding: calc(18 * var(--u)) calc(20 * var(--u)) calc(14 * var(--u)); }
 .cortex-debug-header .cx-slip-header::before { background: var(--debug-accent, var(--accent)); }
 .cortex-debug-header .cx-slip-title { font-size: calc(26 * var(--u)); }
-.cortex-debug-header .cx-eyebrow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cortex-debug-header .cx-eyebrow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0.2em 0.2em 0.2em 0.06em; margin: -0.2em -0.2em -0.2em -0.06em; }
 
 .cortex-debug-body {
     display: flex;

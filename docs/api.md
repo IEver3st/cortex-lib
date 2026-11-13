@@ -24,6 +24,7 @@ For installation and player settings, read the [customer guide](../README.md). T
 | `timer` | shared | Pausable / resumable timer class |
 | `waitFor` | shared | `waitFor(condition, timeout)` helper |
 | `utils` | shared | JSON, KVP, distance, table and number utilities |
+| `worldScreen` | client | DUI pages on props: texture replace with a held model, variant pools, projected-quad cursor mapping and key hit tests |
 | `cache` | client | Live `ped`, `playerId`, `serverId`, `vehicle`, `seat` cache updated every 100ms |
 
 > Client utilities from `client/utils.lua` and `client/debug_panel.lua` are also available (pool clearing, ped/vehicle helpers, camera direction, clipboard, debug panel).
@@ -263,10 +264,13 @@ lib.registerRadial({
 
 lib.registerRadial({
   id = 'vehicle',
+  title = 'Vehicle',
   items = {
     { id = 'engine', label = 'Engine', icon = 'bolt', description = 'Start or stop the engine.',
       onSelect = function() print('engine') end },
-    { id = 'doors', label = 'Doors', icon = 'door', menu = 'doors' },
+    { id = 'doors', label = 'Doors', icon = 'door', menu = 'doors', badge = 4 },
+    { id = 'scrap', label = 'Scrap vehicle', icon = 'trash', confirm = 'Press again to scrap it. This cannot be undone.',
+      onSelect = function() print('scrap') end },
   }
 })
 lib.showRadial('vehicle')
@@ -283,13 +287,21 @@ Option fields: `label`, `description`, `icon`, `iconColor` (`#hex` or `var(--tok
 
 Radial menus:
 
-- Selection is by direction. The player moves the mouse anywhere on screen past a small dead zone around the centre, holds arrow keys (two arrows aim diagonally), or presses `1`-`8` to pick a slip on the current page directly. The first slip sits at 12 o'clock and the rest run clockwise. Left click or Enter confirms. A click confirms only the slip that is visibly selected, so a double-click that opens a submenu can't also fire an action inside it. Right click, Backspace or a click in the centre goes back from a submenu and closes at the root. Esc always closes. Tab / Shift+Tab cycle through enabled slips.
+- Two styles, picked by the player in Settings > Interface > Radial menu style (`radialStyle`, `'wheel'` or `'fan'`). `setr cortex_lib_radial_style fan` changes the server default; the player's choice wins. Consumers register one menu and get both.
+  - **Wheel** (default): a ring of icon slips around a hub. The hub names the aimed item and shows its description, or the menu title and RMB Back/Close when nothing is aimed. With one to three items the slips become wide petals; two items sit left and right.
+  - **Fan**: a pointer origin at the centre of the screen and a column of named rows curving to its right, with the title above and the legend below. The aimed row flips to paper and shows its description under the label. It suits menus that replace a small list menu, where the names matter more than the icons. Pointing left of the origin aims the mirrored row on the right. Up / Down step through enabled rows, Right opens a submenu and Left goes back. `appearance = 'compact-control'` and empty menus always use the wheel.
+- Selection is by direction. The player moves the mouse anywhere on screen past a small dead zone around the centre, holds arrow keys (two arrows aim diagonally on the wheel), or presses `1`-`8` to pick a slip on the current page directly. On the wheel the first slip sits at 12 o'clock and the rest run clockwise. Left click or Enter confirms. A click confirms only the slip that is visibly selected, so a double-click that opens a submenu can't also fire an action inside it. Right click, Backspace or a click in the centre goes back from a submenu and closes at the root. Esc always closes. Tab / Shift+Tab cycle through enabled slips.
 - More than 8 items are split into pages of 8, shown as dots with `Q` / `E` under the wheel. The mouse wheel, `Q` / `E` or PageUp / PageDown change pages, and paging wraps. The last page keeps empty ghost slots, so every direction means the same position on every page. The wheel remembers the last page per menu for the rest of the client session.
-- Item fields: `id`, `label`, `icon`, `iconColor`, `menu`, `keepOpen`, `onSelect`, plus the optional `description` (a string of at most 256 characters, shown in the hub) and `disabled` (boolean). A disabled item is drawn dimmed and never flips to paper. Lua refuses it with `disabled_item`, so its `onSelect` never runs, even from a forged NUI click. `icon` uses the same glyph names as menus. A one- or two-character string (`'1'`, `'?'`) renders in display type, and an emoji renders as a silhouette.
-- Submenus: the hub shows a breadcrumb built from the labels of the items that opened each level, and slips that open a submenu show an outward chevron. Going back re-selects the item that opened the submenu.
+- Controller: while the player is on a gamepad, the right stick aims (same directions as the mouse), A selects, B goes back or closes, and RB / LB change pages. Pad gameplay buttons are blocked while the radial is open.
+- `title` (optional string, at most 64 characters) on `lib.registerRadial` names the menu: the wheel shows it in the idle hub and the fan above the rows. A submenu without its own title shows the label of the item that opened it. Anything else returns `false, 'invalid_title'`.
+- Item fields: `id`, `label`, `icon`, `iconColor`, `menu`, `keepOpen`, `onSelect`, plus the optional `description` (a string of at most 256 characters, shown in the hub or under the aimed fan row), `disabled` (boolean), `badge` and `confirm`.
+  - `badge`: a non-negative integer (shown as `999+` past 999) or a string of at most 8 characters, drawn as a chip beside the item. Use it for counts such as boards placed or unread items.
+  - `confirm`: `true` or a string of at most 128 characters. The first select arms the item: it turns soft red and shows the string (or "Press again to confirm.") in place of its description. A second select within 3 seconds runs it; aiming elsewhere or waiting disarms it. Use it for destructive actions. It guards against slips and is not a permission check.
+  - An invalid `badge` or `confirm` returns `false, 'invalid_item'`. A disabled item is drawn dimmed and never flips to paper. Lua refuses it with `disabled_item`, so its `onSelect` never runs, even from a forged NUI click. `icon` uses the same glyph names as menus, but an unknown name shows the label instead of a monogram. A one- or two-character string (`'1'`, `'?'`) renders in display type, and an emoji renders as a silhouette.
+- Submenus: the hub shows the menu's `title`, or, when it has none, the label of the item that opened the current level. Slips that open a submenu show an outward chevron. Going back re-selects the item that opened the submenu.
 - `releaseSelect = true` (boolean, default off) is for menus opened while a key or mouse button is held. Releasing the right mouse button over a slip selects it, so the player can hold, drag and let go. Releasing over nothing leaves the wheel open for a normal click, and a later right click backs out as usual. It applies to the root view only; a submenu reached by release uses the normal controls. Any other type returns `false, 'invalid_release_select'`.
 - `appearance = 'compact-control'` gives a smaller wheel with icon-only slips. The hub carries the label, and there's no description or controls legend.
-- Show/hide/refresh/transition messages add the optional fields `trail` (the breadcrumb labels) and `focusIndex` (the zero-based item to re-select after a back). `radialClick`, `radialBack` and `radialClose` payloads are unchanged: `index` is still the source index across pages.
+- Show/hide/refresh/transition messages add the optional fields `trail` (the breadcrumb labels), `focusIndex` (the zero-based item to re-select after a back) and `title`; items carry `badge` and `confirm`. Controller input arrives as `radialPadAim` and `radialPadPress` for the open session. `radialClick`, `radialBack` and `radialClose` payloads are unchanged: `index` is still the source index across pages.
 
 ---
 
@@ -581,7 +593,7 @@ Settings are stored per-client with `SetResourceKvp` / `GetResourceKvpString` un
 | --- | --- | --- | --- | --- |
 | Interface | Interface size (`uiScale`) | 100 % | Slider 80-130 % | Scales every Cortex prompt, menu and notification. Previews on release. |
 | Interface | Text size (`textSize`) | Standard | Standard / Large | Larger body text in menus, dialogs and notifications. |
-| Interface | Shared accent (`dynamic_accent`) | Mint | Colour swatches + hex | Highlight colour in every Cortex interface. Five presets, or any `#rrggbb`; a colour too dark for ink text is lightened. |
+| Interface | Shared accent (`dynamic_accent`) | Mint | Colour swatches + hex | Highlight colour in every Cortex interface. Five presets, or any `#rrggbb`; a colour too dark for ink text is lightened. A server adds its own presets ahead of these (up to 8 swatches in all) with `setr cortex_lib_accents "Name=#rrggbb;Name=#rrggbb"`, and sets the default for new players with `setr cortex_lib_accent_default "#rrggbb"`. |
 | Interface | Surface opacity (`dynamic_opacity`) | 92 % | Slider 65-100 % | How solid menus and panels look. |
 | Interface | Motion (`dynamic_motion`) | System | System / Reduced / Full | Follows the OS preference or forces reduced/full animation. |
 | Interface | Avoid overlapping overlays (`dynamic_layout`) | On | Toggle | Moves notifications and prompts aside from chat, the HUD and each other. |
@@ -752,6 +764,44 @@ conditions. Do not treat that flag as server authorization.
 
 See [pause research and runtime acceptance](pause-system.md) for native
 boundaries, compatibility evidence, and the user-run checks.
+
+---
+
+## World screens
+
+`lib.worldScreen` puts a DUI page on a prop and lets the player point at it. It runs in your resource and cleans up its pages and texture swaps when your resource (or cortex-lib) stops. Your resource owns the page, its messages, input mode, focus and every server check; this module only draws, swaps and maps.
+
+```lua
+local ws = lib.worldScreen
+local page = ws.page({ url = ('nui://%s/web/screen.html'):format(GetCurrentResourceName()), width = 1024, height = 1280, txd = 'myres_screen' })
+
+-- Every prop of the model now shows the page on its own screen texture. The model is held loaded so the swap survives streaming.
+local swap = ws.replace({ model = 'my_screen_prop', dict = 'my_screen_prop_txd', name = 'screen', page = page })
+
+-- Or draw it as a quad on a face in the prop's local axes (x right, y away from the viewer, z up by default).
+local face = { centre = vector3(0.0, -0.31, 1.2), w = 0.30, h = 0.40 }
+local geo = ws.quad(entity, face, 0.002)
+ws.drawQuad(geo.corners, page.txd, page.tex, 0.0, 0.0, 1.0, 1.0)
+
+-- Pointing: project once the camera settles (and while it moves), then hit-test the cursor each frame.
+local pointer = ws.pointer({ screen = geo.corners, width = page.width, height = page.height,
+    keys = { { id = 'coin', quad = ws.quad(entity, { centre = vector3(0.25, -0.31, 1.0), w = 0.05, h = 0.08 }).corners } } })
+pointer:project()
+local hit = pointer:hit(ws.cursor())   -- { kind = 'screen', x, y, u, v } in page pixels, { kind = 'key', id, quad }, or nil
+```
+
+| Function | |
+| --- | --- |
+| `page({ url, width, height, txd?, tex? })` | A DUI page and its runtime texture (`page.txd`, `page.tex`). `page:send(msg)` sends a table as JSON; `page:mouse(x, y, button?, down?)` forwards DUI mouse input; `page:destroy()`. Keep pages for the session: a destroyed DUI leaves its runtime texture behind. |
+| `replace({ model, dict, name, hd?, page, timeoutMs? })` | Swaps texture `dict/name` (and its HD copy) for the page once the model has loaded, and keeps the model loaded until `swap:release()`. `swap.applied`, `swap.failed`. |
+| `pool(size)` | A variant pool: `take(key)` gives the lowest free slot (0-based) or the one `key` holds, `release(key)`, `slotOf(key)`, `holder(slot)`, `free()`. A texture swap is shared by every prop of a model, so a type that needs a different picture per prop ships `size` models that each map their face to their own cell of one shared texture, and each client hands them out with a pool. |
+| `cell(index, cols, rows, pageW, pageH)` | A cell's `u0, v0, u1, v1`, inset half a pixel so filtering never picks up a neighbour. |
+| `quad(entity, face, lift?, grow?)` | `{ corners = { TL, TR, BR, BL }, centre, normal }` in world space. `face = { centre, w, h, right?, up? }` in the entity's local axes; `normal` is `right x up`, toward the viewer. |
+| `facing(geo, point)` | True when `point` is in front of the face. |
+| `drawQuad(corners, dict, name, u0, v0, u1, v1, alpha?)` | Draws a texture on a world quad this frame, both windings. |
+| `pointer({ screen, width, height, rect?, keys? })` | `screen` is the four world corners (or a function returning them). `pointer:project()` re-projects for the current camera; `pointer:hit(px, py)` maps the cursor onto the page with a homography, so it stays right as the camera eases, or hit-tests `keys` (world quads). `rect` maps the screen to part of the page. |
+| `cursor()` | The cursor in screen pixels: `GetNuiCursorPosition()`, or the agent pilot's cursor when it drives this client. |
+| `homography(poly)`, `map(inverse, px, py)`, `inside(poly, px, py)`, `projectQuad(corners)`, `projectPoint(v, rw, rh)` | The pieces, for your own layouts. |
 
 ---
 

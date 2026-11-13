@@ -2,7 +2,7 @@
 
 Shared UI and Lua utilities for FiveM resources, maintained by Ever3st and GSD Modifications.
 
-[![Version 3.6.0](https://img.shields.io/badge/version-3.6.0-blue?style=flat-square)](https://github.com/IEver3st/cortex-lib/releases)
+[![Version 3.7.0](https://img.shields.io/badge/version-3.7.0-blue?style=flat-square)](https://github.com/IEver3st/cortex-lib/releases)
 ![Cortex Lib: menus, radial menus and interaction prompts](https://raw.githubusercontent.com/IEver3st/cortex-lib/main/marketing/2026-09-27/final/01-cortex-lib.png)
 
 **[Download cortex-lib.zip](https://github.com/IEver3st/cortex-lib/releases/latest/download/cortex-lib.zip)** · [Release notes](https://github.com/IEver3st/cortex-lib/releases) · [API reference](https://github.com/IEver3st/cortex-lib/blob/main/docs/api.md) · [Report a problem](https://github.com/IEver3st/cortex-lib/issues)
@@ -34,7 +34,7 @@ Install the library once and start it before the scripts that use it. The releas
 | Feature | Included behavior |
 | --- | --- |
 | Notifications | Success, info, warning and error notices, with configurable position, duration and sound. |
-| Menus | Keyboard and mouse list menus, disabled rows, selectable values, nested radial menus and paging. |
+| Menus | Keyboard and mouse list menus, disabled rows, selectable values, and nested radial menus in two player-picked styles (icon wheel or named fan) with titles, badges, confirm steps, paging and controller support. |
 | Dialogs | Text, password, number, select and checkbox inputs; required fields; confirmation and cancellation. |
 | Progress and skill checks | Bars and circles with cancellation, completion feedback and configurable skill checks. |
 | Interaction prompts | Screen prompts and world, entity or bone anchors; distant markers; merged lists; hold indicators. |

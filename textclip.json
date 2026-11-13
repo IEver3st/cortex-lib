@@ -1,0 +1,10 @@
+{
+  "serve": ["bun", "dev/server.mjs", "--port", "{port}"],
+  "probe": "/__revision",
+  "delay": 400,
+  "settle": 4000,
+  "discover": {
+    "path": "/",
+    "eval": "async () => { const { scenarios } = await import('/dev/scenarios.mjs'); const pages = []; for (const s of scenarios.filter(x => x.messages.length)) { const send = `async () => { const { scenarios } = await import('/dev/scenarios.mjs'); const s = scenarios.find(x => x.id === ${JSON.stringify(s.id)}); window.postMessage({ lab: true, kind: 'configure', data: { failNext: !!s.failNext } }, location.origin); window.postMessage({ lab: true, kind: 'messages', data: s.messages }, location.origin); }`; const stages = [...new Set([900, ...s.messages.map(m => Number(m.after) || 0).filter(t => t > 0).map(t => t + 300)])].sort((a, b) => a - b); stages.forEach((t, i) => pages.push({ name: i ? `${s.id}@${t}` : s.id, path: '/preview?run=textclip', allowEmpty: true, steps: [{ eval: send }, { wait: t }] })); } return pages; }"
+  }
+}
