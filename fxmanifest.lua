@@ -3,10 +3,11 @@ game 'gta5'
 
 name 'cortex-lib'
 author 'GSDMODS/CORTEX'
-version '3.7.0'
+version '4.0.0'
 cortex_placement_api '1'
 -- Consumers read this to skip registering their own key for Settings.
 cortex_settings_key '1'
+cortex_keys '1'
 description 'Shared UI and Lua utilities for FiveM resources'
 
 shared_script 'resource/init.lua'
@@ -22,6 +23,8 @@ client_scripts {
     'client/callout_layout.lua',
     'client/callout_dui.lua',
     'client/callout_renderer.lua',
+    'things/client.lua',
+    'keys/client.lua',
     'client/debug_panel.lua',
     'client/debug_workbench.lua',
 }
@@ -29,6 +32,7 @@ client_scripts {
 server_scripts {
     'server/config.lua',
     'server/debug_workbench.lua',
+    'things/server.lua',
     'server/version_check.lua',
 }
 
@@ -70,6 +74,7 @@ files {
     'ui/surfaces/interactions.js',
     'ui/surfaces/settings.css',
     'ui/surfaces/settings.js',
+    'ui/surfaces/skins.css',
     'ui/notify-grain.svg',
     'ui/app.js',
     'ui/interaction-key.js',
@@ -85,6 +90,7 @@ files {
     'ui/vendor/react-dom.production.min.js',
     'ui/vendor/LICENSE-react.txt',
     'imports/notify/client.lua',
+    'imports/notices/client.lua',
     'imports/callback/client.lua',
     'imports/menu/client.lua',
     'imports/radial/client.lua',
@@ -99,6 +105,8 @@ files {
     'imports/interaction/client.lua',
     'imports/callouts/client.lua',
     'imports/skillCheck/client.lua',
+    'imports/thing/client.lua',
+    'imports/keys/client.lua',
     'imports/skillCheck/shared.lua',
     'imports/settings/client.lua',
     'imports/sensors/client.lua',
@@ -107,6 +115,7 @@ files {
     'imports/notify/server.lua',
     'imports/callback/server.lua',
     'imports/groups/server.lua',
+    'imports/thing/server.lua',
     'imports/timer/shared.lua',
     'imports/waitFor/shared.lua',
     'imports/utils/shared.lua',

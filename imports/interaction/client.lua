@@ -21,6 +21,8 @@ local MAX_ANCHOR_OFFSET = 10.0
 local MIN_HOLD_DURATION_MS = 100
 local MAX_MARKER_DISTANCE = 25.0
 local MAX_HOLD_DURATION_MS = 600000
+local MAX_NOTE_BYTES = 64
+local MAX_MORE = 15
 
 if not lib.isInternalResource() then
     return {
@@ -51,6 +53,8 @@ local revision = 0
 -- replacement keeps it; cleared when the entry disappears.
 local preferredOwner = nil
 local preferredId = nil
+local reachKeys = {}
+local reachCount = 0
 
 local function trim(value)
     return value:match('^%s*(.-)%s*$')
@@ -220,6 +224,11 @@ local function normalizeAnchor(value)
         if not markerDistance then return nil, markerError end
     end
 
+    if value.alwaysPrompt ~= nil and type(value.alwaysPrompt) ~= 'boolean' then
+        return nil, 'anchor.alwaysPrompt must be a boolean'
+    end
+    local alwaysPrompt = value.alwaysPrompt == true
+
     local offset, offsetError = normalizeOffset(value.offset)
     if not offset then return nil, offsetError end
 
@@ -240,7 +249,7 @@ local function normalizeAnchor(value)
             z = z,
             offset = offset,
             maxDistance = maxDistance,
-            markerDistance = markerDistance,
+            markerDistance = markerDistance, alwaysPrompt = alwaysPrompt,
         }
     end
 
@@ -269,7 +278,7 @@ local function normalizeAnchor(value)
             model = model,
             offset = offset,
             maxDistance = maxDistance,
-            markerDistance = markerDistance,
+            markerDistance = markerDistance, alwaysPrompt = alwaysPrompt,
         }
     end
 
@@ -286,7 +295,7 @@ local function normalizeAnchor(value)
         bone = bone,
         offset = offset,
         maxDistance = maxDistance,
-        markerDistance = markerDistance,
+        markerDistance = markerDistance, alwaysPrompt = alwaysPrompt,
     }
 end
 
@@ -294,6 +303,7 @@ local function anchorsEqual(left, right)
     if left == nil or right == nil then return left == right end
     if left.type ~= right.type or left.maxDistance ~= right.maxDistance then return false end
     if left.markerDistance ~= right.markerDistance then return false end
+    if left.alwaysPrompt ~= right.alwaysPrompt then return false end
     if left.offset.x ~= right.offset.x or left.offset.y ~= right.offset.y or left.offset.z ~= right.offset.z then
         return false
     end
@@ -314,6 +324,7 @@ local function copyAnchor(anchor)
         type = anchor.type,
         maxDistance = anchor.maxDistance,
         markerDistance = anchor.markerDistance,
+        alwaysPrompt = anchor.alwaysPrompt,
         offset = {
             x = anchor.offset.x,
             y = anchor.offset.y,
@@ -334,7 +345,10 @@ local function copyAnchor(anchor)
     return copy
 end
 
+local forcedOwner = nil
+
 local function resolveOwner()
+    if forcedOwner then return forcedOwner end
     local invokingResource = GetInvokingResource()
     if type(invokingResource) == 'string' and invokingResource ~= '' then
         return invokingResource
@@ -356,10 +370,26 @@ local function copySnapshotEntry(entry)
             holdDuration = entry.holdDuration,
             holdActive = entry.holdActive == true,
             holdRevision = entry.holdRevision or 0,
+            note = entry.note,
+            more = entry.more,
+            blocked = entry.blocked == true,
             active = entry.active == true,
             visible = entry.visible == true,
             distance = entry.visible == true and entry.distance or nil,
         }
+end
+
+local function canClaimAheadOfRank(entry)
+    if not entry.anchor then return false end
+
+    local key = entry.key:upper()
+    for index = 1, #sortedEntries do
+        local other = sortedEntries[index]
+        if other == entry then return true end
+        if not other.anchor and other.key:upper() == key then return false end
+    end
+
+    return false
 end
 
 local function resolvePreferredEntry()
@@ -367,24 +397,17 @@ local function resolvePreferredEntry()
 
     local entries = ownerEntries[preferredOwner]
     local preferred = entries and entries[preferredId] or nil
-    if not preferred or not preferred.anchor then return nil end
-
-    -- A preference only reorders anchored rows. If a screen prompt is the
-    -- natural owner of this key, the list cannot claim it.
-    local key = preferred.key:upper()
-    for index = 1, #sortedEntries do
-        local entry = sortedEntries[index]
-        if entry.key:upper() == key then
-            if not entry.anchor then return nil end
-            break
-        end
-    end
+    if not preferred or not canClaimAheadOfRank(preferred) then return nil end
 
     return preferred
 end
 
--- Key arbitration: the preferred entry (if any) claims its key first, then
--- higher priority, then earlier registration. Runs only on mutation.
+local function claimKey(claimedKeys, entry)
+    if entry.blocked then return end
+    local key = entry.key:upper()
+    if claimedKeys[key] == nil then claimedKeys[key] = entry end
+end
+
 local function arbitrate()
     local preferred = resolvePreferredEntry()
     if not preferred then
@@ -393,20 +416,25 @@ local function arbitrate()
     end
 
     local claimedKeys = {}
-    if preferred then claimedKeys[preferred.key:upper()] = preferred end
+    if preferred then claimKey(claimedKeys, preferred) end
+
+    for index = 1, reachCount do
+        local entry = interactions[reachKeys[index]]
+        if entry and canClaimAheadOfRank(entry) then claimKey(claimedKeys, entry) end
+    end
 
     for index = 1, #sortedEntries do
         local entry = sortedEntries[index]
-        local key = entry.key:upper()
-        local wasActive = entry.active == true
-        local claimant = claimedKeys[key]
+        if not entry.anchor then claimKey(claimedKeys, entry) end
+    end
 
-        if claimant == nil then
-            entry.active = true
-            claimedKeys[key] = entry
-        else
-            entry.active = claimant == entry
-        end
+    local changed = false
+    for index = 1, #sortedEntries do
+        local entry = sortedEntries[index]
+        claimKey(claimedKeys, entry)
+        local wasActive = entry.active == true
+        entry.active = entry.blocked == true or claimedKeys[entry.key:upper()] == entry
+        if entry.active ~= wasActive then changed = true end
 
         if not entry.active then
             entry.visible = false
@@ -418,6 +446,8 @@ local function arbitrate()
             end
         end
     end
+
+    return changed
 end
 
 local function rebuildSortedEntries()
@@ -571,6 +601,33 @@ local function normalize(data)
         return nil, 'panel is only supported for screen interactions'
     end
 
+    local note = nil
+    if data.note ~= nil then
+        local noteError
+        note, noteError = validateText(data.note, 'note', MAX_NOTE_BYTES)
+        if not note then return nil, noteError end
+    end
+
+    local more = nil
+    if data.more ~= nil then
+        local moreError
+        more, moreError = validateFiniteNumber(data.more, 'more', 1, MAX_MORE)
+        if not more then return nil, moreError end
+        more = math.floor(more)
+    end
+
+    if data.blocked ~= nil and type(data.blocked) ~= 'boolean' then
+        return nil, 'blocked must be a boolean'
+    end
+    local blocked = data.blocked == true
+
+    if (note or more or blocked) and not anchor then
+        return nil, 'note, more and blocked are only supported for anchored interactions'
+    end
+    if blocked and holdDuration then
+        return nil, 'a blocked interaction cannot define holdDuration'
+    end
+
     return {
         id = id,
         label = label,
@@ -579,6 +636,9 @@ local function normalize(data)
         anchor = anchor,
         panel = panel,
         holdDuration = holdDuration,
+        note = note,
+        more = more,
+        blocked = blocked,
         holdActive = false,
         holdRevision = 0,
         visible = false,
@@ -591,6 +651,9 @@ local function definitionsEqual(left, right)
         and left.key == right.key
         and left.priority == right.priority
         and left.holdDuration == right.holdDuration
+        and left.note == right.note
+        and left.more == right.more
+        and left.blocked == right.blocked
         and panelsEqual(left.panel, right.panel)
         and anchorsEqual(left.anchor, right.anchor)
 end
@@ -628,6 +691,7 @@ local function rawAnchorMatches(current, value)
     if defaultNumber(value.markerDistance, defaultMarkerDistance(current.maxDistance)) ~= current.markerDistance then
         return false
     end
+    if (value.alwaysPrompt == true) ~= current.alwaysPrompt then return false end
     if not rawOffsetMatches(current.offset, value.offset) then return false end
 
     if current.type == 'world' then
@@ -677,6 +741,9 @@ local function rawDefinitionMatches(current, data)
 
     local id = data.id == nil and 'default' or data.id
     if id ~= current.id or data.label ~= current.label or data.key ~= current.key then return false end
+    if data.note ~= current.note or data.more ~= current.more then return false end
+    if data.blocked ~= nil and type(data.blocked) ~= 'boolean' then return false end
+    if (data.blocked == true) ~= (current.blocked == true) then return false end
 
     local priority = data.priority == nil and 0 or finiteNumber(data.priority)
     if not priority then return false end
@@ -1031,6 +1098,30 @@ local function getInteractionPreference()
     return preferredOwner, preferredId
 end
 
+local function setInteractionReach(registryKeys, count)
+    if type(registryKeys) ~= 'table' then return false end
+    count = math.max(0, math.min(math.floor(tonumber(count) or #registryKeys), MAX_INTERACTIONS_TOTAL))
+
+    local changed = count ~= reachCount
+    for index = 1, count do
+        local registryKey = registryKeys[index]
+        if type(registryKey) ~= 'string' then return false end
+        if reachKeys[index] ~= registryKey then changed = true end
+    end
+    if not changed then return true end
+
+    for index = 1, count do
+        reachKeys[index] = registryKeys[index]
+    end
+    for index = count + 1, reachCount do
+        reachKeys[index] = nil
+    end
+    reachCount = count
+
+    if arbitrate() then publish(false) end
+    return true
+end
+
 local function setInteractionHold(id, active)
     if type(active) ~= 'boolean' then
         return false, 'hold state must be a boolean'
@@ -1091,6 +1182,9 @@ exports('isInteractionActive', isInteractionActive)
 exports('isInteractionVisible', isInteractionVisible)
 exports('startInteractionHold', startInteractionHold)
 exports('cancelInteractionHold', cancelInteractionHold)
+exports('interactionSupports', function(field)
+    return field == 'note' or field == 'more' or field == 'blocked'
+end)
 
 lib.showInteraction = showInteraction
 lib.hideInteraction = hideInteraction
@@ -1103,9 +1197,19 @@ lib.isInteractionVisible = isInteractionVisible
 lib.startInteractionHold = startInteractionHold
 lib.cancelInteractionHold = cancelInteractionHold
 lib._setInteractionPresentationState = setInteractionPresentationState
+lib._interactionRowFields = true
+lib._asInteractionOwner = function(owner, fn, ...)
+    local previous = forcedOwner
+    forcedOwner = owner
+    local ok, first, second = pcall(fn, ...)
+    forcedOwner = previous
+    if not ok then error(first, 0) end
+    return first, second
+end
 -- Renderer-private list selection. Never exported to consumer resources.
 lib._setInteractionPreference = setInteractionPreference
 lib._getInteractionPreference = getInteractionPreference
+lib._setInteractionReach = setInteractionReach
 -- Internal read-only access: skill checks share the renderer's visibility and
 -- detect definition replacement without allocating a registry snapshot per tick.
 lib._getInteractionForSkillCheck = function(owner, id)

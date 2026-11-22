@@ -1,6 +1,6 @@
 /* ============================================================================
    MENU: a --slip column. SlipHeader, a windowed list of display-caps rows
-   (selected flips to paper with the accent bar), description, keycap legend.
+   (selected flips to paper), description, keycap legend.
    Sizes in --u only; nothing visible under 3u; only transform/opacity move.
    ============================================================================ */
 
@@ -41,7 +41,7 @@
     to { opacity: 1; transform: none; }
 }
 
-/* The header bar (x = 12u) and the selected row's accent bar share one edge. */
+/* The header bar sits at x = 12u. */
 .cortex-menu-header {
     flex: 0 0 auto;
     margin: 0 calc(16 * var(--u)) calc(16 * var(--u)) calc(12 * var(--u));
@@ -99,17 +99,16 @@
 
 .cortex-menu-option:hover:not(.active):not(.is-disabled) { background: var(--wash); }
 
-/* Selected: flips to paper with ink text and a 4u accent bar on its left edge. */
+/* Selected: flips to paper with ink text. */
 .cortex-menu-option.active {
     background: var(--paper);
     color: var(--ink);
-    box-shadow: inset calc(4 * var(--u)) 0 0 var(--accent);
 }
 
 .cortex-menu-option.is-pressed { transform: translateY(calc(2 * var(--u))); }
 
 .cortex-menu-option.is-disabled { color: var(--dim); cursor: default; }
-.cortex-menu-option.is-disabled.active { background: var(--wash-strong); color: var(--muted); box-shadow: inset calc(4 * var(--u)) 0 0 var(--dim); }
+.cortex-menu-option.is-disabled.active { background: var(--wash-strong); color: var(--muted); }
 
 /* Faded edges: the partly-hidden neighbours at a scrolled window's ends. */
 .cortex-menu-option.is-edge { opacity: 0.34; }
@@ -164,7 +163,6 @@
     transition: transform 160ms var(--ease);
 }
 
-.cortex-menu-option.active .cortex-menu-option-main { transform: translateX(calc(4 * var(--u))); }
 
 .cortex-menu-option-line {
     display: flex;

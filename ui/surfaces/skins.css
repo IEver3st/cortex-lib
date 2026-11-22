@@ -1,0 +1,111 @@
+html[data-cx-design='leonida'] {
+    --skin-card: rgba(15, 16, 18, calc(0.82 * var(--cx-surface-alpha, 0.92) / 0.92));
+    --skin-radius: var(--r-sm);
+    --skin-title: 700 calc(19 * var(--u)) / 1.05 var(--display);
+    --skin-title-case: uppercase;
+    --skin-title-spacing: 0.04em;
+    --skin-track: var(--rule);
+}
+
+html[data-cx-design='vi'] {
+    --skin-card: rgba(30, 30, 35, calc(0.82 * var(--cx-surface-alpha, 0.92) / 0.92));
+    --skin-radius: calc(3 * var(--u));
+    --skin-title: 700 calc(20 * var(--u)) / 1.1 var(--display);
+    --skin-title-case: none;
+    --skin-title-spacing: 0.01em;
+    --skin-track: rgba(240, 240, 233, 0.14);
+}
+
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify {
+    padding: calc(12 * var(--u)) calc(14 * var(--u)) calc(13 * var(--u));
+    border-radius: var(--skin-radius);
+    background: var(--skin-card);
+    text-shadow: none;
+}
+
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-title,
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-headline .notify-description {
+    font: var(--skin-title);
+    letter-spacing: var(--skin-title-spacing);
+    text-transform: var(--skin-title-case);
+}
+
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-description {
+    margin-top: calc(4 * var(--u));
+    font-size: calc(15 * var(--u) * var(--cx-text, 1));
+    line-height: 1.4;
+}
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-lead { margin-top: calc(4 * var(--u)); font-size: calc(15 * var(--u) * var(--cx-text, 1)); }
+
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-coin {
+    margin-top: calc(-2 * var(--u));
+    background: var(--notify-tone);
+    color: var(--ink);
+}
+html[data-cx-design='leonida'] .notify-coin { border-radius: var(--r-sm); }
+html[data-cx-design='leonida'] .notify-coin.is-sender { background: var(--wash); color: var(--notify-sender, var(--paper)); box-shadow: inset 0 0 0 calc(3 * var(--u)) var(--notify-sender, var(--rule-strong)); }
+html[data-cx-design='vi'] .notify-coin.is-sender { background: var(--notify-sender, var(--paper)); color: var(--ink); }
+html[data-cx-design='vi'] .notify-coin-letter { font-style: normal; font-weight: 700; }
+
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-duration {
+    width: 100%;
+    margin-top: calc(10 * var(--u));
+    background: var(--skin-track);
+}
+
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-close-cap { box-shadow: none; }
+
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-log {
+    gap: calc(12 * var(--u));
+    padding: calc(12 * var(--u)) calc(14 * var(--u)) calc(14 * var(--u));
+    border-radius: var(--skin-radius);
+    background: var(--skin-card);
+}
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-log > .notify.notify-logged {
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-log > .notify.notify-logged .notify-title { font-size: calc(17 * var(--u)); }
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-age { font-size: calc(13 * var(--u)); }
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-overflow { font: var(--skin-title); letter-spacing: var(--skin-title-spacing); text-transform: var(--skin-title-case); }
+
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .progress-wrapper {
+    gap: calc(10 * var(--u));
+    padding: calc(14 * var(--u)) calc(16 * var(--u)) calc(16 * var(--u));
+    border-radius: var(--skin-radius);
+    background: var(--skin-card);
+    text-shadow: none;
+}
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .progress-label,
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .progress-value {
+    font: var(--skin-title);
+    letter-spacing: var(--skin-title-spacing);
+    text-transform: var(--skin-title-case);
+}
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .progress-value { font-variant-numeric: tabular-nums; }
+html[data-cx-design='vi'] .progress-value { color: var(--muted); }
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .progress-meter { box-shadow: none; background: var(--skin-track); }
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .progress-cancel .cx-hint { font-size: calc(15 * var(--u)); text-shadow: none; }
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .progress-ring { filter: none; }
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .progress-ring .cx-ring-track { stroke: var(--skin-track); }
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .progress-circle-text { font-style: normal; font-weight: 700; }
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .progress-wrapper.is-circle { width: fit-content; min-width: calc(180 * var(--u)); max-width: 100%; margin-inline: auto; padding: calc(18 * var(--u)) calc(24 * var(--u)); }
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .progress-wrapper.is-circle .progress-label { font-size: calc(18 * var(--u)); }
+
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) #textui {
+    padding: calc(10 * var(--u)) calc(16 * var(--u));
+    border-radius: var(--skin-radius) !important;
+    background: var(--skin-card) !important;
+    text-shadow: none;
+}
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) #textui.textui--action .textui-text {
+    font: var(--skin-title);
+    font-size: calc(22 * var(--u));
+    letter-spacing: var(--skin-title-spacing);
+    text-transform: var(--skin-title-case);
+}
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) #textui.textui--sentence .textui-text { font-size: calc(17 * var(--u) * var(--cx-text, 1)); }
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .textui-icon { filter: none; }
+:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) #textui .cx-key { box-shadow: none; }

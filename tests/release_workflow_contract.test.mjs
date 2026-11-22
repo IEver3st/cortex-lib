@@ -44,7 +44,7 @@ for (const requiredGate of [
 assert.match(workflow, /git ls-files -z/, 'release contents must come only from tracked files');
 assert.match(
     workflow,
-    /client imports resource server ui README\.md README\.txt LICENSE THIRD_PARTY_NOTICES\.md/,
+    /client imports keys resource server things ui README\.md README\.txt LICENSE THIRD_PARTY_NOTICES\.md/,
     'release must contain runtime files, the customer README and licenses only'
 );
 assert.match(workflow, /git archive[\s\S]*?--prefix="\$\{RELEASE_NAME\}\/"/, 'archive must contain one top-level resource folder');

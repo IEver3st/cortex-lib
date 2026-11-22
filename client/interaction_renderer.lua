@@ -39,6 +39,12 @@ local LIST_MERGE_RATIO = 0.06
 -- Markers closer than this merge into one marker (and hide under a prompt).
 local MARKER_MERGE_RATIO = 0.035
 local MAX_WORLD_ITEMS = 16
+local REACH_HYSTERESIS_RATIO = 0.05
+local PROMPT_EXIT_MARGIN = 0.15
+local PROMPT_NEAR_SQUARED = 1.5 * 1.5
+local PROMPT_NEAR_EXIT_SQUARED = 1.8 * 1.8
+local PROMPT_LOOK_RATIO = 0.16
+local PROMPT_LOOK_EXIT_RATIO = 0.21
 
 -- Adaptive cadence. Anything on screen, markers included, is tracked every
 -- frame: a marker updated at a lower rate trails the camera and swims when it
@@ -129,15 +135,10 @@ local function percentScale(value)
     return math_floor(math_max(80, math_min(130, value)) + 0.5) / 100
 end
 
--- Markers are drawn natively, not in NUI. A NUI dot is projected with the
--- previous frame's camera and reaches the screen through CEF a frame or two
--- later, so it trails its anchor whenever the camera turns. SetDrawOrigin is
--- resolved by the game at render time with the current camera, so the dot
--- stays pinned. Same look as the NUI marker it replaced: a 10u paper dot in
--- a 22u paper ring (3.5u wide) with a 4u shadow, sized by --u x prompt scale.
-local MARKER_TXD, MARKER_TEXTURE = 'cortex_lib_marker', 'dot'
-local MARKER_PIXELS = 64            -- texture edge; covers MARKER_UNITS
-local MARKER_UNITS = 32             -- the 22u ring plus its shadow
+local MARKER_TXD, MARKER_TEXTURE = 'cortex_lib_marker', 'ring'
+local MARKER_PIXELS = 64
+local MARKER_UNITS = 20
+local MARKER_RING_OUTER_UNITS, MARKER_RING_INNER_UNITS, MARKER_SHADOW_UNITS = 6, 3, 3
 local MARKER_FADE_IN_MS = 240
 local markerTextureReady = false
 local nativeMarkers = {}
@@ -153,20 +154,19 @@ local function ensureMarkerTexture()
     if not texture then return false end
     local perUnit = MARKER_PIXELS / MARKER_UNITS
     local centre = MARKER_PIXELS / 2
-    local outer, inner, core = 11 * perUnit, 7.5 * perUnit, 5 * perUnit
-    local ringBlur, coreBlur = 4 * perUnit, 3 * perUnit
+    local outer, inner = MARKER_RING_OUTER_UNITS * perUnit, MARKER_RING_INNER_UNITS * perUnit
+    local ringBlur = MARKER_SHADOW_UNITS * perUnit
     for py = 0, MARKER_PIXELS - 1 do
         for px = 0, MARKER_PIXELS - 1 do
             local dx, dy = px + 0.5 - centre, py + 0.5 - centre
             local d = math_sqrt(dx * dx + dy * dy)
-            local paper = math_max(coverage(outer - d) * coverage(d - inner), coverage(core - d))
+            local paper = coverage(outer - d) * coverage(d - inner)
             local shadow = 0.0
             if d > outer then
                 local t = math_min(1.0, (d - outer) / ringBlur)
                 shadow = 0.6 * (1.0 - t * t * (3.0 - 2.0 * t))
-            elseif d < inner and d > core then
-                local t = math_min(1.0, (d - core) / coreBlur)
-                shadow = 0.55 * (1.0 - t * t * (3.0 - 2.0 * t))
+            elseif d < inner then
+                shadow = 0.45
             end
             local under = shadow * (1.0 - paper)
             local alpha = paper + under
@@ -219,6 +219,19 @@ local markerCandidates = {}
 local clusters = {}
 local clusterCount = 0
 local markerHeads = {}
+local clusterOrder = {}
+local cellOrder = {}
+local reachOwnerCluster = {}
+local reachOwnerStamp = {}
+local lastOwnerGroup = {}
+local lastOwnerStamp = {}
+local reachClaims = {}
+local reachKeys = {}
+local reachCount = 0
+local HELD_ELSEWHERE = {}
+local LIST_EXPAND_MS = 2000
+local expandedGroup, expandedUntil = nil, 0
+local descriptorsByGroup = {}
 
 local function send(message)
     if nuiReady then
@@ -272,6 +285,16 @@ local function setWorldPresentationState(descriptor, visible, distance)
     setPresentationState(descriptor.frameItem, nextVisible, nextDistance)
 end
 
+local function applyReach(count)
+    for index = count + 1, reachCount do
+        reachKeys[index] = nil
+    end
+    reachCount = count
+
+    local setter = lib._setInteractionReach
+    if type(setter) == 'function' then setter(reachKeys, count) end
+end
+
 -- Ask the registry to let this row win its key (nil clears). Idempotent.
 local function applyPreference(descriptor)
     local key = descriptor and descriptor.key or nil
@@ -306,6 +329,8 @@ local function copyPresentationItem(item, includeHold)
         holdDuration = includeHold and item.holdDuration or nil,
         holdActive = includeHold and item.holdActive == true or false,
         holdRevision = includeHold and (item.holdRevision or 0) or 0,
+        note = includeHold and item.note or nil,
+        blocked = includeHold and item.blocked == true or nil,
     }
 end
 
@@ -357,10 +382,11 @@ local function hideWorldPresentations()
     end
 end
 
-local function hideWorldFrame()
+local function hideWorldFrame(keepReach)
     hideWorldPresentations()
     selectedKey = nil
     applyPreference(nil)
+    if not keepReach then applyReach(0) end
 
     if nuiWorldShown then
         send(emptyWorldFrameMessage)
@@ -397,10 +423,16 @@ local function prepareWorldInteraction(item, previous)
         owner = item.owner,
         id = item.id,
         groupId = item.owner .. ':' .. item.id,
-        keyUpper = type(item.key) == 'string' and item.key:upper() or '',
+        keyUpper = item.blocked == true and ('\1' .. key)
+            or (type(item.key) == 'string' and item.key:upper() or ''),
+        blocked = item.blocked == true,
+        collapsible = (tonumber(item.more) or 0) > 0,
         type = anchor.type,
         maxDistance = maxDistance,
+        alwaysPrompt = anchor.alwaysPrompt == true,
         maxDistanceSquared = maxDistance * maxDistance,
+        promptExitDistance = maxDistance + PROMPT_EXIT_MARGIN,
+        promptExitSquared = (maxDistance + PROMPT_EXIT_MARGIN) * (maxDistance + PROMPT_EXIT_MARGIN),
         markerDistance = hasMarkerTier and markerDistance or maxDistance,
         markerDistanceSquared = hasMarkerTier and markerDistance * markerDistance or 0.0,
         frameItem = copyPresentationItem(item, true),
@@ -412,6 +444,13 @@ local function prepareWorldInteraction(item, previous)
         presentationDistance = item.visible == true and item.distance or nil,
     }
     descriptor.frameItem.tier = 'prompt'
+    if previous then
+        descriptor.reachStamp = previous.reachStamp
+        descriptor.promptStamp = previous.promptStamp
+        descriptor.attendStamp = previous.attendStamp
+        descriptor.markerSince = previous.markerSince
+        descriptor.markerStamp = previous.markerStamp
+    end
 
     if anchor.type == 'world' then
         local x = tonumber(anchor.x)
@@ -460,10 +499,8 @@ local function sendCurrentInteractions(force)
     local nextEntityReads = {}
     local previousWorldByKey = {}
     local nextWorldByKey = {}
-    -- The natural (priority) owner of each key, ignoring the list preference.
-    -- A world row is only offered while its key's natural owner is in the
-    -- same list; a screen prompt (false) owning the key excludes world rows.
-    local naturalWinners = {}
+    local nextDescriptorsByGroup = {}
+    local screenKeys = {}
 
     for index = 1, #worldInteractions do
         local descriptor = worldInteractions[index]
@@ -473,9 +510,6 @@ local function sendCurrentInteractions(force)
     for index = 1, #items do
         local item = items[index]
         local keyUpper = type(item.key) == 'string' and item.key:upper() or ''
-        if naturalWinners[keyUpper] == nil then
-            naturalWinners[keyUpper] = type(item.anchor) == 'table' and (item.owner .. '\0' .. item.id) or false
-        end
 
         if suppressed then
             setPresentationState(item, false)
@@ -523,17 +557,19 @@ local function sendCurrentInteractions(force)
                         descriptor.boneReads = boneReads
                     end
                 end
-                descriptor.winnerKey = naturalWinners[keyUpper]
-                descriptor.natural = descriptor.winnerKey == descriptorKey
+                descriptor.outrankedByScreen = not descriptor.blocked and screenKeys[keyUpper] == true
                 nextWorldInteractions[#nextWorldInteractions + 1] = descriptor
                 nextWorldByKey[descriptorKey] = true
+                nextDescriptorsByGroup[descriptor.groupId] = descriptor
             elseif not previousWorldByKey[descriptorKey] then
                 setPresentationState(item, false)
             end
         elseif item.active ~= false then
+            screenKeys[keyUpper] = true
             screenItems[#screenItems + 1] = copyPresentationItem(item)
             setPresentationState(item, nuiReady)
         else
+            screenKeys[keyUpper] = true
             setPresentationState(item, false)
         end
     end
@@ -545,6 +581,7 @@ local function sendCurrentInteractions(force)
 
     worldInteractions = nextWorldInteractions
     worldEntityReads = nextEntityReads
+    descriptorsByGroup = nextDescriptorsByGroup
     worldFrameDirty = true
     clearArray(lastFrameDescriptors)
     lastWorldCount = -1
@@ -556,8 +593,9 @@ local function sendCurrentInteractions(force)
         preferenceKey = owner and (owner .. '\0' .. id) or nil
     end
 
-    if #worldInteractions == 0 and worldFrameVisible then
-        hideWorldFrame()
+    if #worldInteractions == 0 then
+        if worldFrameVisible then hideWorldFrame() end
+        applyReach(0)
     end
 
     if force or not presentationItemsEqual(screenItems, lastScreenItems) then
@@ -757,7 +795,12 @@ local function acquireCluster(index)
     end
     cluster.count = 0
     cluster.selectedIndex = 1
+    cluster.defaultIndex = 1
     cluster.choosable = false
+    cluster.collapsed = false
+    cluster.folded = 0
+    cluster.shownCount = 0
+    cluster.shownSelected = 1
     return cluster
 end
 
@@ -804,13 +847,67 @@ local function rowsShareKey(cluster)
     return false
 end
 
--- Row display activity mirrors the registry once the preference is applied:
--- the preferred row owns its key, otherwise the natural (priority) owner does.
-local function rowIsActive(descriptor, preferred)
+local function rowIsActive(descriptor, preferred, stamp)
     if preferred and preferred.keyUpper == descriptor.keyUpper then
         return preferred == descriptor
     end
-    return descriptor.natural == true
+    return descriptor.reachStamp == stamp
+end
+
+local function demoteToMarker(descriptor, markerCount)
+    descriptor.tier = 'marker'
+    markerCount = markerCount + 1
+    markerCandidates[markerCount] = descriptor
+    return markerCount
+end
+
+local function clusterFocusScore(cluster, screenWidth, screenHeight)
+    local rows = cluster.rows
+    for rowIndex = 1, cluster.count do
+        if rows[rowIndex].frameItem.holdActive then return -math_huge end
+    end
+
+    local dx = cluster.head.pixelX - (screenWidth * 0.5)
+    local dy = cluster.head.pixelY - (screenHeight * 0.5)
+    return math_sqrt((dx * dx) + (dy * dy))
+end
+
+local function orderClustersByFocus(screenWidth, screenHeight)
+    for clusterIndex = 1, clusterCount do
+        local cluster = clusters[clusterIndex]
+        cluster.focusScore = clusterFocusScore(cluster, screenWidth, screenHeight)
+
+        local position = clusterIndex
+        while position > 1 and clusterOrder[position - 1].focusScore > cluster.focusScore do
+            clusterOrder[position] = clusterOrder[position - 1]
+            position = position - 1
+        end
+        clusterOrder[position] = cluster
+    end
+    clearArray(clusterOrder, clusterCount + 1)
+end
+
+local function claimReach(descriptor, owner, stamp, claimCount)
+    local keyUpper = descriptor.keyUpper
+    reachOwnerCluster[keyUpper] = owner
+    reachOwnerStamp[keyUpper] = stamp
+    descriptor.reachStamp = stamp
+    descriptor.reachOwner = owner
+    claimCount = claimCount + 1
+    reachClaims[claimCount] = descriptor
+    return claimCount
+end
+
+local function incumbentOwner(keyUpper, challenger, stamp, margin)
+    if lastOwnerStamp[keyUpper] ~= stamp - 1 then return nil end
+
+    local incumbent = descriptorsByGroup[lastOwnerGroup[keyUpper]]
+    if not incumbent or incumbent.tier ~= 'prompt' or incumbent.clusterStamp ~= stamp then return nil end
+
+    local home = incumbent.frameCluster
+    if home == challenger or home.count == 0 then return nil end
+    if home.focusScore - challenger.focusScore > margin then return nil end
+    return incumbent
 end
 
 local function stageItem(frameCount, descriptor, item, pixelX, pixelY, centimetres, flags, group)
@@ -890,8 +987,13 @@ local function buildWorldFrame()
             local dy = pedY - y
             local dz = pedZ - z
             local distanceSquared = (dx * dx) + (dy * dy) + (dz * dz)
-            local outerSquared = descriptor.maxDistanceSquared
+            local promptSquared = descriptor.maxDistanceSquared
             local outer = descriptor.maxDistance
+            if descriptor.promptStamp == stamp - 1 then
+                promptSquared = descriptor.promptExitSquared
+                outer = descriptor.promptExitDistance
+            end
+            local outerSquared = promptSquared
             if markersEnabled and descriptor.markerDistanceSquared > outerSquared then
                 outerSquared = descriptor.markerDistanceSquared
                 outer = descriptor.markerDistance
@@ -899,6 +1001,8 @@ local function buildWorldFrame()
 
             if distanceSquared <= outerSquared then
                 anyInRange = true
+                local inPromptRange = distanceSquared <= promptSquared
+                if inPromptRange then descriptor.promptStamp = stamp end
                 local onScreen, screenX, screenY = World3dToScreen2d(x, y, z)
 
                 if onScreen
@@ -912,7 +1016,21 @@ local function buildWorldFrame()
                     descriptor.distance = math_sqrt(distanceSquared)
                     descriptor.worldX, descriptor.worldY, descriptor.worldZ = x, y, z
 
-                    if distanceSquared <= descriptor.maxDistanceSquared then
+                    local attended = false
+                    if inPromptRange then
+                        local wasAttended = descriptor.attendStamp == stamp - 1
+                        attended = descriptor.alwaysPrompt or descriptor.frameItem.holdActive
+                            or distanceSquared <= (wasAttended and PROMPT_NEAR_EXIT_SQUARED or PROMPT_NEAR_SQUARED)
+                        if not attended then
+                            local lookX = descriptor.pixelX - screenWidth * 0.5
+                            local lookY = descriptor.pixelY - screenHeight * 0.5
+                            local look = (wasAttended and PROMPT_LOOK_EXIT_RATIO or PROMPT_LOOK_RATIO) * screenHeight
+                            attended = (lookX * lookX) + (lookY * lookY) <= look * look
+                        end
+                    end
+
+                    if attended then
+                        descriptor.attendStamp = stamp
                         descriptor.tier = 'prompt'
                         promptCount = promptCount + 1
                         promptCandidates[promptCount] = descriptor
@@ -967,11 +1085,10 @@ local function buildWorldFrame()
 
         target.count = target.count + 1
         target.rows[target.count] = descriptor
+        descriptor.frameCluster = target
+        descriptor.clusterStamp = stamp
     end
 
-    -- 3. A row is offered only while its key's natural owner is in the same
-    --    list; otherwise pressing the key would run something else. Such rows
-    --    fall back to the marker tier.
     local keptClusters = 0
     for clusterIndex = 1, clusterCount do
         local cluster = clusters[clusterIndex]
@@ -980,23 +1097,11 @@ local function buildWorldFrame()
 
         for rowIndex = 1, cluster.count do
             local descriptor = rows[rowIndex]
-            local eligible = descriptor.natural == true
-            if not eligible and descriptor.winnerKey then
-                for other = 1, cluster.count do
-                    if rows[other].key == descriptor.winnerKey then
-                        eligible = true
-                        break
-                    end
-                end
-            end
-
-            if eligible then
+            if descriptor.outrankedByScreen then
+                markerCount = demoteToMarker(descriptor, markerCount)
+            else
                 kept = kept + 1
                 rows[kept] = descriptor
-            else
-                descriptor.tier = 'marker'
-                markerCount = markerCount + 1
-                markerCandidates[markerCount] = descriptor
             end
         end
 
@@ -1011,11 +1116,95 @@ local function buildWorldFrame()
         end
     end
     clusterCount = keptClusters
+
+    orderClustersByFocus(screenWidth, screenHeight)
+    local claimCount = 0
+
+    for index = 1, #worldInteractions do
+        local descriptor = worldInteractions[index]
+        if descriptor.frameItem.holdActive and descriptor.tier ~= 'prompt' and descriptor.promptStamp == stamp
+            and not descriptor.outrankedByScreen
+            and reachOwnerStamp[descriptor.keyUpper] ~= stamp
+        then
+            claimCount = claimReach(descriptor, HELD_ELSEWHERE, stamp, claimCount)
+        end
+    end
+
+    local hysteresis = REACH_HYSTERESIS_RATIO * screenHeight
+    for orderIndex = 1, clusterCount do
+        local cluster = clusterOrder[orderIndex]
+        local rows = cluster.rows
+        for rowIndex = 1, cluster.count do
+            local descriptor = rows[rowIndex]
+            if reachOwnerStamp[descriptor.keyUpper] ~= stamp then
+                local incumbent = incumbentOwner(descriptor.keyUpper, cluster, stamp, hysteresis)
+                if incumbent then
+                    claimCount = claimReach(incumbent, incumbent.frameCluster, stamp, claimCount)
+                else
+                    claimCount = claimReach(descriptor, cluster, stamp, claimCount)
+                end
+            end
+        end
+    end
+
+    local cellCount = 0
+    for orderIndex = 1, clusterCount do
+        local cluster = clusterOrder[orderIndex]
+        local rows = cluster.rows
+        local kept = 0
+
+        for rowIndex = 1, cluster.count do
+            local descriptor = rows[rowIndex]
+            if reachOwnerCluster[descriptor.keyUpper] == cluster then
+                kept = kept + 1
+                rows[kept] = descriptor
+            else
+                markerCount = demoteToMarker(descriptor, markerCount)
+            end
+        end
+
+        clearArray(rows, kept + 1)
+        cluster.count = kept
+        if kept > 0 then
+            cluster.head = rows[1]
+            cellCount = cellCount + 1
+            cellOrder[cellCount] = cluster
+        end
+    end
+    clearArray(cellOrder, cellCount + 1)
+
+    keptClusters = 0
+    for clusterIndex = 1, clusterCount do
+        local cluster = clusters[clusterIndex]
+        if cluster.count > 0 then
+            keptClusters = keptClusters + 1
+            if keptClusters ~= clusterIndex then
+                clusters[clusterIndex], clusters[keptClusters] = clusters[keptClusters], cluster
+            end
+        end
+    end
+    clusterCount = keptClusters
     clearArray(markerCandidates, markerCount + 1)
 
-    -- 4. From the DUI each list needs an atlas cell. A list without one is not
-    --    drawn, so it cannot take the wheel and its rows are not staged.
-    if duiFeed then worldDui.assign(now, clusters, clusterCount) end
+    if duiFeed then worldDui.assign(now, cellOrder, cellCount) end
+
+    local keptClaims = 0
+    for claimIndex = 1, claimCount do
+        local descriptor = reachClaims[claimIndex]
+        local owner = descriptor.reachOwner
+        if duiMode and owner ~= HELD_ELSEWHERE and not owner.cell then
+            descriptor.reachStamp = nil
+        else
+            keptClaims = keptClaims + 1
+            reachKeys[keptClaims] = descriptor.groupId
+            if not descriptor.blocked then
+                lastOwnerGroup[descriptor.keyUpper] = descriptor.groupId
+                lastOwnerStamp[descriptor.keyUpper] = stamp
+            end
+        end
+    end
+    clearArray(reachClaims, claimCount + 1)
+    applyReach(keptClaims)
 
     --    Focus: the list nearest the screen centre that has a real choice.
     local focused = nil
@@ -1023,10 +1212,18 @@ local function buildWorldFrame()
     for clusterIndex = 1, clusterCount do
         local cluster = clusters[clusterIndex]
         cluster.choosable = cluster.count > 1 and rowsShareKey(cluster) and not (duiMode and not cluster.cell)
+        for rowIndex = 1, cluster.count do
+            if not cluster.rows[rowIndex].blocked then
+                cluster.defaultIndex = rowIndex
+                cluster.selectedIndex = rowIndex
+                break
+            end
+        end
         if cluster.choosable then
             local dx = cluster.head.pixelX - (screenWidth * 0.5)
             local dy = cluster.head.pixelY - (screenHeight * 0.5)
             local distance = (dx * dx) + (dy * dy)
+            if cluster.focusScore == -math_huge then distance = -1 end
             if distance < focusDistance then
                 focused = cluster
                 focusDistance = distance
@@ -1038,7 +1235,7 @@ local function buildWorldFrame()
     local preferred = nil
     if focused then
         local rows = focused.rows
-        local selected = 1
+        local selected = focused.defaultIndex
         local holding = false
         for rowIndex = 1, focused.count do
             local descriptor = rows[rowIndex]
@@ -1052,17 +1249,46 @@ local function buildWorldFrame()
             -- A hold in progress freezes the selection: scrolling cannot move
             -- a consumer's running hold onto a different row.
             if delta ~= 0 and not holding then
-                selected = math_max(1, math_min(focused.count, selected + delta))
+                local target = selected + delta
+                while target >= 1 and target <= focused.count and rows[target].blocked do
+                    target = target + delta
+                end
+                if target >= 1 and target <= focused.count then selected = target end
+                expandedGroup = focused.head.groupId
+                expandedUntil = now + LIST_EXPAND_MS
             end
         end
 
         focused.selectedIndex = selected
         selectedKey = rows[selected].key
-        if selected ~= 1 then preferred = rows[selected] end
+        if selected ~= focused.defaultIndex then preferred = rows[selected] end
     else
         selectedKey = nil
     end
     worldListHint = focused ~= nil and takesWheel
+
+    for clusterIndex = 1, clusterCount do
+        local cluster = clusters[clusterIndex]
+        local collapsible = false
+        local folded = 0
+        if cluster.choosable then
+            local foldKey = cluster.rows[cluster.selectedIndex].keyUpper
+            for rowIndex = 1, cluster.count do
+                local descriptor = cluster.rows[rowIndex]
+                if descriptor.frameItem.holdActive then
+                    collapsible = false
+                    break
+                end
+                if descriptor.keyUpper == foldKey then
+                    if descriptor.collapsible then collapsible = true end
+                    if rowIndex ~= cluster.selectedIndex then folded = folded + 1 end
+                end
+            end
+        end
+        if not collapsible or (expandedGroup == cluster.head.groupId and now < expandedUntil) then folded = 0 end
+        cluster.folded = folded
+        cluster.collapsed = folded > 0
+    end
 
     -- Apply before presentation writes so the registry agrees this frame.
     applyPreference(preferred)
@@ -1085,29 +1311,40 @@ local function buildWorldFrame()
         local rowCount = (duiMode and not cluster.cell) and 0 or cluster.count
         needsEveryFrame = true
 
+        local collapsed = cluster.collapsed == true and rowCount > 0
+        local folded = collapsed and cluster.folded or 0
+        local foldKey = collapsed and cluster.rows[cluster.selectedIndex].keyUpper or nil
+        local shown, shownSelected = 0, 1
         for rowIndex = 1, rowCount do
             if frameCount >= MAX_WORLD_ITEMS then break end
             local descriptor = cluster.rows[rowIndex]
-            local item = descriptor.frameItem
-            local active = rowIsActive(descriptor, preferred)
             local selected = rowIndex == cluster.selectedIndex
+            if selected or descriptor.keyUpper ~= foldKey then
+                shown = shown + 1
+                if selected then shownSelected = shown end
+                local item = descriptor.frameItem
+                local active = rowIsActive(descriptor, preferred, stamp)
 
-            item.tier = 'prompt'
-            item.group = head.groupId
-            item.x = head.screenX
-            item.y = head.screenY
-            item.distance = head.distance
-            item.selected = selected
-            item.active = active
-            item.focused = isFocused
-            item.fade = nil
+                item.tier = 'prompt'
+                item.group = head.groupId
+                item.x = head.screenX
+                item.y = head.screenY
+                item.distance = head.distance
+                item.selected = selected
+                item.active = active
+                item.focused = isFocused
+                item.fade = nil
+                item.more = selected and folded > 0 and folded or nil
 
-            local flags = (selected and 2 or 0) + (active and 4 or 0) + (isFocused and 8 or 0)
-            frameCount = stageItem(frameCount, descriptor, item, pixelX, pixelY, centimetres, flags, head.groupId)
-            descriptor.frameStamp = stamp
-            -- Only the row that owns its key is visible (actionable).
-            setWorldPresentationState(descriptor, active, descriptor.distance)
+                local flags = (selected and 2 or 0) + (active and 4 or 0) + (isFocused and 8 or 0) + (selected and folded or 0) * 16
+                frameCount = stageItem(frameCount, descriptor, item, pixelX, pixelY, centimetres, flags, head.groupId)
+                descriptor.frameStamp = stamp
+                -- Only the row that owns its key is visible (actionable).
+                setWorldPresentationState(descriptor, active, descriptor.distance)
+            end
         end
+        cluster.shownCount = shown
+        cluster.shownSelected = shownSelected
     end
 
     -- 6. Markers: merged, hidden under prompts, faded with distance.
@@ -1285,7 +1522,7 @@ local function updateWorldFrame()
 
         worldFrameVisible = true
     elseif worldFrameVisible then
-        hideWorldFrame()
+        hideWorldFrame(true)
         worldFrameDirty = false
     else
         worldFrameDirty = false
@@ -1356,6 +1593,131 @@ CreateThread(function()
         Wait(1000)
     end
 end)
+
+local IsRawKeyDown = IsRawKeyDown
+local KEY_CODES = {
+    SPACE = 0x20, SPACEBAR = 0x20, ENTER = 0x0D, RETURN = 0x0D, TAB = 0x09, ESC = 0x1B, ESCAPE = 0x1B,
+    BACKSPACE = 0x08, BACK = 0x08, BKSP = 0x08, SHIFT = 0x10, LSHIFT = 0xA0, RSHIFT = 0xA1,
+    CTRL = 0x11, CONTROL = 0x11, LCTRL = 0xA2, LCONTROL = 0xA2, RCTRL = 0xA3, RCONTROL = 0xA3,
+    ALT = 0x12, MENU = 0x12, LALT = 0xA4, LMENU = 0xA4, RALT = 0xA5, RMENU = 0xA5,
+    CAPS = 0x14, CAPSLOCK = 0x14, CAPITAL = 0x14, LEFT = 0x25, ARROWLEFT = 0x25, UP = 0x26, ARROWUP = 0x26,
+    RIGHT = 0x27, ARROWRIGHT = 0x27, DOWN = 0x28, ARROWDOWN = 0x28, DELETE = 0x2E, DEL = 0x2E,
+    INSERT = 0x2D, INS = 0x2D, HOME = 0x24, END = 0x23, PAGEUP = 0x21, PGUP = 0x21, PRIOR = 0x21,
+    PAGEDOWN = 0x22, PGDN = 0x22, NEXT = 0x22, LMB = 0x01, MOUSE1 = 0x01, MOUSE_LEFT = 0x01,
+    RMB = 0x02, MOUSE2 = 0x02, MOUSE_RIGHT = 0x02, MMB = 0x04, MOUSE3 = 0x04, MOUSE_MIDDLE = 0x04,
+}
+local SIDED_KEY_CODES = { LSHIFT = 0xA0, RSHIFT = 0xA1, LCTRL = 0xA2, RCTRL = 0xA3, LALT = 0xA4, RALT = 0xA5 }
+local keyCodeCache = {}
+local visibleKeyLabels, visibleKeySeen = {}, {}
+local pressedKeys = {}
+local pressedMessage = { action = 'interaction:pressed', data = { keys = pressedKeys } }
+local lastPressedSignature = ''
+
+local function virtualKeyForToken(token)
+    if #token == 1 then
+        local byte = token:byte()
+        if (byte >= 0x41 and byte <= 0x5A) or (byte >= 0x30 and byte <= 0x39) then return byte end
+        return nil
+    end
+    local functionKey = tonumber(token:match('^F(%d%d?)$'))
+    if functionKey and functionKey >= 1 and functionKey <= 24 then return 0x6F + functionKey end
+    return KEY_CODES[token]
+end
+
+local function virtualKeysForLabel(label)
+    local cached = keyCodeCache[label]
+    if cached ~= nil then return cached end
+
+    local codes = {}
+    local side, modifier = label:match('^([LR])%s+(%a+)$')
+    local numpadDigit = label:match('^NUM%a*%s*(%d)$')
+    if side and SIDED_KEY_CODES[side .. modifier] then
+        codes[1] = SIDED_KEY_CODES[side .. modifier]
+    elseif numpadDigit then
+        codes[1] = 0x60 + tonumber(numpadDigit)
+    else
+        for token in label:gmatch('[^%s%+]+') do
+            local code = virtualKeyForToken(token)
+            if not code then
+                codes = false
+                break
+            end
+            codes[#codes + 1] = code
+        end
+        if codes and #codes == 0 then codes = false end
+    end
+
+    keyCodeCache[label] = codes
+    return codes
+end
+
+local function trackVisibleKey(count, key)
+    if type(key) ~= 'string' then return count end
+    local label = key:upper():match('^%s*(.-)%s*$')
+    if label == '' or visibleKeySeen[label] then return count end
+    visibleKeySeen[label] = true
+    count = count + 1
+    visibleKeyLabels[count] = label
+    return count
+end
+
+local function allKeysDown(codes)
+    if codes == false then return false end
+    for index = 1, #codes do
+        if not IsRawKeyDown(codes[index]) then return false end
+    end
+    return true
+end
+
+local function updatePressedKeys()
+    local count = 0
+    for label in pairs(visibleKeySeen) do visibleKeySeen[label] = nil end
+
+    if not suppressed then
+        local screenItems = lastScreenItems
+        if screenItems then
+            for index = 1, #screenItems do
+                count = trackVisibleKey(count, screenItems[index].key)
+            end
+        end
+        if worldFrameVisible then
+            for index = 1, #worldFrameItems do
+                local item = worldFrameItems[index]
+                if item.active then count = trackVisibleKey(count, item.key) end
+            end
+        end
+    end
+
+    local downCount = 0
+    if count > 0 and not IsNuiFocused() and not IsPauseMenuActive() then
+        for index = 1, count do
+            local label = visibleKeyLabels[index]
+            if allKeysDown(virtualKeysForLabel(label)) then
+                downCount = downCount + 1
+                pressedKeys[downCount] = label
+            end
+        end
+    end
+    clearArray(pressedKeys, downCount + 1)
+
+    local signature = table.concat(pressedKeys, '\0')
+    if signature ~= lastPressedSignature then
+        lastPressedSignature = signature
+        send(pressedMessage)
+        local mirrorToWorldDui = rawget(lib, '_interactionDuiMirror')
+        if type(mirrorToWorldDui) == 'function' then mirrorToWorldDui(pressedMessage) end
+    end
+
+    return count > 0
+end
+
+if type(IsRawKeyDown) == 'function' and type(IsNuiFocused) == 'function' and type(IsPauseMenuActive) == 'function' then
+    CreateThread(function()
+        while started do
+            Wait((nuiReady and updatePressedKeys()) and 0 or 200)
+        end
+    end)
+end
 
 startWorldWorker = function()
     if worldWorkerRunning or not started or not nuiReady or #worldInteractions == 0 then return end

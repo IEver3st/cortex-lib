@@ -89,6 +89,34 @@ local function normalizeSound(sound)
     }
 end
 
+local SENDER_IMAGE_EXTENSIONS = { png = true, svg = true, webp = true }
+
+local function normalizeSender(sender)
+    if sender == nil then return nil end
+    if type(sender) == 'string' then
+        return boundedString(sender, 48, false) and sender or nil
+    end
+    if type(sender) ~= 'table' then return nil end
+
+    local normalized = {}
+    for key, maxLength in pairs({ label = 48, color = 7, icon = 64, image = 160 }) do
+        local value = rawget(sender, key)
+        if value ~= nil then
+            if not boundedString(value, maxLength, false) then return nil end
+            normalized[key] = value
+        end
+    end
+    if normalized.label == nil then return nil end
+    if normalized.color and not normalized.color:match('^#%x%x%x%x%x%x$') then return nil end
+    if normalized.image then
+        local extension = normalized.image:match('^nui://[%w_%-]+/[%w_%-%./]+%.(%a+)$')
+        if not extension or not SENDER_IMAGE_EXTENSIONS[extension:lower()] or normalized.image:find('..', 1, true) then
+            return nil
+        end
+    end
+    return normalized
+end
+
 local function normalizeNotification(data)
     if type(data) == 'string' then
         data = { description = data }
@@ -111,6 +139,9 @@ local function normalizeNotification(data)
     local description = normalizeText(rawget(data, 'description'), 2048)
     local duration = rawget(data, 'duration')
     local sound, validSound = normalizeSound(rawget(data, 'sound'))
+    local sender = normalizeSender(rawget(data, 'sender'))
+    local log = rawget(data, 'log')
+    local important = rawget(data, 'important')
 
     notificationType = notificationType == nil and 'info' or notificationType
     duration = persistent == true and 0 or (duration == nil and 3000 or duration)
@@ -129,6 +160,8 @@ local function normalizeNotification(data)
         or (plain ~= nil and type(plain) ~= 'boolean')
         or (hideIcon ~= nil and type(hideIcon) ~= 'boolean')
         or (dedupe ~= nil and type(dedupe) ~= 'boolean')
+        or (log ~= nil and type(log) ~= 'boolean')
+        or (important ~= nil and type(important) ~= 'boolean')
         or validSound == false
     then
         return nil, 'invalid_notification_data'
@@ -147,6 +180,9 @@ local function normalizeNotification(data)
         hideIcon = hideIcon == true or icon == false,
         dedupe = dedupe ~= false,
         sound = sound,
+        sender = sender,
+        log = log,
+        important = important,
     }
 end
 

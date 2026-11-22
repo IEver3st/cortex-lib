@@ -6,6 +6,8 @@ let notifyIdCounter = 0;
 function App() {
     const [notifications, setNotifications] = useState([]);
     const [notifyPosition, setNotifyPosition] = useState('top-right');
+    const [peek, setPeek] = useState({ active: false, entries: [] });
+    const peekLeaveRef = useRef(null);
     const [progress, setProgress] = useState({
         active: false,
         duration: 0,
@@ -100,7 +102,14 @@ function App() {
             : prev);
     }, []);
 
+    const notifyRevisionsRef = useRef(new Map());
+
     const removeNotification = useCallback((id) => {
+        const revisions = notifyRevisionsRef.current;
+        if (revisions.has(id)) {
+            nuiPost('notifyClosed', { id, rev: revisions.get(id) });
+            revisions.delete(id);
+        }
         setNotifications(prev => prev.filter(n => n.id !== id));
     }, []);
 
@@ -111,12 +120,24 @@ function App() {
             setNotifyPosition(normalized.position);
         }
 
+        if (normalized.id && Number.isInteger(data.rev)) {
+            const revisions = notifyRevisionsRef.current;
+            if (revisions.size >= 256 && !revisions.has(normalized.id)) revisions.delete(revisions.keys().next().value);
+            revisions.set(normalized.id, data.rev);
+        }
+
         const generatedId = `notify-${++notifyIdCounter}`;
         setNotifications(prev => mergeNotificationState(prev, normalized, generatedId));
     }, []);
 
     const clearNotifications = useCallback((data) => {
-        setNotifications(prev => filterNotificationsForClear(prev, data));
+        setNotifications(prev => {
+            const next = filterNotificationsForClear(prev, data);
+            const kept = new Set(next.map(item => item.id));
+            const revisions = notifyRevisionsRef.current;
+            prev.forEach(item => { if (!kept.has(item.id)) revisions.delete(item.id); });
+            return next;
+        });
     }, []);
 
     const startProgress = useCallback((data) => {
@@ -266,6 +287,21 @@ function App() {
                 case 'notify':
                     addNotification(data);
                     break;
+                case 'peek': {
+                    const next = normalizePeekData(data);
+                    if (peekLeaveRef.current !== null) clearTimeout(peekLeaveRef.current);
+                    peekLeaveRef.current = null;
+                    if (next.active) {
+                        setPeek(next);
+                    } else {
+                        setPeek(prev => ({ active: false, entries: prev.entries }));
+                        peekLeaveRef.current = setTimeout(() => {
+                            peekLeaveRef.current = null;
+                            setPeek({ active: false, entries: [] });
+                        }, NOTIFY_PEEK_LEAVE_MS);
+                    }
+                    break;
+                }
                 case 'menuOpen':
                     openMenu(data);
                     break;
@@ -480,7 +516,8 @@ function App() {
         React.createElement(NotificationContainer, {
             notifications,
             position: notifyPosition,
-            onRemove: removeNotification
+            onRemove: removeNotification,
+            peek
         }),
         React.createElement(ProgressBar, progress),
         React.createElement(TextUI, { ...textUi }),

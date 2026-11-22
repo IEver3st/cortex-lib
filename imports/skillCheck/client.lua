@@ -231,4 +231,6 @@ for name, fn in pairs({ skillCheck = skillCheck, cancelSkillCheck = cancelSkillC
     lib[name] = fn
     exports(name, fn)
 end
+
+lib._skillCheckRunning = function() return active ~= nil end
 return skillCheck

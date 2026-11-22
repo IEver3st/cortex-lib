@@ -424,7 +424,7 @@
         );
     }
 
-    /** Eyebrow + italic display title + optional meta, with the mint accent bar. */
+    /** Eyebrow + italic display title + optional meta. */
     function SlipHeader({ eyebrow, title, meta, id }) {
         return h('header', { className: 'cx-slip-header' },
             eyebrow ? h('span', { className: 'cx-eyebrow' }, eyebrow) : null,

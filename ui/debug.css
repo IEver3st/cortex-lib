@@ -6,9 +6,9 @@
     display: flex; flex-direction: column; pointer-events: none;
     color: var(--ui-paper); background: var(--surface-hud);
     background-image: url('notify-grain.svg'); text-shadow: none;
-    font: calc(13px * var(--debug-scale))/1.35 var(--font-ui-body); border: 0; box-shadow: inset calc(4px * var(--debug-scale)) 0 0 var(--accent, #8fcbbf);
+    font: calc(13px * var(--debug-scale))/1.35 var(--font-ui-body); border: 0;
 }
-.debug-menu-header { display: flex; align-items: baseline; justify-content: space-between; padding: calc(14px * var(--debug-scale)) calc(14px * var(--debug-scale)) calc(10px * var(--debug-scale)); border-top: calc(2px * var(--debug-scale)) solid var(--state-focus); }
+.debug-menu-header { display: flex; align-items: baseline; justify-content: space-between; padding: calc(14px * var(--debug-scale)) calc(14px * var(--debug-scale)) calc(10px * var(--debug-scale)); }
 .debug-menu-header h1 { font: 800 calc(25px * var(--debug-scale))/1 var(--font-ui-display); text-transform: uppercase; }
 .debug-menu-header h1 span { color: var(--state-focus); }
 .debug-menu-header > span { color: var(--text-secondary); font-size: calc(11px * var(--debug-scale)); }

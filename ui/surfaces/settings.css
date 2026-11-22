@@ -37,22 +37,8 @@
 }
 
 .cortex-settings-title-block {
-    position: relative;
     display: grid;
     gap: calc(6 * var(--u));
-    padding-left: calc(16 * var(--u));
-}
-
-/* The accent bar marks the live surface (kit SlipHeader anatomy). */
-.cortex-settings-title-block::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: calc(4 * var(--u));
-    border-radius: calc(1 * var(--u));
-    background: var(--accent);
 }
 
 .is-settings-page .cortex-settings-heading h1 {
@@ -154,22 +140,6 @@
     transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast) var(--ease);
 }
 
-.cortex-settings-tab::before,
-.cortex-settings-row::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: calc(8 * var(--u));
-    bottom: calc(8 * var(--u));
-    width: calc(4 * var(--u));
-    border-radius: calc(1 * var(--u));
-    background: var(--accent);
-    transform: scaleX(0);
-    transform-origin: left center;
-    transition: transform var(--t-fast) var(--ease);
-}
-
-.cortex-settings-tab::before { top: calc(5 * var(--u)); bottom: calc(5 * var(--u)); }
 .cortex-settings-tab-name { min-width: 0; padding-right: 0.17em; overflow-wrap: anywhere; }
 
 .cortex-settings-tab-count,
@@ -183,12 +153,8 @@
 
 .cortex-settings-tab:hover,
 .cortex-settings-tab:focus-visible { background: var(--wash-strong); }
-.cortex-settings-tab:hover::before,
-.cortex-settings-tab:focus-visible::before,
-.cortex-settings-tab.active::before { transform: scaleX(1); }
 .cortex-settings-tab.active { background: var(--paper); color: var(--ink); }
 .cortex-settings-tab.active .cortex-settings-tab-count { color: var(--ink); }
-.cortex-settings-tab.active:focus-visible::before { top: 0; bottom: 0; }
 .cortex-settings-tab:active { transform: translateY(calc(2 * var(--u))); }
 
 .cortex-settings-tab.is-dirty .cortex-settings-tab-name::after,
@@ -274,7 +240,7 @@
 /* ---------------------------------------------------------- main pane --- */
 .pause-settings-main { display: flex; flex-direction: column; gap: calc(12 * var(--u)); min-width: 0; min-height: 0; }
 
-/* Search is an ink well: its bottom rule turns accent while typing. */
+/* Search is an ink well: it takes a paper wash while typing. */
 .pause-search {
     display: flex;
     align-items: center;
@@ -284,11 +250,10 @@
     padding: 0 calc(10 * var(--u)) 0 calc(16 * var(--u));
     border-radius: var(--r-sm);
     background: var(--slip);
-    box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--rule-strong);
     transition: box-shadow var(--t-fast);
 }
 
-.pause-search:focus-within { box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--accent); }
+.pause-search:focus-within { box-shadow: inset 0 0 0 calc(60 * var(--u)) var(--wash-deep); }
 
 .pause-search input {
     flex: 1;
@@ -384,10 +349,8 @@
     transition: background var(--t-fast);
 }
 
-.cortex-settings-row:hover,
-.cortex-settings-row:focus-within { background: var(--wash); }
-.cortex-settings-row:hover::before,
-.cortex-settings-row:focus-within::before { transform: scaleX(1); }
+.cortex-settings-row:hover { background: var(--wash); }
+.cortex-settings-row:focus-within { background: var(--wash-strong); }
 
 .cortex-settings-row-info { min-width: 0; }
 
@@ -612,17 +575,16 @@
     border: 0;
     border-radius: var(--r-sm);
     background: var(--wash);
-    box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--rule-strong);
     color: var(--paper);
     font: 400 calc(16 * var(--u) * var(--cx-text)) / 1.2 var(--body);
-    transition: background var(--t-fast), box-shadow var(--t-fast);
+    transition: background var(--t-fast);
     -webkit-appearance: none;
     appearance: none;
 }
 
 .cx-settings-input::placeholder { color: var(--dim); }
 .cx-settings-input:hover { background: var(--wash-strong); }
-.cx-settings-input:focus { background: var(--wash-strong); box-shadow: inset 0 calc(-3 * var(--u)) 0 var(--accent); }
+.cx-settings-input:focus { background: var(--wash-deep); }
 
 /* Actions registered by scripts, and the sound preview button. */
 .cx-settings-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: calc(8 * var(--u)); }
@@ -700,11 +662,11 @@
     transition: background var(--t-fast), color var(--t-fast), transform var(--t-fast) var(--ease);
 }
 
-.cortex-settings-btn:hover:not(:disabled) { background: var(--ink-2); box-shadow: inset calc(4 * var(--u)) 0 0 var(--accent); }
+.cortex-settings-btn:hover:not(:disabled) { background: var(--ink-2); }
 .cortex-settings-btn:focus-visible { background: var(--paper); color: var(--ink); }
 .cortex-settings-btn:active:not(:disabled) { transform: translateY(calc(2 * var(--u))); }
 .cortex-settings-btn:disabled { color: var(--dim); cursor: default; }
-.cortex-settings-btn.reset:hover:not(:disabled) { color: var(--error); box-shadow: inset calc(4 * var(--u)) 0 0 var(--error); }
+.cortex-settings-btn.reset:hover:not(:disabled) { color: var(--error); }
 
 /* The committing action is already flipped to paper. */
 .cortex-settings-btn.save { background: var(--paper); color: var(--ink); }
@@ -751,8 +713,8 @@
 @media (prefers-reduced-motion: reduce) {
     .cortex-pause-overlay.is-settings-page,
     .is-settings-page .cortex-pause.cortex-settings-panel { animation: none; }
-    .cortex-settings-tab, .cortex-settings-tab::before, .cortex-settings-sections button, .cortex-settings-row,
-    .cortex-settings-row::before, .cortex-settings-row-reset, .cortex-settings-btn, .cx-settings-swatch,
+    .cortex-settings-tab, .cortex-settings-sections button, .cortex-settings-row,
+    .cortex-settings-row-reset, .cortex-settings-btn, .cx-settings-swatch,
     .cx-settings-action, .cx-settings-icon-button { transition: none; }
 }
 

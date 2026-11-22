@@ -110,6 +110,11 @@ the bridge accepts up to 16 rectangles per resource and 32 resource owners.
 The current adapter reserves one of its 16 slots for the native minimap.
 Panel show/hide, child changes, resizing, and messages trigger deduplicated
 measurement with a 200 ms batch delay. The broker coalesces broadcasts at 100 ms.
+The Look key skips both delays: the broker asks every page to measure on the
+next two frames (`cortex:presentationSettle`), publishes once all of them have
+answered or after 300 ms, and the recent-notice list stays hidden until that
+snapshot has placed it. A page that misses the 300 ms is not waited for again
+until it answers.
 A five-second readiness refresh recovers from late startup; stop removes an
 owner's reservations, and a library restart requests new measurements.
 

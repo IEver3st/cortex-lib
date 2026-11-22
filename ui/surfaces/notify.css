@@ -1,7 +1,8 @@
 /* ============================================================================
    NOTIFICATIONS
-   Frameless callouts over the scene: a 4u severity rule, a display-caps title,
-   Arial body, and a 4u lifetime meter aligned to the text. No card, no plate.
+   Frameless callouts over the scene: an ink coin (the sender's mark in its
+   colour, or the severity glyph), a display-caps title, Arial body, and a 4u
+   lifetime meter aligned to the text. No card, no plate, no edge rule.
    ============================================================================ */
 
 #notify-container {
@@ -25,12 +26,12 @@
 #notify-container.bottom-left { bottom: var(--notify-edge-y); left: var(--notify-edge-x); flex-direction: column-reverse; }
 #notify-container.bottom { bottom: var(--notify-edge-y); left: 50%; transform: translateX(-50%); flex-direction: column-reverse; }
 
-/* One notice: rule | glyph | content | dismiss. The rule stretches to the text. */
 .notify {
     --notify-tone: var(--info);
+    --notify-coin: calc(28 * var(--u));
     position: relative;
     display: grid;
-    grid-template-columns: calc(4 * var(--u)) minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     column-gap: calc(12 * var(--u));
     align-items: start;
     width: 100%;
@@ -45,7 +46,7 @@
     animation: notifyReveal var(--t-enter, 240ms) var(--ease) both;
 }
 .notify::before, .notify::after { content: none; }
-.notify.has-glyph { grid-template-columns: calc(4 * var(--u)) calc(22 * var(--u)) minmax(0, 1fr) auto; column-gap: calc(10 * var(--u)); }
+.notify.has-glyph { grid-template-columns: var(--notify-coin) minmax(0, 1fr) auto; }
 .notify.exiting { animation: notifyDismiss var(--t-fast, 160ms) ease-in forwards; }
 
 .notify.success { --notify-tone: var(--success); }
@@ -54,33 +55,98 @@
 .notify.info, .notify.inform { --notify-tone: var(--info); }
 .notify.notify-plain { --notify-tone: var(--muted); }
 
-.notify-rule {
-    align-self: stretch;
-    width: calc(4 * var(--u));
-    min-height: calc(24 * var(--u));
-    border-radius: calc(1 * var(--u));
-    background: var(--notify-tone);
-    box-shadow: 0 calc(1 * var(--u)) 0 rgba(8, 9, 11, 0.55);
-}
-
-.notify-icon {
-    width: calc(22 * var(--u));
-    height: calc(22 * var(--u));
-    margin-top: calc(-1 * var(--u));
+.notify-coin {
+    display: grid;
+    place-items: center;
+    width: var(--notify-coin);
+    height: var(--notify-coin);
+    margin-top: calc(-3 * var(--u));
+    border-radius: 50%;
+    background: rgba(15, 16, 18, 0.84);
     color: var(--notify-tone);
-    filter: drop-shadow(0 calc(1 * var(--u)) 0 rgba(8, 9, 11, 0.7));
+    text-shadow: none;
 }
-.notify-icon svg {
+.notify-coin.is-sender { color: var(--notify-sender, var(--paper)); }
+.notify-coin svg {
     display: block;
-    width: 100%;
-    height: 100%;
+    width: 60%;
+    height: 60%;
     fill: none;
     stroke: currentColor;
-    stroke-width: 4;
+    stroke-width: 4.5;
     stroke-linecap: round;
     stroke-linejoin: round;
 }
-.notify-headline .notify-icon { margin-top: 0; }
+.notify-coin .notify-coin-path { width: 68%; height: 68%; stroke-width: 3.2; }
+.notify-coin-letter {
+    font: italic 800 calc(17 * var(--u)) / 1 var(--display);
+    font-synthesis: style;
+    text-transform: uppercase;
+    padding-right: 0.06em;
+}
+.notify-coin-image {
+    width: 64%;
+    height: 64%;
+    background: currentColor;
+    -webkit-mask: center / contain no-repeat;
+    mask: center / contain no-repeat;
+}
+.notify-headline .notify-coin { margin-top: calc(-2 * var(--u)); }
+
+.notify.has-sender.warning .notify-title,
+.notify.has-sender.error .notify-title { color: var(--notify-tone); }
+.notify.has-sender.info .notify-duration-fill,
+.notify.has-sender.inform .notify-duration-fill,
+.notify.has-sender.success .notify-duration-fill { background: var(--notify-sender, var(--notify-tone)); }
+
+.notify-lead {
+    margin-top: calc(5 * var(--u));
+    color: var(--paper);
+    font: 700 calc(16 * var(--u) * var(--cx-text, 1)) / 1.3 var(--body);
+    overflow-wrap: anywhere;
+}
+.notify-lead + .notify-description { margin-top: calc(2 * var(--u)); }
+
+.notify-log {
+    display: flex;
+    flex-direction: column;
+    gap: calc(14 * var(--u));
+    animation: notifyReveal var(--t-enter, 240ms) var(--ease) both;
+}
+.notify-log.exiting { animation: notifyDismiss var(--t-fast, 160ms) ease-in forwards; }
+html[data-cx-settling] .notify-log:not(.exiting) { visibility: hidden; animation: none; }
+.notify-logged { --notify-coin: calc(24 * var(--u)); animation: none; }
+.notify.notify-logged.is-seen .notify-title,
+.notify.notify-logged.is-seen .notify-lead,
+.notify.notify-logged.is-seen .notify-description { color: var(--muted); }
+.notify-logged.is-seen .notify-age { color: var(--dim); }
+.notify-logged .notify-title { font-size: calc(18 * var(--u)); }
+.notify-logged .notify-coin { margin-top: calc(-3 * var(--u)); }
+.notify-logged .notify-coin svg:not(.notify-coin-path) { stroke-width: 5; }
+.notify-logged .notify-coin .notify-coin-path { stroke-width: 3.7; }
+.notify-logged .notify-coin-letter { font-size: calc(15 * var(--u)); }
+.notify-logged .notify-description,
+.notify-logged .notify-lead { font-size: calc(15 * var(--u) * var(--cx-text, 1)); }
+.notify-logged .notify-description {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    padding-bottom: 0.2em;
+    padding-left: 0.12em;
+    margin-bottom: -0.2em;
+    margin-left: -0.12em;
+    white-space: normal;
+}
+.notify-logged.notify-headline .notify-description { font-size: calc(18 * var(--u)); padding-right: 0.17em; }
+.notify-age {
+    margin-left: calc(8 * var(--u));
+    color: var(--muted);
+    font: 700 calc(13 * var(--u)) / 1 var(--body);
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+}
 
 .notify-content { min-width: 0; padding-top: calc(1 * var(--u)); }
 
@@ -183,9 +249,10 @@
 @keyframes notifyLifetime { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
 /* Reduced motion: no rise, no draining meter (it would read as empty). */
-.cortex-reduced-motion .notify, html[data-cx-motion='reduced'] .notify { animation: none; }
+.cortex-reduced-motion .notify, html[data-cx-motion='reduced'] .notify,
+.cortex-reduced-motion .notify-log, html[data-cx-motion='reduced'] .notify-log { animation: none; }
 .cortex-reduced-motion .notify-duration, html[data-cx-motion='reduced'] .notify-duration { display: none; }
 @media (prefers-reduced-motion: reduce) {
-    .notify, .notify.exiting { animation: none; }
+    .notify, .notify.exiting, .notify-log, .notify-log.exiting { animation: none; }
     .notify-duration { display: none; }
 }

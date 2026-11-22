@@ -156,7 +156,7 @@ local function rows(model, count, offset, bone)
             id = 'row' .. index, label = 'ACTION ' .. index, key = 'E', priority = 10 - index,
             anchor = {
                 type = 'entity-bone', entity = 500, model = model, bone = bone or 'bonnet',
-                offset = offset or { x = 0.2, y = 0.4, z = 0.1 }, maxDistance = 4, markerDistance = 10,
+                offset = offset or { x = 0.2, y = 0.4, z = 0.1 }, maxDistance = 4, markerDistance = 10, alwaysPrompt = true,
             },
         }
     end

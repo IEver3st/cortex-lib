@@ -180,9 +180,7 @@ assert.match(
     /\.cortex-interaction-key-value\s*{[\s\S]*?inset:\s*16%;/,
     'the key disc keeps its inset from the outer ring'
 );
-// Markers: a 22ix ring with a 10ix dot; growth only animates transform/opacity.
-assert.match(styles, /\.cx-wp-marker\s*\{[^}]*width:\s*calc\(22 \* var\(--ix\)\);[^}]*inset 0 0 0 calc\(3\.5 \* var\(--ix\)\) var\(--paper\)/);
-assert.match(styles, /\.cx-wp-marker::after\s*\{[^}]*width:\s*calc\(10 \* var\(--ix\)\);/);
+assert.match(styles, /\.cx-wp-marker\s*\{[^}]*width:\s*calc\(12 \* var\(--ix\)\);[^}]*inset 0 0 0 calc\(3 \* var\(--ix\)\) var\(--paper\)/);
 assert.match(styles, /\.cx-wp\.is-list \.cx-wp-pip::before\s*\{[^}]*width:\s*calc\(4 \* var\(--ix\)\);/, 'the rail is 4ix');
 // Screen prompts stack above the help legend.
 assert.match(styles, /\.cortex-interactions\s*\{[^}]*var\(--cx-help-legend-height, 0px\)/,

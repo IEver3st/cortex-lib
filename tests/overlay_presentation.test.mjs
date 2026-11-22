@@ -273,7 +273,7 @@ test('notifications preserve message variants, urgency and truthful lifetime cue
             const tree = Notification({ id: 'notice', type, title: 'Equipment', description, duration: 5000, persistent });
             assert.equal(tree.props['data-cortex-surface'], 'instrument');
             assert.equal(tree.props.role, ['warning', 'error'].includes(type) ? 'alert' : 'status');
-            assert.ok(byClass(tree, 'notify-rule'), 'the severity rule carries the type colour');
+            assert.ok(byClass(tree, 'notify-coin'), 'the ink coin carries the type glyph');
             assert.equal(byType(tree, NotifyText)[0].props.text, description);
             assert.equal(text(byClass(tree, 'notify-title')), 'Equipment');
             assert.equal(Boolean(byClass(tree, 'notify-close')), persistent);
@@ -284,7 +284,7 @@ test('notifications preserve message variants, urgency and truthful lifetime cue
     const plain = Notification({ id: 'plain', plain: true, hideIcon: true, description: 'Saved', duration: 5000, showDuration: false });
     assert.equal(byType(plain, NotifyText)[0].props.text, 'Saved');
     assert.match(plain.props.className, /notify-headline/, 'a short title-free line reads as the headline');
-    assert.equal(byClass(plain, 'notify-icon'), undefined);
+    assert.equal(byClass(plain, 'notify-coin'), undefined);
     assert.equal(byClass(plain, 'notify-title'), undefined);
     assert.equal(byClass(plain, 'notify-duration'), undefined);
     const heading = (description, type = 'success') => {
@@ -307,7 +307,7 @@ test('notifications preserve message variants, urgency and truthful lifetime cue
     assert.equal(keyed[1].props.value, 'E');
     assert.equal(NotifyText({ text: 'No keys here' }), 'No keys here');
     const notifyCss = readFileSync(new URL('../ui/surfaces/notify.css', import.meta.url), 'utf8');
-    assert.match(notifyCss, /\.notify-rule\s*{[^}]*width:\s*calc\(4 \* var\(--u\)\)/, 'the severity rule is 4u');
+    assert.doesNotMatch(notifyCss, /\.notify-rule/, 'no coloured edge rule on a notice');
     assert.match(notifyCss, /\.notify-duration\s*{[^}]*height:\s*calc\(4 \* var\(--u\)\)/, 'the lifetime cue is a 4u meter, not a hairline');
     assert.match(notifyCss, /\.notify\s*{[^}]*background:\s*transparent/, 'no card behind a notice');
     assert.match(css, /\.notify::before, \.notify::after\s*{\s*content:\s*none/);

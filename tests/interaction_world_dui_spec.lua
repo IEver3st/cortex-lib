@@ -160,7 +160,7 @@ end
 local function near(a, b) return math.abs(a - b) < 1e-6 end
 
 local function prompt(id, key, x, more)
-    local item = { id = id, label = id, key = key, anchor = { type = 'world', x = x, y = 0.0, z = 0.0, maxDistance = 3.5 } }
+    local item = { id = id, label = id, key = key, anchor = { type = 'world', x = x, y = 0.0, z = 0.0, maxDistance = 3.5, alwaysPrompt = true } }
     for field, value in pairs(more or {}) do item[field] = value end
     return item
 end
@@ -310,7 +310,7 @@ paint(1)
 
 -- Six cells: a seventh list is not drawn, so it is not visible.
 local seven = {}
-for index = 1, 7 do seven[index] = prompt('P' .. index, string.char(64 + index), index - 4.0) end
+for index = 1, 7 do seven[index] = prompt('P' .. index, string.char(64 + index), index - 3.0) end
 assert(as('emotes', 'setInteractions', seven))
 spritesBefore = #s.sprites
 frame()
@@ -322,7 +322,7 @@ local visible = 0
 for index = 1, 7 do
     if as('emotes', 'isInteractionVisible', 'P' .. index) then visible = visible + 1 end
 end
-assert(visible == 6 and not as('emotes', 'isInteractionVisible', 'P7'), 'the undrawn seventh list is not visible')
+assert(visible == 6 and not as('emotes', 'isInteractionVisible', 'P7'), 'the least-centred list gets no cell, so it is not visible')
 local used = {}
 for index = spritesBefore + 1, #s.sprites do
     used[s.sprites[index].u1 .. ':' .. s.sprites[index].v1] = true

@@ -40,6 +40,9 @@
     let inFlight = false;
     let lastSignature = '';
     let destroyed = false;
+    let settling = 0;
+    let answering = 0;
+    let settleTimer = null;
     const root = document.documentElement;
     root.dataset.cortexResource = resource;
 
@@ -88,6 +91,8 @@
             || (profile.motion !== 'full' && matchMedia('(prefers-reduced-motion: reduce)').matches);
         root.classList.toggle('cortex-reduced-motion', reduce);
         root.dataset.cxMotion = reduce ? 'reduced' : 'full';
+        const design = ['leonida', 'vi'].includes(profile.design) ? profile.design : 'cortex';
+        if (root.dataset.cxDesign !== design) root.dataset.cxDesign = design;
     }
     function visible(element) {
         for (let node = element; node && node.nodeType === 1; node = node.parentElement) {
@@ -183,6 +188,33 @@
     function schedule() {
         if (!timer && !destroyed) timer = setTimeout(update, 200);
     }
+    function endSettle() {
+        settling = 0;
+        clearTimeout(settleTimer);
+        settleTimer = null;
+        root.removeAttribute('data-cx-settling');
+    }
+    async function report(token) {
+        if (destroyed || token !== answering) return;
+        const surfaces = measure();
+        const signature = JSON.stringify(surfaces);
+        const result = await post('cortexPresentationSurfaces', { surfaces, settle: token });
+        if (result.ok) lastSignature = signature;
+        if (!destroyed) schedule();
+    }
+    function beginSettle(token) {
+        answering = token;
+        if (definitions.some(rule => rule[2] === false)) {
+            settling = token;
+            root.setAttribute('data-cx-settling', '');
+            clearTimeout(settleTimer);
+            settleTimer = setTimeout(endSettle, 450);
+        }
+        let sent = false;
+        const send = () => { if (!sent) { sent = true; report(token); } };
+        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => requestAnimationFrame(send));
+        setTimeout(send, 80);
+    }
     function onMessage(event) {
         const message = event.data;
         if (!message || typeof message !== 'object') return;
@@ -195,8 +227,13 @@
                 || state.surfaces.some(surface => menuOwners.includes(surface.owner)));
             root.classList.toggle('cortex-settings-active', state.settings === true);
             theme(state.profile); place(); schedule();
+            if (settling && Number(state.settled) >= settling) endSettle();
+        } else if (message.action === 'cortex:presentationSettle') {
+            if (Number.isSafeInteger(message.token) && message.token > 0) beginSettle(message.token);
         } else if (message.action === 'cortex:presentationReset') {
             state = null; lastSignature = '';
+            answering = 0;
+            endSettle();
             root.classList.remove('cortex-modal-active', 'cortex-settings-active');
             for (const entry of tracked.values()) resetPlacement(entry);
             schedule();
@@ -256,7 +293,7 @@
     const recovery = setInterval(() => { if (!state) post('cortexPresentationReady'); schedule(); }, 5000);
     post('cortexPresentationReady'); schedule();
     window.addEventListener('pagehide', () => {
-        destroyed = true; clearTimeout(timer); clearInterval(recovery);
+        destroyed = true; clearTimeout(timer); clearTimeout(settleTimer); clearInterval(recovery);
         observer.disconnect(); resize.disconnect(); motion.removeEventListener('change', motionChange);
         window.removeEventListener('message', onMessage); window.removeEventListener('resize', schedule);
         document.removeEventListener('transitionend', schedule); document.removeEventListener('animationend', schedule);

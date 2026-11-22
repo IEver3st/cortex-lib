@@ -69,6 +69,36 @@ function InteractionKey(props) {
     return window.CortexInteractionKey.render(React.createElement, props);
 }
 
+const pressedInteractionKeys = new Set();
+let pressedInteractionFrame = 0;
+
+function markPressedInteractionKeys() {
+    pressedInteractionFrame = 0;
+    document.querySelectorAll('[data-cx-key]').forEach((glyph) => {
+        glyph.toggleAttribute('data-cx-pressed', pressedInteractionKeys.has(glyph.getAttribute('data-cx-key')));
+    });
+    if (pressedInteractionKeys.size > 0) {
+        pressedInteractionFrame = window.requestAnimationFrame(markPressedInteractionKeys);
+    }
+}
+
+function readPressedInteractionKeys(event) {
+    const message = normalizeNuiMessage(event);
+    if (!message || message.action !== 'interaction:pressed') return;
+
+    const keys = Array.isArray(message.data?.keys) ? message.data.keys : [];
+    pressedInteractionKeys.clear();
+    for (const key of keys.slice(0, 24)) {
+        if (typeof key === 'string' && key) pressedInteractionKeys.add(key.slice(0, 24));
+    }
+    if (pressedInteractionFrame) window.cancelAnimationFrame(pressedInteractionFrame);
+    markPressedInteractionKeys();
+}
+
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('message', readPressedInteractionKeys);
+}
+
 function getVehicleAccessPresentation(item) {
     if (item?.owner !== 'cortex-hud') return null;
     return VEHICLE_ACCESS_ACTIONS[item.id] || null;
@@ -234,6 +264,7 @@ function getInteractionListWindow(count, selectedIndex, visible = INTERACTION_LI
 }
 
 function worldActionText(item) {
+    if (item.blocked) return String(item.label || '');
     const action = String(item.label || '').toLowerCase();
     return item.holdDuration
         ? `Hold ${item.key} to ${action}`
@@ -242,8 +273,12 @@ function worldActionText(item) {
 
 function WorldPromptRow({ item, selected, peek, head, marker, first, last }) {
     const vehicle = marker ? null : getVehicleAccessPresentation(item);
-    const ownsKey = !marker && item.active !== false;
+    const blocked = !marker && item.blocked === true;
+    const ownsKey = !marker && !blocked && item.active !== false;
+    const note = !marker && !peek && !blocked && selected && item.note ? item.note : null;
+    const more = !marker && !peek && selected && item.more > 0 ? item.more : 0;
     const classes = ['cx-wp-row',
+        blocked ? 'is-blocked' : '',
         selected ? 'is-selected' : '',
         ownsKey ? 'is-active' : '',
         peek ? 'is-peek' : '',
@@ -252,7 +287,11 @@ function WorldPromptRow({ item, selected, peek, head, marker, first, last }) {
         vehicle ? `cortex-world-access-row is-${vehicle.icon}` : ''].filter(Boolean).join(' ');
 
     let glyph = null;
-    if (!marker && !peek && (selected || ownsKey)) {
+    if (blocked) {
+        glyph = peek ? null : React.createElement('span', {
+            className: 'cx-wp-hollow', role: 'img', 'aria-label': worldActionText(item)
+        });
+    } else if (!marker && !peek && (selected || ownsKey)) {
         glyph = React.createElement(window.CortexSkillChecks.WorldKey, {
             item,
             fallback: React.createElement(InteractionKey, {
@@ -280,9 +319,15 @@ function WorldPromptRow({ item, selected, peek, head, marker, first, last }) {
             className: 'cx-wp-icon cortex-world-access-icon',
             'aria-hidden': 'true'
         }, React.createElement(VehicleAccessIcon, { type: vehicle.icon })) : null,
-        marker ? null : React.createElement('span', {
-            className: 'cx-wp-label cortex-world-interaction-label'
-        }, item.label)
+        marker ? null : React.createElement('span', { className: 'cx-wp-text' },
+            React.createElement('span', {
+                className: 'cx-wp-label cortex-world-interaction-label'
+            }, item.label),
+            note ? React.createElement('span', { className: 'cx-wp-note' }, note) : null
+        ),
+        more ? React.createElement('span', {
+            className: 'cx-wp-more', 'aria-label': `${more} more, scroll to choose`
+        }, `+${more}`) : null
     );
 }
 
@@ -416,7 +461,10 @@ const INTERACTION_WORLD_FIELDS = Object.freeze([
     'selected',
     'active',
     'focused',
-    'fade'
+    'fade',
+    'note',
+    'more',
+    'blocked'
 ]);
 
 function normalizeInteractionPanel(value) {
@@ -471,6 +519,9 @@ function normalizeInteractionItems(items, world) {
             nextItem.active = !marker && item.active !== false;
             nextItem.focused = !marker && item.focused === true;
             nextItem.fade = marker ? clampInteractionNumber(item.fade ?? 1, 0, 1) : 1;
+            nextItem.note = !marker && typeof item.note === 'string' ? item.note.trim().slice(0, 64) || null : null;
+            nextItem.more = marker ? 0 : Math.floor(clampInteractionNumber(item.more, 0, 15));
+            nextItem.blocked = !marker && item.blocked === true;
         }
 
         normalized.push(nextItem);

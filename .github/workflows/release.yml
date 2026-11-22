@@ -90,7 +90,7 @@ jobs:
           mkdir -p ../release
           mapfile -d '' tracked_files < <(git ls-files -z -- \
             fxmanifest.lua init.lua presentation-client.lua \
-            client imports resource server ui README.md README.txt LICENSE THIRD_PARTY_NOTICES.md)
+            client imports keys resource server things ui README.md README.txt LICENSE THIRD_PARTY_NOTICES.md)
 
           if [ "${#tracked_files[@]}" -eq 0 ]; then
             echo "::error::No tracked release files were selected"

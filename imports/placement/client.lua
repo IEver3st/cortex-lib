@@ -11,9 +11,15 @@ local function coords(v)
         and math.abs(y) <= 100000 and math.abs(z) <= 100000 then return { x = x, y = y, z = z } end
 end
 local function failure(code) return { ok = false, error = { code = code } } end
+local function tellThings(state)
+    pcall(function() exports['cortex-lib']:thingBusy(state, 'placement') end)
+end
 local function cleanup(session)
     local ownsInput = active == session
-    if ownsInput then active = nil end
+    if ownsInput then
+        active = nil
+        tellThings(false)
+    end
     local ghost, model, help = session.ghost, session.model, session.help
     session.ghost, session.model, session.help = nil, nil, false
     for key in pairs(session.pressed) do session.pressed[key] = false end
@@ -103,6 +109,7 @@ function placement.preview(options)
         pressed = { confirm = false, cancel = false, left = false, right = false } }
     local pressed = session.pressed
     active = session
+    tellThings(true)
     local ok, result = pcall(function()
         mappings(options.bindings)
         local model, err = placement.loadModel(options.model, options.modelTimeoutMs, function() return session.cancelled ~= nil end)

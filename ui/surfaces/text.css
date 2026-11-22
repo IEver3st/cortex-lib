@@ -65,22 +65,12 @@
 .textui-icon svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round; }
 #textui.textui--sentence .textui-icon { margin-top: calc(2 * var(--u)); }
 
-/* Backdrop: the text becomes a slip with the accent bar. */
+/* Backdrop: the text becomes a slip. */
 #textui.textui-backdrop {
-    padding: calc(12 * var(--u)) calc(18 * var(--u)) calc(12 * var(--u)) calc(22 * var(--u));
+    padding: calc(12 * var(--u)) calc(18 * var(--u));
     border-radius: var(--r);
     background: var(--slip);
     text-shadow: none;
-}
-#textui.textui-backdrop::before {
-    content: '';
-    position: absolute;
-    left: calc(8 * var(--u));
-    top: calc(12 * var(--u));
-    bottom: calc(12 * var(--u));
-    width: calc(4 * var(--u));
-    border-radius: calc(1 * var(--u));
-    background: var(--accent);
 }
 #textui.textui-backdrop .textui-icon { filter: none; }
 
@@ -229,7 +219,7 @@
 }
 
 .cortex-debug-header { flex: 0 0 auto; padding: calc(18 * var(--u)) calc(20 * var(--u)) calc(14 * var(--u)); }
-.cortex-debug-header .cx-slip-header::before { background: var(--debug-accent, var(--accent)); }
+.cortex-debug-header .cx-eyebrow { color: var(--debug-accent, var(--muted)); }
 .cortex-debug-header .cx-slip-title { font-size: calc(26 * var(--u)); }
 .cortex-debug-header .cx-eyebrow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0.2em 0.2em 0.2em 0.06em; margin: -0.2em -0.2em -0.2em -0.06em; }
 

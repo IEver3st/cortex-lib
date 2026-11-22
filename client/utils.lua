@@ -54,7 +54,7 @@ end
 local function isValidEntityHandle(entity)
     if type(entity) ~= 'number' or math.tointeger(entity) ~= entity or entity <= 0 then return false end
     local ok, exists = pcall(DoesEntityExist, entity)
-    return ok and exists == true
+    return ok and (exists == true or exists == 1)
 end
 
 local function safeErrorText(value)

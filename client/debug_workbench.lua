@@ -121,6 +121,18 @@ add('notify_plain', 'Notifications', 'Plain / icon-free', 'The caller-controlled
     notice({ plain=true, hideIcon=true, description=o.message, duration=o.duration, position=o.position })
     return 'Plain notice displayed.'
 end)
+add('notify_senders', 'Notifications', 'Senders', 'A registered sender, an inline sender and a sender warning. Tap the Look key afterwards to read them again.', function(o)
+    lib.registerSender('cortexdebug-fleeca', { label='Fleeca', color='#7fcf94', icon='F' })
+    notice({ id='sender-bank', sender='cortexdebug-fleeca', type='success', title='Deposit', description='$2,500 deposited to checking.', duration=o.duration, position=o.position })
+    notice({ id='sender-contact', sender={ label='Lucia', color='#e58cb4' }, description=o.message, duration=o.duration, position=o.position })
+    notice({ id='sender-dispatch', sender={ label='Dispatch', color='#8fc3ec', icon='shield' }, type='warning', title='Silent alarm', description='Vangelico, Rockford Hills.', duration=o.duration, position=o.position })
+    return 'Three sender notices displayed. Tap the Look key (Z) to list them again.'
+end)
+add('notify_quiet', 'Notifications', 'Quiet / important', 'With Quiet notifications on, the first only reaches recent notices and the second still shows.', function(o)
+    notice({ id='quiet-info', type='info', title='Quiet test', description='Hidden while Quiet notifications is on.', duration=o.duration, position=o.position })
+    notice({ id='quiet-important', type='info', title='Important test', description='Marked important, so it always shows.', important=true, duration=o.duration, position=o.position })
+    return 'Two notices sent. Compare with Quiet notifications on and off.'
+end)
 
 for _, kind in ipairs({'bar','circle','locked'}) do
     local style = kind

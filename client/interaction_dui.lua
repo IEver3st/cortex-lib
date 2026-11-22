@@ -292,6 +292,7 @@ local function copyItem(item)
         panel = item.panel, holdDuration = item.holdDuration, holdActive = item.holdActive,
         holdRevision = item.holdRevision, tier = 'prompt', group = item.group,
         selected = item.selected, active = item.active, focused = item.focused,
+        note = item.note, more = item.more, blocked = item.blocked,
         -- The DUI page places the group itself; positions stay native.
         x = 0, y = 0, distance = 0,
     }
@@ -419,9 +420,9 @@ end
 -- Visible rows of a list (ui/surfaces/interactions.js getInteractionListWindow
 -- plus the peek row), for the bottom-edge clamp.
 local function visibleRows(cluster)
-    local count = cluster.count
+    local count = cluster.shownCount or cluster.count
     if count <= 4 then return count end
-    local selected = (cluster.selectedIndex or 1) - 1
+    local selected = (cluster.shownSelected or 1) - 1
     local start = math.max(0, math_min(count - 4, selected - 2))
     return 4 + ((start + 4 < count) and 1 or 0)
 end

@@ -20,6 +20,11 @@ local fallbackGeneration = 0
 local controlThreadActive = false
 local clearOpenRadial
 
+local function setRadialPeek(active)
+    local setPeekHold = rawget(lib, '_setPeekHold')
+    if type(setPeekHold) == 'function' then setPeekHold('radial', active) end
+end
+
 local function getInvokingOwner()
     local owner = GetInvokingResource and GetInvokingResource() or nil
     return owner or CURRENT_RESOURCE
@@ -369,6 +374,7 @@ clearOpenRadial = function(sendMessage, instant)
 
     local session = currentSession
     isOpen = false
+    setRadialPeek(false)
     currentRadial = nil
     currentOwner = nil
     currentSession = nil
@@ -428,6 +434,7 @@ local function showRadial(menuId)
         return false
     end
     startControlThread()
+    setRadialPeek(true)
     return true
 end
 

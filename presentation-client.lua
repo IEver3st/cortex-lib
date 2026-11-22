@@ -21,7 +21,7 @@ local function pageKey(data)
     end
     table.sort(owners)
     return table.concat({
-        tostring(profile.accent), tostring(profile.opacity), tostring(profile.motion), tostring(profile.layout),
+        tostring(profile.accent), tostring(profile.opacity), tostring(profile.motion), tostring(profile.layout), tostring(profile.design),
         tostring(viewport.width), tostring(viewport.height), tostring(viewport.inset),
         tostring(data.modal), tostring(data.settings), table.concat(owners, ','),
     }, '|')
@@ -42,6 +42,9 @@ end
 AddEventHandler('cortex-lib:presentation', function(data)
     forward(data, false)
 end)
+AddEventHandler('cortex-lib:presentationSettle', function(token)
+    SendNUIMessage({ action = 'cortex:presentationSettle', token = token })
+end)
 RegisterNUICallback('cortexPresentationReady', function(_, cb)
     sync()
     cb({ ok = true })
@@ -55,8 +58,9 @@ RegisterNUICallback('cortexPresentationSurfaces', function(data, cb)
         end
     end
     needsLayout = movable
+    local settle = type(data) == 'table' and tonumber(data.settle) or nil
     local called, ok, err = pcall(function()
-        return exports['cortex-lib']:setPresentationSurfaces(surfaces)
+        return exports['cortex-lib']:setPresentationSurfaces(surfaces, settle)
     end)
     if called and ok == true then cb({ ok = true })
     else cb({ ok = false, error = called and err or 'unavailable' }) end

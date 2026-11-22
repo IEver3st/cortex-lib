@@ -1,5 +1,42 @@
 # Changelog
 
+## 4.0.0 (2026-11-20)
+
+### Updating from 3.7.0
+- Replace the `cortex-lib` folder and restart the server, so every resource that uses cortex-lib loads this version with it.
+- Prompts behave differently in every script that uses cortex-lib: a full prompt shows only within 1.5 m or when the player looks at it, and is a small ring otherwise. A script that needs a prompt visible anywhere inside `maxDistance` sets `anchor.alwaysPrompt = true`.
+- Two new default keys: `E` uses the thing in front of you and `Z` is the Look key. If your server already uses either, `setr cortex_lib_use_key` and `setr cortex_lib_peek_key` change the defaults, and players can rebind both under FiveM key bindings.
+- Four more default keys, shared by every Cortex resource: `X` cancels, `Y` answers, `M` opens Actions and `B` points. Each does nothing until a resource registers something on it, and in a vehicle `X` still ducks unless something is running. `setr cortex_lib_cancel_key`, `cortex_lib_answer_key`, `cortex_lib_actions_key` and `cortex_lib_point_key` change the defaults, and players can rebind all four under FiveM key bindings.
+
+### Added
+- Things (`lib.thing`): a script describes an object and what can be done to it, and cortex-lib does the rest. It finds the nearest ones, shows one key and one verb, turns the character's head to it, asks the server before anything happens, walks the character to a stand point if the verb has one, and then calls the script. See **Things** in `docs/api.md`.
+- Things, server side: `lib.thing.serve(id, { coords, verbs })` checks every use against the position the server knows, the routing bucket, a per-player rate and cooldown, and a lock. `lib.thing.lock`, `touch`, `release` and `holder` let a script hold that lock for a session or for an NPC. A locked thing reads `In use` to everyone else.
+- One key for every thing: `+cortex_use`, default `E`, listed under FiveM key bindings as "Use the thing in front of you". `setr cortex_lib_use_key` changes the server default. A player who rebinds it sees the new key on every thing.
+- Interaction prompts: three optional fields on an anchored prompt. `note` is one short line under the selected verb. `more` folds a list that shares a key down to its selected row with a `+N` mark until the wheel moves, and it folds again 2 seconds after the last step. `blocked = true` draws a hollow disc with the label as the reason and never takes a key.
+- Interaction prompts: the key disc sinks and its ring turns the accent colour while you hold the key, then springs back on release.
+- Interaction prompts: `anchor.alwaysPrompt = true` keeps the old behaviour of showing the prompt anywhere inside `maxDistance`.
+- Notifications: a notice can come from a named sender, such as a bank, dispatch or a contact. `lib.registerSender(id, { label, color, icon })` registers one and `sender = id` on `lib.notify` uses it. The notice shows the sender's name as its title and the sender's mark in its colour. See docs/api.md.
+- Look key (default `Z`, rebind it under FiveM key bindings as "Cortex: look (HUD and recent notices)"): tap or hold it to list up to five recent notices that are no longer on screen, next to the live ones. Tap again to dismiss. The list appears already clear of any HUD element that wakes on the same press. Opening a radial shows them too. `setr cortex_lib_peek_key` sets the server default.
+- Look key for resources: the `cortex-lib:peek` event, `lib.isPeeking()` and `lib.peek(active)` let a HUD wake its hidden elements on the same key instead of binding its own.
+- Recent notices: the last 40 notices are kept for the session. `lib.getNoticeLog()` reads them, `log = false` on a notice keeps it out, and the `cortex-lib:noticeLogged` event fires for each one.
+- Settings > Notifications > Quiet notifications: only warnings, errors and notices that wait for you appear. The rest go to recent notices. `important = true` on a notice shows it anyway.
+- In cortex-hud's Streamer Mode, recent notices from a sender show the sender and title without the message text.
+- Skins: `exports['cortex-lib']:setPresentationDesign('cortex'|'leonida'|'vi')` restyles notifications (and the Look list), progress and text UI to match a HUD design. cortex-hud sets it from its active design; `nil` hands it back, and it clears when the resource that set it stops.
+- Settings hosts: `getSettingsSchema()` returns every settings tab with its fields and values, and `setHostedSetting(tabId, key, value)` changes one toggle, slider, select, colour or sound setting in any tab, checked against that tab's own fields. Only resources listed in the `cortex_lib_settings_hosts` convar can call them, and writes are refused while the Settings page is open.
+- Cortex keys: four shared mappings every Cortex resource uses for the same job. Cancel (X) stops the newest thing the player started, Answer (Y) answers the newest invite or check, Actions (M) opens one wheel built from every resource's actions, and Point (B) gives taps and holds to the right owner. Resources use them through `lib.keys` or a copy of `imports/keys/client.lua`, detect them with the `cortex_keys` manifest flag, and keep their own mappings on older cortex-lib. A cancelable progress bar joins the Cancel key; Backspace, Esc and right mouse still cancel it. See `docs/keybindings.md`.
+
+### Changed
+- Interaction prompts: the full prompt now shows only when you are within 1.5 m of it or looking at it. Otherwise it stays a marker, and cannot be used until it becomes a prompt.
+- Interaction prompts: the marker is now a 12u ring, about half its old size, with no centre dot.
+- Notifications: the icon now sits in a round dark coin beside the title, and the coloured rule on the left edge is gone.
+- Menus, the fan radial, Settings, dialogs, text UI and the pause menu no longer draw an accent bar on the edge of a hovered or selected row. Hover is a wash and the selected row is the paper one.
+- The accent bar is gone from beside titles (menus, dialogs, Settings, the debug panel), from the quick menu's edge and title, from the top of an open dropdown and from under a focused field. Fields have no bottom line at all now: a field is a plain filled box, a focused field gets a lighter fill, and a field with an error gets a soft red fill.
+
+### Fixed
+- Interaction prompts: a prompt out of range, off screen or showing only as a marker no longer takes its key from the prompt in front of the player. Standing at one `E` prompt with another on the wall nearby showed two dots and neither could be used; now the one in front of you shows and works.
+- Interaction prompts: when two separate prompts in range share a key, the one nearest the centre of the screen is the one you can use, so you pick by looking at it. A running hold keeps its prompt until it ends.
+- Interaction prompts: a screen prompt (for example STAND while sitting) is no longer hidden by a higher-priority world prompt the player is nowhere near.
+
 ## 3.7.0 (2026-11-13)
 
 ### Added

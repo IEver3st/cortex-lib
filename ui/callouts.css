@@ -119,7 +119,7 @@
 [data-style='slip'] .pin { border-radius: calc(2 * var(--u)); }
 
 /* Paper: printed tags, paper with ink caps and an ink chip; the picked one
-   turns over to ink with an accent bar. Diamond pins. */
+   turns over to ink. Diamond pins. */
 [data-style='paper'] .row {
     background: var(--paper);
     color: var(--ink);
@@ -140,7 +140,7 @@
 [data-style='paper'] .row.hot {
     background: var(--ink);
     color: var(--paper);
-    box-shadow: inset calc(4 * var(--u)) 0 0 var(--accent), 0 calc(3 * var(--u)) 0 var(--paper);
+    box-shadow: 0 calc(3 * var(--u)) 0 var(--paper);
 }
 [data-style='paper'] .row.hot .chip { background: var(--paper); color: var(--ink); }
 [data-style='paper'] .row.hot.tone-on .chip, [data-style='paper'] .row.hot.tone-you .chip { background: var(--accent); color: var(--ink); }
@@ -148,7 +148,7 @@
 [data-style='paper'] .switch { background: var(--paper); color: var(--ink); box-shadow: 0 calc(3 * var(--u)) 0 var(--ink); }
 [data-style='paper'] .switch.tone-on { background: var(--accent); }
 [data-style='paper'] .switch.tone-no { background: var(--ink); color: var(--error); }
-[data-style='paper'] .switch.hot { background: var(--ink); color: var(--paper); box-shadow: inset calc(4 * var(--u)) 0 0 var(--accent), 0 calc(3 * var(--u)) 0 var(--paper); }
+[data-style='paper'] .switch.hot { background: var(--ink); color: var(--paper); box-shadow: 0 calc(3 * var(--u)) 0 var(--paper); }
 [data-style='paper'] .pin {
     width: calc(12 * var(--u));
     height: calc(12 * var(--u));

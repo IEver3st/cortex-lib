@@ -239,8 +239,8 @@
                     }
                 } },
                 isSettings ? h('header', { className: 'pause-heading cortex-settings-heading' },
-                    // Settings speaks the kit: eyebrow + display title with the
-                    // accent bar, and the controls legend where the eye starts.
+                    // Settings speaks the kit: eyebrow + display title,
+                    // and the controls legend where the eye starts.
                     h('div', { className: 'cortex-settings-title-block' },
                         h('span', { className: 'cx-eyebrow' }, data.title),
                         h('h1', { id: 'cortex-settings-title' }, heading)),

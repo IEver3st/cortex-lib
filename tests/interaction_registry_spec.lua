@@ -52,6 +52,7 @@ local ok = exported.showInteraction({
 })
 assert(ok == true)
 
+assert(lib._setInteractionReach({ 'resource-high:door' }, 1) == true)
 invokingResource = 'resource-high'
 ok = exported.showInteraction({
     id = 'door',
@@ -269,6 +270,7 @@ assert(snapshot[1].owner == 'resource-low')
 assert(snapshot[1].active == true)
 assert(revisionEvents == 5)
 
+assert(lib._setInteractionReach({ 'resource-entity:wallet' }, 1) == true)
 invokingResource = 'resource-entity'
 assert(exported.showInteraction({
     id = 'wallet',

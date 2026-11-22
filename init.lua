@@ -192,6 +192,18 @@ local clientOwnedModules = {
             cancelHold = self.cancelInteractionHold,
         }
     end,
+    notices = function(self)
+        return {
+            registerSender = self.registerSender,
+            removeSender = self.removeSender,
+            getSender = self.getSender,
+            getSenders = self.getSenders,
+            getNoticeLog = self.getNoticeLog,
+            clearNoticeLog = self.clearNoticeLog,
+            peek = self.peek,
+            isPeeking = self.isPeeking,
+        }
+    end,
     callouts = function(self)
         return {
             show = self.showCallouts,
@@ -386,6 +398,15 @@ if context == 'client' then
     function lib.hideTextUI()
         return callCortexExport('hideTextUI')
     end
+
+    function lib.registerSender(id, data) return callCortexExport('registerSender', id, data) end
+    function lib.removeSender(id) return callCortexExport('removeSender', id) end
+    function lib.getSender(id) return callCortexExport('getSender', id) end
+    function lib.getSenders() return callCortexExport('getSenders') end
+    function lib.getNoticeLog(limit) return callCortexExport('getNoticeLog', limit) end
+    function lib.clearNoticeLog() return callCortexExport('clearNoticeLog') end
+    function lib.peek(active) return callCortexExport('peek', active) end
+    function lib.isPeeking() return callCortexExport('isPeeking') end
 
     function lib.notifySuccess(message, title, sound)
         return callCortexExport('notifySuccess', message, title, sound)

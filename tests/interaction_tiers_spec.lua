@@ -91,7 +91,7 @@ end
 local function world(id, key, priority, y, more, z)
     local item = {
         id = id, label = id:upper(), key = key, priority = priority,
-        anchor = { type = 'world', x = 10.0, y = y or 0.0, z = z or 0.0, maxDistance = 2.0 },
+        anchor = { type = 'world', x = 10.0, y = y or 0.0, z = z or 0.0, maxDistance = 2.0, alwaysPrompt = true },
     }
     for field, value in pairs(more or {}) do item[field] = value end
     return item
@@ -137,9 +137,9 @@ local items = lastWorld()
 assert(#items == 0, 'markers are not NUI items: NUI trails the camera')
 assert(#drawn == 1, 'nearby anchors merge into one native marker')
 assert(drawn[1].x == 10.0 and markerAt(0.0, 0.0), 'the merged marker sits at the highest-ranked anchor (beer)')
-assert(drawn[1].txd == 'cortex_lib_marker' and drawn[1].texture == 'dot' and textures == 1, 'one runtime texture, built once')
-assert(math.abs(drawn[1].height - 32 / 1080) < 0.002 and math.abs(drawn[1].width * 1920 - drawn[1].height * 1080) < 0.01,
-    'a 32u square sprite at 1080p')
+assert(drawn[1].txd == 'cortex_lib_marker' and drawn[1].texture == 'ring' and textures == 1, 'one runtime texture, built once')
+assert(math.abs(drawn[1].height - 20 / 1080) < 0.002 and math.abs(drawn[1].width * 1920 - drawn[1].height * 1080) < 0.01,
+    'a 20u square sprite at 1080p')
 local firstAlpha = drawn[1].alpha
 frame()
 assert(drawn[1].alpha > firstAlpha and drawn[1].alpha < 255, 'markers fade in, then fade with distance')
@@ -253,14 +253,16 @@ assert(not items[1].focused and next(disabled) == nil, 'a list without a shared 
 assert(items[1].active and items[2].active)
 assert(as('bench', exported.clearInteractions))
 
--- A row whose key is owned elsewhere is not offered: it degrades to a marker.
+-- Separate same-key lists: the one nearest the screen centre owns the key,
+-- whatever its priority; the other degrades to a marker.
 assert(as('fridge', exported.setInteractions, { world('beer', 'E', 10, 0.0) }))
 assert(as('car', exported.showInteraction, world('door', 'E', 100, 0.0, nil, 1.5)))
 frame()
 items = lastWorld()
-assert(find(items, 'door').tier == 'prompt' and find(items, 'door').active)
-assert(not find(items, 'beer') and markerAt(0.0, 0.0), 'a same-key loser outside the owner list is only a marker')
-assert(not as('fridge', exported.isInteractionVisible, 'beer'))
+assert(find(items, 'beer').tier == 'prompt' and find(items, 'beer').active)
+assert(not find(items, 'door') and markerAt(0.0, 1.5), 'a same-key loser outside the owner list is only a marker')
+assert(as('fridge', exported.isInteractionVisible, 'beer'))
+assert(not as('car', exported.isInteractionActive, 'door'))
 
 -- A screen prompt owning the key keeps world rows out and rejects preference.
 assert(as('hud', exported.showInteraction, { id = 'menu', label = 'MENU', key = 'E', priority = 500 }))

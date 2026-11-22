@@ -55,7 +55,7 @@
    column's foot and the selected entry is the only solid card. Ink on paper;
    the accent marks state. Everything settles once: nothing loops. */
 .is-home { background: var(--pause-home-scrim, rgba(var(--pause-ink-rgb), 0.34)); --rail-width: calc(var(--pause-safe) + 620 * var(--pause-unit)); --ink-soft: rgba(var(--pause-ink-rgb), 0.62); }
-.pause-rail { position: absolute; inset: 0 auto 0 0; width: var(--rail-width); overflow: hidden; background: var(--pause-paper-fill, var(--pause-paper)); box-shadow: calc(4 * var(--pause-unit)) 0 0 var(--pause-accent), 0 0 calc(40 * var(--pause-unit)) rgba(var(--pause-ink-rgb), 0.45); animation: pause-rail-in 320ms var(--ease) both; }
+.pause-rail { position: absolute; inset: 0 auto 0 0; width: var(--rail-width); overflow: hidden; background: var(--pause-paper-fill, var(--pause-paper)); box-shadow: 0 0 calc(40 * var(--pause-unit)) rgba(var(--pause-ink-rgb), 0.45); animation: pause-rail-in 320ms var(--ease) both; }
 /* Hexes read by their tone and their lit sides; no outlines, so nothing is thinner than 3u. */
 .pause-terrain { position: absolute; inset: 0; width: 100%; height: 100%; animation: pause-terrain-rise 900ms var(--ease) 120ms both; }
 .pause-terrain .hex-top { fill: var(--pause-ink); stroke: none; }
@@ -71,8 +71,7 @@
 .is-home .cortex-pause { right: auto; width: calc(560 * var(--pause-unit)); max-width: calc(100% - 2 * var(--pause-safe)); z-index: 1; color: var(--pause-ink); }
 .is-home .pause-heading { padding: 0; }
 .is-home .pause-mark { color: var(--pause-ink); }
-.is-home .pause-heading h1 { position: relative; margin-top: calc(12 * var(--pause-unit)); padding-bottom: calc(16 * var(--pause-unit)); max-width: 100%; font: 800 calc(62 * var(--pause-unit))/0.9 var(--pause-type); letter-spacing: -0.012em; }
-.is-home .pause-heading h1::after { content: ''; position: absolute; left: 0; bottom: 0; width: calc(44 * var(--pause-unit)); height: calc(4 * var(--pause-unit)); background: var(--pause-accent-deep); animation: pause-rule-in 600ms var(--ease) 250ms both; transform-origin: left; }
+.is-home .pause-heading h1 { margin-top: calc(12 * var(--pause-unit)); padding-bottom: calc(8 * var(--pause-unit)); max-width: 100%; font: 800 calc(62 * var(--pause-unit))/0.9 var(--pause-type); letter-spacing: -0.012em; }
 /* Identity block: hex ID badge + name + zone, ruled off from the options. */
 .pause-identity { display: flex; align-items: center; gap: calc(16 * var(--pause-unit)); margin-top: calc(22 * var(--pause-unit)); padding-bottom: calc(20 * var(--pause-unit)); border-bottom: calc(3 * var(--pause-unit)) solid rgba(var(--pause-ink-rgb), 0.1); animation: pause-item-in 320ms var(--ease) 80ms both; }
 .pause-id-badge { position: relative; flex: none; width: calc(56 * var(--pause-unit)); height: calc(64 * var(--pause-unit)); display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--pause-paper); }
@@ -94,7 +93,6 @@
    point; the glyph fills with the accent. One transform, no layout change. */
 .pause-nav-item { --tip: calc(22 * var(--pause-unit)); position: relative; isolation: isolate; width: 100%; display: grid; grid-template-columns: calc(24 * var(--pause-unit)) minmax(0, 1fr) auto; column-gap: calc(18 * var(--pause-unit)); align-items: center; min-height: calc(78 * var(--pause-unit)); padding: calc(13 * var(--pause-unit)) calc(var(--tip) + 14 * var(--pause-unit)) calc(13 * var(--pause-unit)) calc(14 * var(--pause-unit)); background: transparent; color: var(--pause-ink); border: 0; text-align: left; cursor: pointer; animation: pause-item-in 300ms var(--ease) both; animation-delay: calc(var(--i, 0) * 32ms + 120ms); }
 .pause-nav-item::before { content: ''; position: absolute; inset: calc(-1 * var(--pause-unit)) 0; z-index: -1; background: var(--pause-ink-fill, var(--pause-ink)); clip-path: polygon(0 0, calc(100% - var(--tip)) 0, 100% 50%, calc(100% - var(--tip)) 100%, 0 100%); transform: scaleX(0); transform-origin: left; transition: transform 280ms var(--ease); }
-.pause-nav-item::after { content: ''; position: absolute; left: 0; top: calc(-1 * var(--pause-unit)); bottom: calc(-1 * var(--pause-unit)); width: calc(4 * var(--pause-unit)); background: var(--pause-accent); transform: scaleY(0); transition: transform 220ms var(--ease) 60ms; }
 .pause-nav-hex { width: calc(24 * var(--pause-unit)); height: calc(24 * var(--pause-unit)); overflow: visible; }
 .pause-nav-hex polygon { fill: transparent; stroke: rgba(var(--pause-ink-rgb), 0.38); stroke-width: 3; stroke-linejoin: round; transition: fill 180ms ease, stroke 180ms ease; }
 .pause-nav-text { min-width: 0; }
@@ -103,16 +101,14 @@
 .pause-nav-arrow { color: var(--pause-accent); font: 700 calc(28 * var(--pause-unit))/1 var(--pause-type); opacity: 0; transform: translateX(calc(-12 * var(--pause-unit))); transition: opacity 180ms ease, transform 240ms var(--ease); }
 .cortex-pause .pause-nav-item:focus { outline: none; }
 .pause-nav-item:focus::before { transform: scaleX(1); }
-.pause-nav-item:focus::after { transform: scaleY(1); }
 .pause-nav-item:focus .pause-nav-hex polygon { fill: var(--pause-accent); stroke: var(--pause-accent); }
 .pause-nav-item:focus .pause-nav-label { color: var(--pause-paper); }
 .pause-nav-item:focus .pause-nav-caption { color: var(--muted); }
 .pause-nav-item:focus .pause-nav-arrow { opacity: 1; transform: none; }
 .pause-nav-item.is-danger { margin-top: calc(18 * var(--pause-unit)); }
-.pause-nav-item.is-danger::after { background: var(--state-error); }
 .pause-nav-item.is-danger:focus .pause-nav-hex polygon { fill: var(--state-error); stroke: var(--state-error); }
 .pause-nav-item.is-danger .pause-nav-arrow { color: var(--state-error); }
-.pause-changes { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: calc(10 * var(--pause-unit)); margin-top: calc(12 * var(--pause-unit)); padding: calc(12 * var(--pause-unit)) calc(14 * var(--pause-unit)); background: var(--pause-ink-fill, var(--pause-ink)); color: var(--pause-paper); border-left: calc(4 * var(--pause-unit)) solid var(--pause-accent); font-size: calc(14 * var(--pause-unit)); }
+.pause-changes { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: calc(10 * var(--pause-unit)); margin-top: calc(12 * var(--pause-unit)); padding: calc(12 * var(--pause-unit)) calc(14 * var(--pause-unit)); background: var(--pause-ink-fill, var(--pause-ink)); color: var(--pause-paper); font-size: calc(14 * var(--pause-unit)); }
 .pause-changes span { flex: 1; }
 .pause-changes button { background: var(--pause-accent-fill, var(--pause-accent)); color: var(--pause-ink); border: 0; padding: calc(9 * var(--pause-unit)) calc(14 * var(--pause-unit)); font: 800 calc(18 * var(--pause-unit))/1 var(--pause-type); text-transform: uppercase; cursor: pointer; }
 .pause-changes button:first-of-type { background: transparent; color: var(--pause-paper); box-shadow: inset 0 0 0 calc(3 * var(--pause-unit)) var(--rule-strong); }
@@ -134,12 +130,11 @@
 @keyframes pause-terrain-rise { from { opacity: 0; transform: translateY(calc(60 * var(--pause-unit))); } }
 @keyframes pause-beacon-in { from { opacity: 0; } }
 @keyframes pause-fade-in { from { opacity: 0; } }
-@keyframes pause-rule-in { from { transform: scaleX(0); } }
 @keyframes pause-item-in { from { opacity: 0; transform: translateX(calc(-12 * var(--pause-unit))); } }
 
 .cortex-pause-overlay:not(.is-settings-page) .cortex-pause :is(button, input):disabled { opacity: 0.4; cursor: default; }
 /* Keyboard and pad focus uses the state language, never an outline ring. */
-.cortex-pause :is(.pause-action, .pause-location-row, .pause-back, .pause-changes button):focus-visible { background: var(--pause-paper-fill, var(--pause-paper)); color: var(--pause-ink); box-shadow: inset calc(4 * var(--pause-unit)) 0 0 var(--pause-accent); }
+.cortex-pause :is(.pause-action, .pause-location-row, .pause-back, .pause-changes button):focus-visible { background: var(--pause-paper-fill, var(--pause-paper)); color: var(--pause-ink); }
 .pause-page-content { min-height: 0; flex: 1; overflow: auto; max-width: calc(1450 * var(--pause-unit)); width: 100%; align-self: center; padding: calc(12 * var(--pause-unit)); scrollbar-width: thin; }
 .pause-page-intro { color: var(--muted); font-size: calc(18 * var(--pause-unit)); max-width: 75ch; line-height: 1.6; }
 .pause-extension-section { background: var(--pause-panel, var(--slip)); padding: calc(26 * var(--pause-unit)); margin-bottom: calc(8 * var(--pause-unit)); }
@@ -155,7 +150,7 @@
 .pause-location-toolbar input::placeholder { color: var(--dim); }
 .pause-location-toolbar input::-webkit-search-cancel-button { -webkit-appearance: none; }
 .pause-location-row { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: calc(16 * var(--pause-unit)); padding: calc(18 * var(--pause-unit)) calc(22 * var(--pause-unit)); margin-bottom: calc(5 * var(--pause-unit)); background: var(--pause-panel, var(--slip)); color: var(--pause-paper); border: 0; text-align: left; font: 800 calc(24 * var(--pause-unit))/1.1 var(--pause-type); cursor: pointer; }
-.pause-location-row:hover { box-shadow: inset calc(4 * var(--pause-unit)) 0 0 var(--pause-accent); background: var(--pause-panel-hover, var(--ink-2)); }
+.pause-location-row:hover { background: var(--pause-panel-hover, var(--ink-2)); }
 .pause-location-row small { display: block; color: var(--muted); font: 400 calc(14 * var(--pause-unit))/1.3 var(--pause-body); margin-bottom: calc(6 * var(--pause-unit)); }
 .pause-location-row strong { font-weight: 800; }
 .pause-location-row > span:last-child { font-size: calc(18 * var(--pause-unit)); color: var(--pause-accent); flex: none; }

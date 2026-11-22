@@ -63,7 +63,7 @@ local function isUsablePed(ped)
     if type(DoesEntityExist) ~= 'function' then return true end
 
     local ok, exists = pcall(DoesEntityExist, ped)
-    return ok and exists == true
+    return ok and (exists == true or exists == 1)
 end
 
 local CPoint = {}

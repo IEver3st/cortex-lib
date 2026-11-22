@@ -194,19 +194,30 @@ const normalizeNotificationSource = uiSource.match(/function normalizeNotificati
 const clearNotificationsSource = uiSource.match(/function filterNotificationsForClear\(notifications, data\) \{[\s\S]*?\n\}/);
 const notificationDedupeSource = uiSource.match(/function getNotificationDedupeKey\(notification\) \{[\s\S]*?\n\}/);
 const notificationMergeSource = uiSource.match(/function mergeNotificationState\(notifications, normalized, generatedId\) \{[\s\S]*?\n\}/);
-assert.ok(normalizeNotificationSource && clearNotificationsSource && notificationDedupeSource && notificationMergeSource,
+const notificationSenderSource = uiSource.match(/const NOTIFY_INK_RGB[\s\S]*?function normalizeNotifySender\(sender\) \{[\s\S]*?\n\}/);
+assert.ok(normalizeNotificationSource && clearNotificationsSource && notificationDedupeSource && notificationMergeSource && notificationSenderSource,
     'notification ownership and identity helpers must remain independently testable');
 const notificationHelpers = Function(
     'isRecord',
     'boundedText',
     'NUI_MAX_NOTIFICATIONS',
-    `${normalizeNotificationSource[0]}\n${clearNotificationsSource[0]}\n${notificationDedupeSource[0]}\n${notificationMergeSource[0]}\nreturn { normalizeNotificationData, filterNotificationsForClear, getNotificationDedupeKey, mergeNotificationState };`
+    `${notificationSenderSource[0]}\n${normalizeNotificationSource[0]}\n${clearNotificationsSource[0]}\n${notificationDedupeSource[0]}\n${notificationMergeSource[0]}\nreturn { normalizeNotificationData, filterNotificationsForClear, getNotificationDedupeKey, mergeNotificationState };`
 )(
     value => value !== null && typeof value === 'object' && !Array.isArray(value),
     (value, fallback = '', maxLength = 4096) => typeof value === 'string' ? value.slice(0, maxLength) : fallback,
     12
 );
 assert.equal(notificationHelpers.normalizeNotificationData({ owner: 'a'.repeat(120) }).owner.length, 96, 'notification owners must be bounded');
+const senderOf = sender => notificationHelpers.normalizeNotificationData({ sender }).sender;
+assert.equal(senderOf('fleeca'), null, 'an unresolved sender id never reaches the renderer');
+assert.equal(senderOf({ color: '#7fcf94' }), null, 'a sender needs a label');
+assert.equal(senderOf({ label: 'L'.repeat(80) }).label.length, 48, 'sender labels must be bounded');
+assert.equal(senderOf({ label: 'Fleeca', color: 'url(x)' }).color, null, 'sender colours must be six-digit hex');
+assert.equal(senderOf({ label: 'Fleeca', color: '#7fcf94' }).color, 'rgb(127, 207, 148)');
+assert.notEqual(senderOf({ label: 'Maze', color: '#200408' }).color, 'rgb(32, 4, 8)', 'a colour too dark for the ink coin is lifted');
+assert.equal(senderOf({ label: 'Maze', image: 'https://example.com/a.png' }).image, null, 'sender images load only from resources');
+assert.equal(senderOf({ label: 'Maze', image: 'nui://bank/../secret.png' }).image, null);
+assert.equal(senderOf({ label: 'Maze', image: 'nui://cortex-banking/web/logos/maze.svg' }).image, 'https://cfx-nui-cortex-banking/web/logos/maze.svg');
 const ownedNotifications = [
     { id: 'one', owner: 'resource-a' },
     { id: 'two', owner: 'resource-b' },

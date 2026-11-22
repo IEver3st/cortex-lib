@@ -507,7 +507,6 @@
     background: var(--paper);
     color: var(--ink);
     --cortex-radial-content: var(--ink);
-    box-shadow: inset calc(4 * var(--ru)) 0 0 var(--accent);
 }
 
 .cortex-radial-row.is-hover .cortex-radial-icon { stroke: var(--ink); }
@@ -516,7 +515,6 @@
 .cortex-radial-row.is-armed .cortex-radial-row-face {
     background: var(--error);
     color: var(--ink);
-    box-shadow: inset calc(4 * var(--ru)) 0 0 var(--ink);
 }
 
 .cortex-radial-row.is-armed .cortex-radial-row-detail { opacity: 1; font-weight: 700; }
@@ -526,7 +524,6 @@
 .cortex-radial-row.is-disabled.is-hover .cortex-radial-row-face {
     background: var(--slip);
     color: var(--muted);
-    box-shadow: inset calc(4 * var(--ru)) 0 0 var(--dim);
 }
 
 .cortex-radial-fan-title {

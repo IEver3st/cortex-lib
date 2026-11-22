@@ -38,6 +38,7 @@ local alertSession = nil
 local contextSession = nil
 local textUiOwner = nil
 local notificationOwners = {}
+local NOTIFY_LONGEST_LIFETIME_SCALE = 1.5
 local notificationSequence = 0
 local fallbackGeneration = 0
 
@@ -215,11 +216,18 @@ local function normalizeNotify(data)
         or (data.id ~= nil and not boundedString(data.id, 128, false))
         or (data.showDuration ~= nil and type(data.showDuration) ~= 'boolean')
         or (data.persistent ~= nil and type(data.persistent) ~= 'boolean')
+        or (data.log ~= nil and type(data.log) ~= 'boolean')
+        or (data.important ~= nil and type(data.important) ~= 'boolean')
     then
         return nil
     end
 
+    local resolveSender = rawget(lib, '_resolveSender')
+
     return {
+        sender = type(resolveSender) == 'function' and resolveSender(data.sender) or nil,
+        log = data.log ~= false,
+        important = data.important == true,
         id = data.id,
         explicitId = data.id ~= nil,
         title = title,
@@ -257,22 +265,58 @@ local function removeOwnerNotifications(owner, sendHide)
     return removed
 end
 
+local function isQuieted(normalized)
+    return getSettingValue('notifyQuiet') == true
+        and not normalized.important
+        and not normalized.persistent
+        and normalized.type ~= 'warning'
+        and normalized.type ~= 'error'
+end
+
+local function recordNotice(normalized, owner, entryKey, publicId, liveId)
+    local logNotice = rawget(lib, '_logNotice')
+    local shown = liveId ~= nil
+    if type(logNotice) ~= 'function' or (shown and not normalized.log) then return end
+    logNotice({
+        key = entryKey and (owner .. '\0' .. entryKey) or nil,
+        noticeId = publicId,
+        liveId = liveId,
+        owner = owner,
+        type = normalized.type,
+        title = normalized.title,
+        description = normalized.description,
+        sender = normalized.sender,
+        shown = shown,
+    })
+end
+
 local function notify(data)
     local normalized = normalizeNotify(data)
     if not normalized then return nil end
 
     local owner = getInvokingOwner()
     if not boundedString(owner, 96, false) then owner = CURRENT_RESOURCE end
-    local entries = getOwnerNotifications(owner)
     normalized.owner = owner
     local publicId = normalized.id
     local entryKey = publicId and ('id:' .. publicId)
         or (normalized.dedupe and ('dedupe:' .. notifyDedupeSoundKey(normalized)) or nil)
+
+    local liveEntries = notificationOwners[owner]
+    local onScreen = entryKey ~= nil and liveEntries ~= nil and liveEntries[entryKey] ~= nil
+    if not onScreen and isQuieted(normalized) then
+        recordNotice(normalized, owner, entryKey, publicId, nil)
+        return publicId
+    end
+
+    local entries = getOwnerNotifications(owner)
     local entry = entryKey and entries[entryKey] or nil
     if not entry then
         local count = 0
         for _ in next, entries do count = count + 1 end
-        if count >= MAX_TRACKED_NOTIFICATIONS then return false, 'capacity_exceeded' end
+        if count >= MAX_TRACKED_NOTIFICATIONS then
+            recordNotice(normalized, owner, entryKey, publicId, nil)
+            return false, 'capacity_exceeded'
+        end
         local internalId = nextNotificationId()
         entryKey = entryKey or ('anon:' .. internalId)
         entry = { internalId = internalId, version = 0 }
@@ -297,9 +341,13 @@ local function notify(data)
     end
 
     normalized.sound = nil
+    recordNotice(normalized, owner, entryKey, publicId, entry.internalId)
+    normalized.log = nil
+    normalized.important = nil
+    normalized.rev = version
     SendNUIMessage({ action = 'notify', data = normalized })
     if normalized.duration > 0 then
-        SetTimeout(normalized.duration + 500, function()
+        SetTimeout(math.floor(normalized.duration * NOTIFY_LONGEST_LIFETIME_SCALE) + 1500, function()
             if notificationOwners[owner] == entries and entries[entryKey] == entry and entry.version == version then
                 entries[entryKey] = nil
                 if next(entries) == nil then notificationOwners[owner] = nil end
@@ -321,6 +369,25 @@ local function hideNotify(id)
     SendNUIMessage({ action = 'hideNotify', data = { id = entry.internalId } })
     return true
 end
+
+RegisterNUICallback('notifyClosed', function(data, cb)
+    cb({ ok = true })
+    if type(data) ~= 'table' then return end
+    local id = rawget(data, 'id')
+    local rev = tonumber(rawget(data, 'rev'))
+    if not boundedString(id, 128, false) or not rev then return end
+    for owner, entries in pairs(notificationOwners) do
+        for key, entry in pairs(entries) do
+            if entry.internalId == id then
+                if entry.version == rev then
+                    entries[key] = nil
+                    if next(entries) == nil then notificationOwners[owner] = nil end
+                end
+                return
+            end
+        end
+    end
+end)
 
 local function clearNotifications()
     local owner = getInvokingOwner()
@@ -486,7 +553,7 @@ local function cleanupProgress(entry)
     local pedExists = false
     if ped then
         local existsOk, exists = pcall(DoesEntityExist, ped)
-        pedExists = existsOk and exists == true
+        pedExists = existsOk and (exists == true or exists == 1)
     end
     if pedExists and entry.anim then
         if entry.anim.dict then
@@ -501,14 +568,14 @@ local function cleanupProgress(entry)
     end
     if entry.propEntity then
         local existsOk, exists = pcall(DoesEntityExist, entry.propEntity)
-        if existsOk and exists == true then
+        if existsOk and (exists == true or exists == 1) then
             -- Attached progress props (hammer, phone) must be detached first.
             -- DeleteEntity alone on a hand-attached object silently fails and
             -- leaves the prop stuck to the ped.
             pcall(DetachEntity, entry.propEntity, false, true)
             pcall(DeleteEntity, entry.propEntity)
             local stillOk, still = pcall(DoesEntityExist, entry.propEntity)
-            if stillOk and still == true then pcall(DeleteObject, entry.propEntity) end
+            if stillOk and (still == true or still == 1) then pcall(DeleteObject, entry.propEntity) end
         end
         entry.propEntity = nil
     end
@@ -536,6 +603,7 @@ local function progress(data)
     local entry = { owner = getInvokingOwner(), cancelled = false, sent = false, anim = normalized.anim }
     activeProgress = entry
     local completed = false
+    local keysCancel = normalized.canCancel and rawget(lib, '_keysCancelable') or nil
     local function trace(value)
         if debug and type(debug.traceback) == 'function' then
             local traceOk, traced = pcall(debug.traceback, value, 2)
@@ -606,6 +674,12 @@ local function progress(data)
         })
         entry.sent = true
         local startTime = GetGameTimer()
+        if keysCancel then
+            keysCancel('progress', function()
+                if entry.cancelled or entry.completed then return false end
+                entry.cancelled = true
+            end)
+        end
 
         while not entry.cancelled do
             if elapsedSince(GetGameTimer(), startTime) >= normalized.duration then
@@ -642,6 +716,7 @@ local function progress(data)
         end
     end, trace)
 
+    if keysCancel then keysCancel('progress', false) end
     cleanupProgress(entry)
     if not ok then
         pcall(print, ('^1[cortex-lib]^7 progress failed: %s'):format(safeErrorText(err)))

@@ -247,10 +247,10 @@
 .cx-wp-pip {
     position: relative;
     display: grid;
-    flex: 0 0 calc(44 * var(--ix));
+    flex: 0 0 auto;
     align-self: stretch;
     place-items: center;
-    width: calc(44 * var(--ix));
+    min-width: calc(44 * var(--ix));
 }
 
 .cx-wp-pip > * {
@@ -263,11 +263,18 @@
     position: absolute;
     top: 0;
     bottom: 0;
-    left: calc(50% - 2 * var(--ix));
+    left: calc(20 * var(--ix));
     width: calc(4 * var(--ix));
     background: var(--paper);
     opacity: 0.5;
     box-shadow: 0 0 0 calc(1 * var(--u)) rgba(8, 9, 11, 0.28);
+}
+
+.cx-wp.is-flipped.is-list .cx-wp-pip::before,
+.cx-wp.is-flipped.has-more-below .cx-wp-row.is-last .cx-wp-pip::after,
+.cx-wp.is-flipped.has-more-above .cx-wp-row.is-first .cx-wp-pip::after {
+    left: auto;
+    right: calc(20 * var(--ix));
 }
 
 .cx-wp.is-list:not(.has-more-above) .cx-wp-row.is-first .cx-wp-pip::before { top: 50%; }
@@ -279,7 +286,7 @@
 .cx-wp.has-more-above .cx-wp-row.is-first .cx-wp-pip::after {
     content: '';
     position: absolute;
-    left: calc(50% - 2 * var(--ix));
+    left: calc(20 * var(--ix));
     width: calc(4 * var(--ix));
     height: calc(8 * var(--ix));
     background: rgba(240, 240, 233, 0.34);
@@ -344,6 +351,69 @@
     opacity: 0.3;
 }
 
+.cx-wp-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+}
+
+.cx-wp.is-flipped .cx-wp-text {
+    align-items: flex-end;
+}
+
+.cx-wp-note,
+.cx-wp-more {
+    color: var(--muted);
+    font: 700 calc(16 * var(--ix)) / 1.1 var(--display);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-shadow: var(--ix-legible);
+}
+
+.cx-wp-note {
+    max-width: min(34vw, calc(340 * var(--ix)));
+    overflow-wrap: anywhere;
+    animation: cx-wp-label-in 240ms var(--ease) both;
+}
+
+.cx-wp.is-flipped .cx-wp-note {
+    text-align: right;
+    animation-name: cx-wp-label-in-flipped;
+}
+
+.cx-wp-more {
+    flex: 0 0 auto;
+    align-self: center;
+    margin-left: calc(-4 * var(--ix));
+    font-size: calc(18 * var(--ix));
+    white-space: nowrap;
+}
+
+.cx-wp.is-flipped .cx-wp-more {
+    margin-right: calc(-4 * var(--ix));
+    margin-left: 0;
+}
+
+.cx-wp-hollow {
+    position: relative;
+    width: calc(22 * var(--ix));
+    height: calc(22 * var(--ix));
+    border-radius: 50%;
+    background: rgba(8, 9, 11, 0.45);
+    box-shadow:
+        inset 0 0 0 calc(3 * var(--ix)) var(--paper),
+        0 0 calc(3 * var(--u)) rgba(8, 9, 11, 0.6);
+}
+
+.cx-wp-row.is-blocked .cx-wp-label,
+.cx-wp-row.is-blocked.is-selected .cx-wp-label {
+    color: var(--muted);
+    font-size: calc(22 * var(--ix));
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
 .cx-wp-icon {
     display: flex;
     flex: 0 0 auto;
@@ -372,32 +442,23 @@
 }
 
 /* ------------------------------------------ marker tier and its growth --- */
-/* A marker is a scaled-down disc: a 10u paper dot in a 22u ring. When the
-   anchor enters maxDistance the same element grows into the full disc. */
-.cx-wp-marker {
-    position: relative;
-    width: calc(22 * var(--ix));
-    height: calc(22 * var(--ix));
-    border-radius: 50%;
-    box-shadow:
-        inset 0 0 0 calc(3.5 * var(--ix)) var(--paper),
-        0 0 calc(4 * var(--u)) rgba(8, 9, 11, 0.6);
-    opacity: 0;
-    transform: scale(2);
-    transition: opacity 180ms var(--ease), transform 240ms var(--ease);
+.cortex-interactions [data-cx-pressed] > .cortex-interaction-key-ring > .cortex-interaction-key-ring-track,
+.cortex-world-interactions [data-cx-pressed] > .cortex-interaction-key-ring > .cortex-interaction-key-ring-track {
+    stroke: var(--accent);
 }
 
-.cx-wp-marker::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: calc(10 * var(--ix));
-    height: calc(10 * var(--ix));
-    margin: calc(-5 * var(--ix)) 0 0 calc(-5 * var(--ix));
+.cx-wp-marker {
+    position: relative;
+    width: calc(12 * var(--ix));
+    height: calc(12 * var(--ix));
     border-radius: 50%;
-    background: var(--paper);
-    box-shadow: 0 0 calc(3 * var(--u)) rgba(8, 9, 11, 0.55);
+    background: rgba(8, 9, 11, 0.45);
+    box-shadow:
+        inset 0 0 0 calc(3 * var(--ix)) var(--paper),
+        0 0 calc(3 * var(--u)) rgba(8, 9, 11, 0.6);
+    opacity: 0;
+    transform: scale(3.6);
+    transition: opacity 180ms var(--ease), transform 240ms var(--ease);
 }
 
 .cx-wp.is-marker .cx-wp-marker {
@@ -407,6 +468,7 @@
 }
 
 .cx-wp.is-prompt .cortex-world-interaction-key,
+.cx-wp.is-prompt .cx-wp-hollow,
 .cx-wp.is-prompt .cx-wp-dot {
     animation: cx-wp-grow 260ms var(--ease) both;
 }

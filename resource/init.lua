@@ -216,6 +216,7 @@ end)
 
 local coreModules = {
     'settings',
+    'notices',
     'notify',
     'menu',
     'radial',

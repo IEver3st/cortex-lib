@@ -120,6 +120,7 @@ function getInteractionHoldDuration(value) {
         return h('span', {
             className: classes,
             style,
+            'data-cx-key': String(item.key == null ? '' : item.key).trim().toUpperCase().slice(0, 24) || undefined,
             role: decorative ? undefined : 'img',
             'aria-label': decorative ? undefined : ariaLabel,
             'aria-hidden': decorative ? 'true' : undefined

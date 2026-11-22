@@ -229,6 +229,7 @@ local cortexDefaults = {
     notifyPosition = 'top-right',
     notifyDuration = 'standard',
     notifyLimit = 5,
+    notifyQuiet = false,
     notifySound = true,
     notifySoundPreset = DEFAULT_NOTIFY_SOUND_PRESET,
     promptMarkers = true,
@@ -314,6 +315,10 @@ local cortexFields = {
         key = 'notifyLimit', section = SECTION_NOTIFICATIONS, type = 'select', label = 'Visible at once',
         description = 'The most notifications shown at the same time.',
         options = { { value = 3, label = '3' }, { value = 5, label = '5' }, { value = 8, label = '8' } },
+    },
+    {
+        key = 'notifyQuiet', section = SECTION_NOTIFICATIONS, type = 'toggle', label = 'Quiet notifications',
+        description = 'Only warnings, errors and notices that wait for you appear. The rest go to recent notices, which the Look key shows.',
     },
     {
         key = 'notifySound', section = SECTION_NOTIFICATIONS, type = 'toggle', label = 'Sound',
@@ -1795,6 +1800,35 @@ function lib.getNotifySoundCatalog()
     return catalog
 end
 
+local HOSTED_FIELD_TYPES = { toggle = true, slider = true, select = true, color = true, soundList = true }
+
+local SETTINGS_HOSTS = {}
+for name in GetConvar('cortex_lib_settings_hosts', 'cortex-pause'):gmatch('[^%s,;]+') do SETTINGS_HOSTS[name] = true end
+
+local function isSettingsHost(owner)
+    return type(owner) == 'string' and owner ~= CURRENT_RESOURCE and SETTINGS_HOSTS[owner] == true
+end
+
+function lib.getSettingsSchema()
+    if not isSettingsHost(GetInvokingResource and GetInvokingResource() or nil) then return nil, 'not_allowed' end
+    return buildTabsPayload()
+end
+
+function lib.setHostedSetting(tabId, key, value)
+    if not isSettingsHost(GetInvokingResource and GetInvokingResource() or nil) then return false, 'not_allowed' end
+    if settingsOpen then return false, 'settings_open' end
+    if not safeObjectKey(tabId, 64) or not safeObjectKey(key, 128) then return false, 'invalid_key' end
+    if tabId ~= CORTEX_TAB_ID and not registeredTabs[tabId] then return false, 'unknown_tab' end
+    local fields, _, values = getTabState(tabId)
+    local field = findTabField(fields, key)
+    if not field or not HOSTED_FIELD_TYPES[field.type] then return false, 'unsupported_field' end
+    local valid, normalized = normalizeNuiSettingValue(tabId, key, value)
+    if not valid then return false, 'invalid_value' end
+    local ok, err = pcall(applyTabValues, tabId, { [key] = normalized })
+    if not ok then return false, safeErrorText(err) end
+    return true, values[key]
+end
+
 function lib.onSettingChange(key, callback)
     local mt = type(callback) == 'table' and getmetatable(callback)
     local callable = type(callback) == 'function'
@@ -2182,6 +2216,8 @@ exports('saveSetting', lib.saveSetting)
 exports('getTabSetting', lib.getTabSetting)
 exports('onSettingChange', lib.onSettingChange)
 exports('getNotifySoundCatalog', lib.getNotifySoundCatalog)
+exports('getSettingsSchema', lib.getSettingsSchema)
+exports('setHostedSetting', lib.setHostedSetting)
 
 RegisterCommand('cortexsettings', function()
     lib.openSettings()
