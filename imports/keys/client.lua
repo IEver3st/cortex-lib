@@ -43,7 +43,7 @@ local function call(name, ...)
 end
 
 local function plainAsk(spec)
-    return { label = spec.label, decline = spec.decline, seconds = spec.seconds }
+    return { label = spec.label, decline = spec.decline, seconds = spec.seconds, prompt = spec.prompt }
 end
 
 local function plainAction(spec)
@@ -79,6 +79,10 @@ end
 function keys.endAsk(id)
     asks[id] = nil
     return call('keysEndAsk', id)
+end
+
+function keys.askActive(id)
+    return call('keysAskActive', id) == true
 end
 
 function keys.isAsking()

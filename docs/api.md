@@ -220,6 +220,79 @@ lib.groups.endJob(groupId, { success = true, summary = 'Clean getaway.' })
 
 Only the resource that registered a job can change its runs. `registerJob` stores the definition and registers it again when cortex-phone restarts.
 
+### Framework (server and client)
+
+`lib.framework` gives a resource one API for Qbox (`qbx_core`), QBCore (`qb-core`) and ESX (`es_extended`), so it does not carry its own bridge. It loads only in resources that use it and changes nothing for the rest.
+
+Status: checked in game on Qbox against direct `qbx_core` calls. The QBCore and ESX adapters are written against qb-core 1.3.0, qb-inventory 2.2.3 and es_extended 1.16.3 and have not been run on a live server yet.
+
+```lua
+local fw = lib.framework
+
+local job, grade, onDuty = fw.job(source)
+if job ~= 'police' or not onDuty then return end
+
+local paid, code = fw.money.remove(source, 'bank', 250, 'Impound fee')
+if not paid then
+  if code == 'unknown' then return end -- may have gone through: do not retry or refund
+  return lib.notify(source, { description = code == 'insufficient' and 'Not enough in the bank.' or 'Payment failed.', type = 'error' })
+end
+```
+
+The framework and inventory are detected from what is started. Force either one in `server.cfg` when detection is wrong:
+
+```cfg
+setr cortex_framework qbx              # qbx | qb | esx | standalone
+setr cortex_framework_inventory ox     # ox | qb | esx | none
+```
+
+Without a framework, `kind()` is `standalone`: identity falls back to the player name and license, jobs are `nil`, and money and items return `false, 'no_framework'` or `'no_inventory'`.
+
+Server:
+
+| Function | Returns |
+| --- | --- |
+| `kind()`, `inventory()`, `describe()` | `'qbx'`, `'qb'`, `'esx'` or `'standalone'`; `'ox'`, `'qb'`, `'esx'` or `'none'`; both as one line for a start message |
+| `isLoaded(source)` | `true` once the player has a character |
+| `characterId(source)`, `characterName(source)` | Citizen ID or ESX identifier (`nil` without a character); character name, else the player name |
+| `license(source)`, `identifier(source, prefix)` | `license:...` or any other identifier, `nil` when absent |
+| `meta(source, key)` | Player metadata value |
+| `sourceOf(characterId)` | Server ID of that character while online |
+| `job(source)` | `name, grade, onDuty, label, type`. Duty is `true` on ESX unless the job says otherwise |
+| `hasGroup(source, filter)` | `filter` is a name, a list of names, or `{ name = minimumGrade }`. Jobs everywhere, gangs on Qbox and QBCore |
+| `money.get(source, account)` | Balance of `'cash'` or `'bank'`, `nil` when unreadable |
+| `money.add(source, account, amount, reason?)`, `money.remove(...)` | `true`, or `false, code` |
+| `items.count(source, item)`, `items.has(source, item, amount?)`, `items.canCarry(source, item, amount?)` | Count; booleans |
+| `items.add(source, item, amount?, metadata?)`, `items.remove(source, item, amount?, metadata?, slot?)` | `true`, or `false, code` |
+| `items.usable(item, handler, { force? })`, `items.releaseUsable(item)` | `ok, code`. `handler(source, { name, slot, metadata })` |
+| `onLoaded(handler)`, `onUnloaded(handler)` | `handler(source)` for every character that loads, including the ones already in; `handler(source, 'logout' or 'drop')` |
+| `raw(source)` | The framework's own player object, for what the layer does not cover |
+
+Money and item changes only return `true` when the change is confirmed. Amounts are whole numbers above zero. A removal checks the balance first on every framework, so a bank account never goes negative through this API.
+
+| Code | Meaning |
+| --- | --- |
+| `no_player`, `no_framework`, `no_inventory` | Nothing to act on |
+| `bad_account`, `bad_amount`, `bad_item` | The call was wrong |
+| `insufficient` | Not enough money or items; nothing changed |
+| `rejected` | The framework or inventory refused; nothing changed |
+| `unsupported` | Metadata or slot on an inventory without them (ESX default) |
+| `taken` | Another resource already registered that usable item. Pass `{ force = true }` to replace it |
+| `error` | The framework is missing the method |
+| `unknown` | The change may have applied. Never retry and never refund; log it |
+
+Client:
+
+| Function | Returns |
+| --- | --- |
+| `kind()`, `isLoaded()` | As on the server, for the local player |
+| `playerData()` | `{ characterId, name, job = { name, grade, onDuty, label, type } }` or `nil` |
+| `job()` | `name, grade, onDuty, label, type` |
+| `onLoaded(handler)`, `onUnloaded(handler)`, `onJobChanged(handler)` | `onLoaded` runs once the character's data can be read, and at once for a character already in. `onUnloaded` runs as the character leaves. On Qbox its data can still be read inside the handler; on QBCore and ESX it may already be gone, so keep what you need from `onLoaded`. `onJobChanged` passes `name, grade, onDuty, label, type` and fires once per real change, duty included |
+| `raw()` | The framework's own player data |
+
+Client values are for display. Decide permissions, prices and rewards on the server.
+
 ### Zones & Points
 
 ```lua
@@ -666,354 +739,3 @@ lib.thing.holder('machine', key)
 - The lock keeps two people off one thing. It is not a till: who gets the last item is still your sale code's decision.
 
 Every thing shares the `+cortex_use` key and one quota of 8 prompt rows. Do not keep your own key mapping for a prompt you moved to a thing. List cortex-lib in your `dependencies` so your script restarts with it; things are not re-registered for a script that outlives a cortex-lib restart.
-
-## Callouts
-
-Pins on the parts of an entity (a vehicle's doors, windows, seats, engine), each joined by a square leader to a label beside it, plus a block of switches. The player points with the mouse and clicks; nothing takes NUI focus, so driving and walking stay with them. Display only, like interaction prompts: your resource registers the key, decides what every row and switch says, acts on the events and has the server revalidate.
-
-```lua
-RegisterKeyMapping('+carParts', 'Vehicle parts', 'keyboard', 'M')
-RegisterCommand('+carParts', function()
-  local vehicle = cache.vehicle or lib.getClosestVehicle(GetEntityCoords(cache.ped), 4.0)
-  if not vehicle then return end
-  local ok, err = lib.showCallouts({
-    entity = vehicle,
-    model = GetEntityModel(vehicle),            -- closes if the handle is reused
-    callouts = {
-      { id = 'door:0', offset = vector3(-0.9, 0.4, 0.3), rows = {
-        { id = 'door:0', name = 'Left door', chip = 'Open' },
-        { id = 'window:0', name = 'Window', chip = 'Down' },
-      } },
-      { id = 'trunk', offset = vector3(0.0, -2.2, 0.4), rows = {
-        { id = 'trunk', name = 'Trunk', chip = 'Locked', tone = 'no' },
-      } },
-    },
-    switches = {
-      { id = 'lock', text = 'Unlocked', texts = { 'Locked', 'Unlocked' } },
-    },
-    chips = { 'Open', 'Close', 'Down', 'Up', 'Locked' },
-    onEvent = function(event)
-      if event.type == 'select' then
-        TriggerServerEvent('myres:server:work', event.id) -- revalidated there
-      elseif event.type == 'closed' then
-        -- event.reason: 'cancel' | 'entity' | 'focus' | 'error' | 'replaced' | 'stopped'
-      end
-    end,
-  })
-end, false)
-RegisterCommand('-carParts', function() lib.hideCallouts() end, false)
-```
-
-| Field | Rules |
-| :--- | :--- |
-| `entity` | Positive local handle. Required. Never send or persist it. |
-| `model` | Optional integer; the session closes with `entity` if the handle later resolves to another model. |
-| `bounds` | Optional `{ min, max }` in entity space (each axis within 100). Defaults to the model's dimensions. The labels sit outside the box it projects to. |
-| `callouts` | Up to 48: `{ id, offset, order?, minor?, rows }`. `offset` is entity space (each axis within 50). `order` ranks who keeps a label when the screen is short of room (default: list order). `minor = true` shows the label only while the pin is hovered. |
-| `rows` | 1 to 4 per callout: `{ id, name, chip?, tone?, hidden?, pending? }`. `name` up to 48 characters, `chip` up to 32. `tone` is `off`, `on` (accent), `you` or `no` (refused, dimmed). `hidden` leaves the row out; `pending` pulses it. The first row is large and the rest small, by declared place. |
-| `switches` | Up to 24: `{ id, text, texts?, tone?, hidden?, pending? }`. `texts` lists every text the switch can show (up to 8) so its cell never moves. |
-| `title` | Optional `{ name, chip? }` above the switches, for a session with no callouts (a key fob at range). |
-| `chips` | Up to 64 strings: every chip a row can show. Each row's cell keeps room for the widest, so a state change repaints in place. |
-| `onEvent` | Optional function or funcref, called with the events below. |
-| `style` | Optional look: `ink` (default; frameless italic names, dark chips, round pins), `slip` (each row an ink slip, square pins), `paper` (paper tags with ink chips, paper leaders, diamond pins) or `draft` (upright lettering, underlined chips, leaders that end on a bar, ring pins). Every style keeps the same sizes, so the layout is the same. Let the player choose it; a new style on open callouts repaints them. |
-
-Row and switch ids share one namespace (at most 64 characters). At least one callout, switch or title is required; malformed data returns `false, reason` (`invalid_entity`, `invalid_row_tone`, `empty`, ...), never an error. A show from inside a `replaced` or `stopped` event returns `false, 'busy'`.
-
-| Call | Behaviour |
-| :--- | :--- |
-| `lib.showCallouts(data)` | Opens the invoking resource's callouts, or updates them in place when they are already up on the same entity (call it on state changes, never every frame). One session is up at a time: another resource's call replaces it and the first owner receives `closed` with `replaced`. Returns `true` or `false, reason`. |
-| `lib.hideCallouts()` | Closes your session. No `closed` event. |
-| `lib.calloutEffect(id, kind)` | `'pop'` after an action landed, `'shake'` after a refusal, on a row or switch id. |
-| `lib.isCalloutsOpen()` | Whether your session is up. |
-| `lib.getCalloutState()` | `{ open, hot = { id, callout, switch }, labels = { [calloutId] = { x, y, side } }, switches = { [id] = { x, y } }, hover = { ids }, screen = { width, height } }` in screen pixels, for tooling and tests. Presentation, not authorization. |
-| `lib.prepareCallouts(style?)` | Starts the label texture and paints the pins (in `style`, default `ink`) ahead of the first session. Call once at start. Returns `false` for an unknown style. |
-| `lib.getCalloutStyles()` | The styles `showCallouts` accepts, the default first: `{ 'ink', 'slip', 'paper', 'draft' }`. A consumer can check it exists before offering a style choice. |
-
-| Event | Sent when |
-| :--- | :--- |
-| `{ type = 'select', id, callout, switch }` | Left click, or Enter / the controller's accept, on a row (`id` is the row id) or a switch (`switch = true`). |
-| `{ type = 'wheel', id, callout, rows, delta }` | The wheel over a label; `rows` lists its shown row ids, `delta` is `-1` up or `1` down. |
-| `{ type = 'closed', reason }` | Right click, Backspace or Esc (`cancel`, the pause menu is held off briefly), the entity gone or another model (`entity`), the pause menu or NUI focus (`focus`), a renderer error (`error`), another resource's session (`replaced`), or cortex-lib stopping (`stopped`). |
-
-While a session is up the mouse moves the game's cursor instead of the camera, and looking, weapons, the phone, the radio and the pause menu are held; the arrow keys step between labels and a controller stick aims. Labels keep clear of the radar and of other owners' presentation surfaces, never cross their leaders, and stay where they were while the camera moves.
-
-Everything is drawn by the game relative to one `SetDrawOrigin` at the entity's middle, so it stays pinned at render time. Labels are painted into one transparent DUI texture (`ui/callouts.html`) only when their text changes; if the DUI cannot load, labels are game text and every part still works. A moving entity is drawn where it will be this frame; `setr cortex_lib_callouts_predict 0` turns that off.
-
----
-
-## Settings
-
-Settings are stored per-client with `SetResourceKvp` / `GetResourceKvpString` under `cortex:<key>`. Built-ins (the **CORTEX** tab) are readable with `lib.getSetting(key)`, change through the settings transaction or `lib.setSetting`, and emit `cortex-lib:settingChanged(key, value, 'cortex')` on preview, rollback and save:
-
-| Section | Setting | Default | Control | Purpose |
-| --- | --- | --- | --- | --- |
-| Interface | Interface size (`uiScale`) | 100 % | Slider 80-130 % | Scales every Cortex prompt, menu and notification. Previews on release. |
-| Interface | Text size (`textSize`) | Standard | Standard / Large | Larger body text in menus, dialogs and notifications. |
-| Interface | Shared accent (`dynamic_accent`) | Mint | Colour swatches + hex | Highlight colour in every Cortex interface. Five presets, or any `#rrggbb`; a colour too dark for ink text is lightened. A server adds its own presets ahead of these (up to 8 swatches in all) with `setr cortex_lib_accents "Name=#rrggbb;Name=#rrggbb"`, and sets the default for new players with `setr cortex_lib_accent_default "#rrggbb"`. |
-| Interface | Surface opacity (`dynamic_opacity`) | 92 % | Slider 65-100 % | How solid menus and panels look. |
-| Interface | Motion (`dynamic_motion`) | System | System / Reduced / Full | Follows the OS preference or forces reduced/full animation. |
-| Interface | Avoid overlapping overlays (`dynamic_layout`) | On | Toggle | Moves notifications and prompts aside from chat, the HUD and each other. |
-| Interface | Control hints (`controlHints`) | On | Toggle | Key hints under menus and prompts; a hint that is the only instruction stays. |
-| Notifications | Position (`notifyPosition`) | Top right | Dropdown (6) | Where notifications appear. |
-| Notifications | Display time (`notifyDuration`) | Standard | Short / Standard / Long | Lifetime multiplier 0.75 / 1 / 1.5. |
-| Notifications | Visible at once (`notifyLimit`) | 5 | 3 / 5 / 8 | Most notifications shown together. |
-| Notifications | Quiet notifications (`notifyQuiet`) | Off | Toggle | Only warnings, errors and notices that wait for the player appear; the rest go to recent notices. |
-| Notifications | Sound (`notifySound`) | On | Toggle | Plays a sound when a notification arrives. |
-| Notifications | Sound preset (`notifySoundPreset`) | MP Idle Kick | Dropdown + play | Shown while Sound is on; choosing one plays it. |
-| Prompts | Distant interaction markers (`promptMarkers`) | On | Toggle | Small marker for interactions that are near but not yet in reach. |
-| Prompts | Prompt size (`promptScale`) | Standard | Small / Standard / Large | Size of world and screen prompts and the controls legend. |
-| Prompts | Invert list scroll (`invertScroll`) | Off | Toggle | Flips the wheel direction in stacked prompt lists. |
-| Progress | Show percentage (`showPercent`) | On | Toggle | Percent readout on progress bars and circles. |
-| Graphics | Volumetric lights (`volumetricLights`) | Off | Toggle | Visible beams for lamps that opt in through `lib.volumetric.playerEnabled()` (cortex-flashlight, gsd-arges). cortex-polcam ignores it. The description warns that the frame-rate cost varies by hardware, graphics settings and lights on screen. |
-
-`notifyDuration` is stored as the enum; the NUI receives the multiplier. A consumer tab that declares its own key with one of these names keeps its own value when that consumer calls `getSetting`/`setSetting`.
-
-The shared NUI receives `SendNUIMessage({ action = 'cortex:prefs', data = { prefs = { scale, textSize, notifyDuration, notifyLimit, showPercent, promptMarkers, promptScale, controlHints, invertScroll } } })` when it posts `cortexPrefsReady` (once mounted, retried until answered), on every preview, on Discard/rollback, on Save/Apply and on `lib.setSetting`. `scale` is `uiScale / 100`; `notifyDuration` is 0.75 / 1 / 1.5. Shared appearance (`dynamic_*`) keeps flowing through `client/presentation.lua` → `dynamic-ui.js`.
-
-Skins: `exports['cortex-lib']:setPresentationDesign(id)` restyles notifications (including the Look list), progress and text UI for a HUD design. `id` is `'cortex'` (the default frameless look), `'leonida'` (flat dark cards, upright caps) or `'vi'` (translucent cards, round coins, sentence-case titles); anything else returns `false, 'invalid_design'`. The last resource to set it owns it; `nil` from that owner hands it back, and it clears when that owner stops. The design reaches the NUI as `html[data-cx-design]` through the presentation profile. cortex-hud sets it from its active design unless `Config.LibSkin = false`.
-
-Migration: values saved by the retired `cortex-dynamic` tab (`cortex:cortex-dynamic:dynamic_*`) are copied to `cortex:dynamic_*` once when an existing value is absent, then removed; its twelve `dynamic_independent_*` keys are deleted. Stored values outside a field's range or options fall back to the default.
-
-Settings hosts: a resource named in `setr cortex_lib_settings_hosts "cortex-pause"` (comma or space separated; default `cortex-pause`; read once when cortex-lib starts) can show and change every tab on the player's behalf. `exports['cortex-lib']:getSettingsSchema()` returns the same tab list the Settings page gets (`id`, `label`, `group`, `fields`, `values`, `defaults`; the built-in tab is `cortex`). `exports['cortex-lib']:setHostedSetting(tabId, key, value)` returns `true, storedValue` or `false, reason` (`not_allowed`, `settings_open`, `unknown_tab`, `unsupported_field`, `invalid_value`). It only changes `toggle`, `slider`, `select`, `color` and `soundList` fields, validates the value against the owning tab's field, saves it and fires the same change events as a save from the Settings page.
-
-Register your own tab:
-
-```lua
--- lazy-load to avoid paying for what you don't use
-local settings = lib('settings')
-local soundOn = settings.getSetting('notifySound')
-
--- from another resource via exports
-exports['cortex-lib']:registerSettings(
-  'myResource',
-  'My Resource',
-  'myResource:',
-  {
-    { key = 'enabled', type = 'toggle', label = 'Enabled', default = true },
-  },
-  { enabled = true }
-)
-```
-
-The third argument is the legacy icon value, a validated KVP namespace ending in `:`, or the fields table itself (then the remaining arguments shift left and values are stored under `cortex:<tabId>:`). Built-in Cortex settings keep their existing `cortex:` keys; consumer tabs should use a stable resource-specific namespace such as `myResource:`. Duplicate tab IDs, field keys, and cross-resource registrations are rejected instead of silently overwriting another owner. Registration also rejects any concrete KVP key that would overlap a built-in field or a field owned by another registered tab; a prefix may be shared only when the resulting field keys remain distinct.
-
-Settings lists every tab in a script library down its left side, grouped under **Everyday**, **Equipment**, **Activities** and **Staff**, then any other group name alphabetically, then **Other**. Within a group the Cortex tab comes first and the rest sort by label. Pick your tab's group with a final options table:
-
-```lua
-exports['cortex-lib']:registerSettings('myResource', 'My Resource', 'myResource:', fields, defaults, { group = 'Equipment' })
-exports['cortex-lib']:registerSettings('myResource', 'My Resource', fields, defaults, { group = 'Equipment' })
-exports['cortex-lib']:registerSettings('myResource', { label = 'My Resource', group = 'Equipment', settings = settings })
-```
-
-A `group` field in a script definition (including one returned by a `getSettingsDefinition` export) works the same way. Group names are up to 32 characters and match case-insensitively; a group that is longer, blank or contains control characters is ignored, and the tab falls back as if it had none. Cortex resources without one fall back to a built-in map (cortex-hud, cortex-chat and cortex-inventory under Everyday; cortex-flashlight, cortex-drone and cortex-radio under Equipment; cortex-minigames under Activities; cortex-admin under Staff; and so on). Any other tab without a group goes under Other.
-
-## Pause menu
-
-The quick menu is disabled by default. `/cortexsettings` (bound to I, rebindable
-in Key Bindings > FiveM; default set by `setr cortex_lib_settings_key <key>`) and
-`openSettingsMenu()` open standalone Cortex Settings. It reopens on the tab,
-section and Advanced switch the player last used. It uses the shared modal,
-script tabs and native game blur, with no back arrow, game-settings tab or
-keybinding link. Escape closes a dropdown first, then closes settings and rolls
-back unsaved changes. Apply saves without closing; Save & Resume saves and closes.
-
-Only the server can enable the quick menu. Put this before `ensure cortex-lib`:
-
-```cfg
-setr cortex_pause_replace_native 1
-setr cortex_pause_title "CORTEX"
-```
-
-Use `0` to disable it. The switch also takes effect from the server console;
-keep the value in `server.cfg` for restarts. There is no per-player `pauseMenu`
-setting. Disabling an open quick menu takes the player to Cortex Settings.
-
-When enabled, Escape, P and controller Start open the quick menu during gameplay.
-It offers Resume, Map, Settings, native Key bindings and confirmed Leave server,
-plus registered extension pages and locations. Settings always closes directly
-back to gameplay. Map and Key bindings release NUI focus and open GTA's native
-frontend, then return to the quick menu unless another frontend takes ownership.
-The game retains its map, blips, legend and controls. Consumers own their native
-commands and mappings; the library has no custom binding registry or editor.
-
-`/cortexpause` and `openPauseMenu()` open the quick menu when enabled, otherwise
-settings. `/cortexnative` opens the native map. Entry respects other focused NUI,
-native frontends, text entry and pause-control locks. A missing NUI readiness
-acknowledgement releases focus after ten seconds and temporarily bypasses Cortex
-pause entry. The world keeps running while either menu is open.
-
-Existing settings registration, listeners, action events and KVP namespaces are
-unchanged. Consumers must re-register after the library restarts.
-
-### Resource-owned pages and locations
-
-These are **client exports** with matching `lib` facade methods. Definitions are
-copied; IDs are scoped to the invoking resource. Re-registering an ID replaces
-that owner's entry. Pages and locations disappear on owner stop and must be
-registered again after a cortex-lib restart. Register on `onClientResourceStart`
-for your own resource and for `cortex-lib`.
-
-| API | Result and behavior |
-| --- | --- |
-| `openPauseMenu()` | `true` when the opening request is accepted; otherwise `false, 'ui_busy'` or `false`. Focus follows NUI readiness. |
-| `closePauseMenu()` | `true` when the caller owns the custom session and it closes; otherwise `false`. Discards previews; does not close a native handoff. |
-| `isPauseMenuOpen()` | Boolean covering the custom shell and its native handoff. Observation only. |
-| `registerPausePage(definition)` | `true, scopedId` or `false, error`; adds/replaces a navigation page. |
-| `unregisterPausePage(id)` | Removes only the caller's page; idempotent, returns `true` or `false, 'invalid_id'`. |
-| `registerPauseLocation(definition)` | `true, scopedId` or `false, error`; adds/replaces a waypoint destination. |
-| `unregisterPauseLocation(id)` | Removes only the caller's location; same result contract as page removal. |
-
-A page accepts `id`, `label`, optional `description`, optional numeric `order`
-(default 100, range -1000..1000), and `sections`. Each section accepts `title`,
-plain-text `body`, and optional `actions = { { id, label } }`. Actions require an
-`onAction(actionId)` callback in the page definition. It runs after the shell
-discards previews and releases focus, allowing the resource to open its own UI.
-The NUI reply acknowledges dispatch, not completion of the resource's work.
-Exceptions and an explicit `false` callback result produce a failure notification.
-Any privileged operation still needs the consumer's server-side authorization.
-The browser cannot supply executable commands or event names.
-
-```lua
-local function registerPausePage()
-    if GetResourceState('cortex-lib') ~= 'started' then return end
-    local ok, result = exports['cortex-lib']:registerPausePage({
-        id = 'guide',
-        label = 'Player guide',
-        order = 10,
-        sections = {
-            {
-                title = 'Your preferences',
-                body = 'Script preferences are stored on this computer. Use Save to keep your changes.',
-                actions = { { id = 'settings', label = 'Open script settings' } },
-            },
-        },
-        onAction = function(actionId)
-            if actionId == 'settings' then
-                return exports['cortex-lib']:openSettingsMenu()
-            end
-            return false
-        end,
-    })
-    if not ok then print(('Pause page registration failed: %s'):format(result)) end
-end
-
-AddEventHandler('onClientResourceStart', function(resource)
-    if resource == GetCurrentResourceName() or resource == 'cortex-lib' then
-        registerPausePage()
-    end
-end)
-```
-
-A location definition is `{ id, label, category, x, y }`. Category defaults to
-`Locations`; finite world coordinates must be within -20000..20000. Selecting a
-location calls `SetNewWaypoint` using the registered coordinates. This adds a
-directory without creating, deleting, or taking ownership of existing map blips.
-The Locations navigation item appears only when destinations are registered.
-
-Registry limits: 24 pages, 16 sections per page, 8 actions per section, 256
-locations. IDs use letters/digits/underscore/hyphen, up to 64 bytes; prototype
-property names are rejected. Page labels are limited to 48 bytes, descriptions
-256, section titles 96, section bodies 2048, action labels 64, location labels 96,
-and categories 64. Duplicate action IDs within a page are rejected.
-
-`cortex-lib:pauseChanged(active, mode)` is a local observation event, with mode
-`custom`, `native`, or `closed`. `LocalPlayer.state.cortexPauseOpen` mirrors it
-locally with replication disabled. Custom NUI does not change the return value of
-GTA's `IsPauseMenuActive()`. A resource that needs to gate its own script commands
-should check `isPauseMenuOpen()` or this local flag as well as its normal gameplay
-conditions. Do not treat that flag as server authorization.
-
-See [pause research and runtime acceptance](pause-system.md) for native
-boundaries, compatibility evidence, and the user-run checks.
-
----
-
-## World screens
-
-`lib.worldScreen` puts a DUI page on a prop and lets the player point at it. It runs in your resource and cleans up its pages and texture swaps when your resource (or cortex-lib) stops. Your resource owns the page, its messages, input mode, focus and every server check; this module only draws, swaps and maps.
-
-```lua
-local ws = lib.worldScreen
-local page = ws.page({ url = ('nui://%s/web/screen.html'):format(GetCurrentResourceName()), width = 1024, height = 1280, txd = 'myres_screen' })
-
--- Every prop of the model now shows the page on its own screen texture. The model is held loaded so the swap survives streaming.
-local swap = ws.replace({ model = 'my_screen_prop', dict = 'my_screen_prop_txd', name = 'screen', page = page })
-
--- Or draw it as a quad on a face in the prop's local axes (x right, y away from the viewer, z up by default).
-local face = { centre = vector3(0.0, -0.31, 1.2), w = 0.30, h = 0.40 }
-local geo = ws.quad(entity, face, 0.002)
-ws.drawQuad(geo.corners, page.txd, page.tex, 0.0, 0.0, 1.0, 1.0)
-
--- Pointing: project once the camera settles (and while it moves), then hit-test the cursor each frame.
-local pointer = ws.pointer({ screen = geo.corners, width = page.width, height = page.height,
-    keys = { { id = 'coin', quad = ws.quad(entity, { centre = vector3(0.25, -0.31, 1.0), w = 0.05, h = 0.08 }).corners } } })
-pointer:project()
-local hit = pointer:hit(ws.cursor())   -- { kind = 'screen', x, y, u, v } in page pixels, { kind = 'key', id, quad }, or nil
-```
-
-| Function | |
-| --- | --- |
-| `page({ url, width, height, txd?, tex? })` | A DUI page and its runtime texture (`page.txd`, `page.tex`). `page:send(msg)` sends a table as JSON; `page:mouse(x, y, button?, down?)` forwards DUI mouse input; `page:destroy()`. Keep pages for the session: a destroyed DUI leaves its runtime texture behind. |
-| `replace({ model, dict, name, hd?, page, timeoutMs? })` | Swaps texture `dict/name` (and its HD copy) for the page once the model has loaded, and keeps the model loaded until `swap:release()`. `swap.applied`, `swap.failed`. |
-| `pool(size)` | A variant pool: `take(key)` gives the lowest free slot (0-based) or the one `key` holds, `release(key)`, `slotOf(key)`, `holder(slot)`, `free()`. A texture swap is shared by every prop of a model, so a type that needs a different picture per prop ships `size` models that each map their face to their own cell of one shared texture, and each client hands them out with a pool. |
-| `cell(index, cols, rows, pageW, pageH)` | A cell's `u0, v0, u1, v1`, inset half a pixel so filtering never picks up a neighbour. |
-| `quad(entity, face, lift?, grow?)` | `{ corners = { TL, TR, BR, BL }, centre, normal }` in world space. `face = { centre, w, h, right?, up? }` in the entity's local axes; `normal` is `right x up`, toward the viewer. |
-| `facing(geo, point)` | True when `point` is in front of the face. |
-| `drawQuad(corners, dict, name, u0, v0, u1, v1, alpha?)` | Draws a texture on a world quad this frame, both windings. |
-| `pointer({ screen, width, height, rect?, keys? })` | `screen` is the four world corners (or a function returning them). `pointer:project()` re-projects for the current camera; `pointer:hit(px, py)` maps the cursor onto the page with a homography, so it stays right as the camera eases, or hit-tests `keys` (world quads). `rect` maps the screen to part of the page. |
-| `cursor()` | The cursor in screen pixels: `GetNuiCursorPosition()`, or the agent pilot's cursor when it drives this client. |
-| `homography(poly)`, `map(inverse, px, py)`, `inside(poly, px, py)`, `projectQuad(corners)`, `projectPoint(v, rw, rh)` | The pieces, for your own layouts. |
-
----
-
-## Vehicle replay telemetry
-
-`local replay = lib.vehicleReplay` loads the same client utility in Director and
-Rewind. Loading it starts no worker. `replay.capture(vehicle)` only reads state
-and returns `frame, wheelCount`, bounded to ten actual wheels. The flat frame
-contains ten angular speeds followed by ten suspension-compression readings;
-`frame.count` is the captured count. Unsupported/missing compression is `-1`.
-
-`replay.interpolate(a, b, fraction)` interpolates this frame. Missing compression
-holds its sentinel rather than blending into a real value.
-`replay.copy(frame, output, offset, rate)` optionally scales angular speeds by
-the playback rate; compression is never scaled. `replay.valid(frame, offset)`
-checks the numeric fields. Offsets let Director use the same code in its flat
-track storage.
-
-`replay.apply(vehicle, frame, rate, wheelCount, offset)` writes only dedicated
-wheel angular speeds, bounded by the current vehicle's actual wheel count and
-network ownership. Use `0` for paused spin and a negative rate for reverse.
-It does not write wheel geometry or suspension. Cfx exposes
-[suspension compression readings](https://github.com/citizenfx/fivem/blob/master/ext/native-decls/GetVehicleWheelSuspensionCompression.md)
-but no corresponding per-wheel setter; captured readings are telemetry, not
-exact suspension playback. `replay.dent(vehicle, dent, force)` is the shared
-bounded-impact primitive used by the existing damage workers.
-
-## How It Works
-
-**Lazy loading** — `lib` is a metatable with `__index` / `__call`. Consumer-local modules are loaded from `imports/<module>/<context>.lua` once and cached; shared files (`shared.lua`) are prepended automatically. UI-backed modules and direct client utilities resolve to cortex-lib exports so callbacks, NUI messages, focus and owner cleanup stay in the resource that owns the shared UI.
-
-```
-fxmanifest.lua          →  cerulean, gta5, lua54
-resource/init.lua       →  internal lib / cache bootstrap
-init.lua                →  external loader for other resources (@cortex-lib/init.lua)
-imports/                →  modular lazy-loaded modules (client / server / shared)
-client/                 →  directly loaded helpers + interaction renderer + debug panel
-ui/                     →  React 18 NUI bundle (index.html, app.js, style.css) + vendored React
-tests/                  →  in-game /cortex test menu and specs
-```
-
-Public functions are available through the global `lib`. Cortex-owned functions are also exported for explicit cross-resource use:
-
-```lua
--- inside a dependent resource
-lib.notify({ type = 'success', description = 'Hello!' })
-local notify = lib('notify')
-notify({ type = 'success', description = 'Hello!' })
-
--- cross-resource
-exports['cortex-lib']:notify({ type = 'success', description = 'Hello!' })
-```
-
----

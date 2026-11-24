@@ -3,7 +3,7 @@ game 'gta5'
 
 name 'cortex-lib'
 author 'GSDMODS/CORTEX'
-version '4.0.0'
+version '4.1.0'
 cortex_placement_api '1'
 -- Consumers read this to skip registering their own key for Settings.
 cortex_settings_key '1'
@@ -107,6 +107,7 @@ files {
     'imports/skillCheck/client.lua',
     'imports/thing/client.lua',
     'imports/keys/client.lua',
+    'imports/framework/client.lua',
     'imports/skillCheck/shared.lua',
     'imports/settings/client.lua',
     'imports/sensors/client.lua',
@@ -115,6 +116,7 @@ files {
     'imports/notify/server.lua',
     'imports/callback/server.lua',
     'imports/groups/server.lua',
+    'imports/framework/server.lua',
     'imports/thing/server.lua',
     'imports/timer/shared.lua',
     'imports/waitFor/shared.lua',

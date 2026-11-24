@@ -2,7 +2,7 @@
 
 Shared UI and Lua utilities for FiveM resources, maintained by Ever3st and GSD Modifications.
 
-[![Version 4.0.0](https://img.shields.io/badge/version-4.0.0-blue?style=flat-square)](https://github.com/IEver3st/cortex-lib/releases)
+[![Version 4.1.0](https://img.shields.io/badge/version-4.1.0-blue?style=flat-square)](https://github.com/IEver3st/cortex-lib/releases)
 ![Cortex Lib: menus, radial menus and interaction prompts](https://raw.githubusercontent.com/IEver3st/cortex-lib/main/marketing/2026-09-27/final/01-cortex-lib.png)
 
 **[Download cortex-lib.zip](https://github.com/IEver3st/cortex-lib/releases/latest/download/cortex-lib.zip)** · [Release notes](https://github.com/IEver3st/cortex-lib/releases) · [API reference](https://github.com/IEver3st/cortex-lib/blob/main/docs/api.md) · [Report a problem](https://github.com/IEver3st/cortex-lib/issues)
@@ -38,6 +38,7 @@ Install the library once and start it before the scripts that use it. The releas
 | Dialogs | Text, password, number, select and checkbox inputs; required fields; confirmation and cancellation. |
 | Progress and skill checks | Bars and circles with cancellation, completion feedback and configurable skill checks. |
 | Interaction prompts | Screen prompts and world, entity or bone anchors; distant markers; merged lists; hold indicators. |
+| Shared keys | Cancel, Answer, Actions and Point keys every resource registers on (`lib.keys`). An ask shows its key in the prompt list, or `prompt = false` lets the resource draw the key on the thing it is about. See [keybindings](https://github.com/IEver3st/cortex-lib/blob/main/docs/keybindings.md). |
 | Callouts | Labels on the parts of a vehicle or any entity, joined to them by leaders, picked with the mouse while you keep driving. |
 | Shared settings | Resource-owned tabs, search, live previews, Apply, Save and Discard, with preferences stored on the client. |
 | Shared appearance | Accent, opacity, scale, text size, motion preferences and placement around participating overlays. |

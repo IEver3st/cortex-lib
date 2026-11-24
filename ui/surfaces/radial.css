@@ -163,11 +163,11 @@
     max-width: 100%;
     overflow: hidden;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: var(--lines, 2);
     padding: 0.2em 0.16em 0.06em;
     margin-top: -0.14em;
     overflow-wrap: anywhere;
-    font: italic 800 calc(16 * var(--ru)) / 1 var(--display);
+    font: italic 800 calc(var(--fs, 16) * var(--ru)) / 1 var(--display);
     font-synthesis: style;
     letter-spacing: 0.02em;
     text-transform: uppercase;
@@ -530,7 +530,8 @@
     position: absolute;
     width: max-content;
     max-width: calc(420 * var(--ru));
-    overflow: hidden;
+    overflow: clip;
+    overflow-clip-margin: 3.2vmin;
     padding: 0.2em 0.2em 0.2em 0.06em;
     margin: -0.14em -0.04em -0.14em -0.06em;
     transform: translateY(-100%);

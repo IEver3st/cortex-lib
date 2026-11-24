@@ -9,6 +9,8 @@ local VALID_NOTIFICATION_TYPES = {
 }
 
 local VALID_NOTIFICATION_POSITIONS = {
+    right = true,
+    left = true,
     top = true,
     ['top-right'] = true,
     ['top-left'] = true,

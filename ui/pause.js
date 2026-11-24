@@ -126,7 +126,7 @@
     }
 
     function Frame({ open, page, setPage, pause, dialogRef, session, post, onResume,
-        onSave, onApply, onBack, submitting, dirtyCount, error, children }) {
+        onSave, onApply, onBack, onCycle, submitting, dirtyCount, error, children }) {
         const data = pause || normalize(null);
         const [query, setQuery] = useState('');
         const [notice, setNotice] = useState('');
@@ -169,12 +169,14 @@
                 if (input === 'back') {
                     if (dropdown) current.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
                     else onBack();
+                } else if (input === 'prev' || input === 'next') {
+                    if (!dropdown) onCycle?.(input === 'next' ? 1 : -1);
                 } else if (input === 'up' || input === 'down') {
-                    if (dropdown) current.dispatchEvent(new KeyboardEvent('keydown', { key: input === 'up' ? 'ArrowUp' : 'ArrowDown', bubbles: true }));
+                    if (dropdown || current?.getAttribute?.('role') === 'tab') current.dispatchEvent(new KeyboardEvent('keydown', { key: input === 'up' ? 'ArrowUp' : 'ArrowDown', bubbles: true }));
                     else moveFocus(dialogRef.current, input === 'up' ? -1 : 1);
                 } else if (input === 'accept') current?.click();
                 else if (input === 'left' || input === 'right') {
-                    if (['radio', 'tab'].includes(current?.getAttribute?.('role'))) {
+                    if (['radio', 'tab'].includes(current?.getAttribute?.('role')) || current?.hasAttribute?.('data-cx-step')) {
                         // Segmented and swatch choices step their own value; tabs step the tablist.
                         current.dispatchEvent(new KeyboardEvent('keydown', { key: input === 'left' ? 'ArrowLeft' : 'ArrowRight', bubbles: true }));
                     } else if (current?.type === 'range') {
@@ -189,7 +191,7 @@
             };
             window.addEventListener('cortex-pause-input', handleInput);
             return () => window.removeEventListener('cortex-pause-input', handleInput);
-        }, [open, page, session, submitting, dialogRef, onBack]);
+        }, [open, page, session, submitting, dialogRef, onBack, onCycle]);
 
         const request = async (callback, payload, success) => {
             if (busy.current || submitting) return;
@@ -238,16 +240,8 @@
                         event.preventDefault(); moveFocus(dialogRef.current, event.key === 'ArrowUp' ? -1 : 1);
                     }
                 } },
-                isSettings ? h('header', { className: 'pause-heading cortex-settings-heading' },
-                    // Settings speaks the kit: eyebrow + display title,
-                    // and the controls legend where the eye starts.
-                    h('div', { className: 'cortex-settings-title-block' },
-                        h('span', { className: 'cx-eyebrow' }, data.title),
-                        h('h1', { id: 'cortex-settings-title' }, heading)),
-                    Kit ? h(Kit.ControlsLegend, { className: 'cortex-settings-legend', align: 'end', label: 'Settings controls', items: [
-                        { keys: ['UP', 'DOWN'], label: 'Move' }, { keys: ['LEFT', 'RIGHT'], label: 'Adjust' },
-                        { keys: 'ENTER', label: 'Select' }, { keys: 'ESC', label: 'Discard & resume' }] }) : null
-                ) : h('header', { className: 'pause-heading' },
+                isSettings ? h('h1', { id: 'cortex-settings-title', className: 'cortex-sr-only' }, 'Settings')
+                : h('header', { className: 'pause-heading' },
                     h('div', { className: 'pause-brand' }, h('span', { className: 'pause-mark', 'aria-hidden': true }, '//'), data.title),
                     h('h1', { id: 'cortex-settings-title' }, heading),
                     !isHome && h('button', { type: 'button', className: 'pause-back', onClick: onBack, disabled }, '← Quick menu')

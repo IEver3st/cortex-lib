@@ -208,6 +208,7 @@ local function define(spec)
         plain[index] = {
             id = verb.id,
             label = type(verb.label) == 'string' and verb.label or nil,
+            key = type(verb.key) == 'string' and verb.key or nil,
             hold = verb.hold,
             server = verb.server == true,
             stand = verb.stand ~= nil,

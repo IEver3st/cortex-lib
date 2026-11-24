@@ -93,7 +93,7 @@ local title = GetConvar('cortex_pause_title', 'CORTEX'):sub(1, 48)
 local MAX_PAGES, MAX_LOCATIONS = 24, 256
 local pauseControls = { { 0, 199 }, { 0, 200 }, { 2, 199 }, { 2, 200 } }
 local controllerInputs = { { 188, 'up' }, { 187, 'down' }, { 189, 'left' }, { 190, 'right' },
-    { 201, 'accept' }, { 202, 'back' }, { 199, 'back' } }
+    { 201, 'accept' }, { 202, 'back' }, { 199, 'back' }, { 205, 'prev' }, { 206, 'next' } }
 
 local function clearPausePresses()
     for _, binding in ipairs(pauseControls) do binding.armed = false end

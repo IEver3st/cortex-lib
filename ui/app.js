@@ -5,7 +5,7 @@ let notifyIdCounter = 0;
 
 function App() {
     const [notifications, setNotifications] = useState([]);
-    const [notifyPosition, setNotifyPosition] = useState('top-right');
+    const [notifyPosition, setNotifyPosition] = useState('right');
     const [peek, setPeek] = useState({ active: false, entries: [] });
     const peekLeaveRef = useRef(null);
     const [progress, setProgress] = useState({
@@ -93,7 +93,7 @@ function App() {
     });
 
     const [settingsPanel, setSettingsPanel] = useState({ open: false, session: null, tabs: [] });
-    const diagnosticsRef = useRef({ notificationCount: 0, notifyPosition: 'top-right' });
+    const diagnosticsRef = useRef({ notificationCount: 0, notifyPosition: 'right' });
     diagnosticsRef.current = { notificationCount: notifications.length, notifyPosition };
 
     const closeSettingsPanelLocal = useCallback((session) => {
@@ -264,7 +264,7 @@ function App() {
                         description: `Ping OK: ${new Date().toLocaleTimeString()}`,
                         duration: 1500,
                         showDuration: true,
-                        position: data?.position || 'top-right'
+                        position: data?.position || 'right'
                     });
                     break;
                 case 'debugState': {
@@ -501,7 +501,7 @@ function App() {
                     window.CortexKit.setPrefs(data.prefs);
                     break;
                 case 'notifySetPosition':
-                    if (['top', 'top-right', 'top-left', 'bottom', 'bottom-right', 'bottom-left'].includes(data.position)) {
+                    if (['right', 'left', 'top', 'top-right', 'top-left', 'bottom', 'bottom-right', 'bottom-left'].includes(data.position)) {
                         setNotifyPosition(data.position);
                     }
                     break;

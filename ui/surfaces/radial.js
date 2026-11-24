@@ -252,6 +252,122 @@ function RadialChevron({ angle = 90, distance = 0 }) {
 
 const radialLabelSize = label => label.length > 26 ? ' is-longer' : label.length > 12 ? ' is-long' : '';
 
+const RADIAL_LABEL_FONTS = [16, 15, 14, 13, 12];
+const RADIAL_LABEL_LINES = [1, 2, 3, 4];
+const RADIAL_LABEL_INSET = 2;
+const RADIAL_LABEL_PAD_X = 0.16;
+const RADIAL_LABEL_PAD_Y = 0.26;
+const RADIAL_LABEL_TRACKING = 0.02;
+const RADIAL_LABEL_FALLBACK_EM = 0.47;
+const RADIAL_LABEL_MIN_WIDTH = 28;
+
+const radialWordWidths = new Map();
+let radialMeasureContext;
+
+function radialWordEm(word) {
+    const text = word.toUpperCase();
+    const cached = radialWordWidths.get(text);
+    if (cached !== undefined) return cached;
+    const glyphs = Array.from(text).length;
+    let width = glyphs * RADIAL_LABEL_FALLBACK_EM;
+    try {
+        if (radialMeasureContext === undefined) {
+            const family = getComputedStyle(document.documentElement).getPropertyValue('--display').trim();
+            const context = document.createElement('canvas').getContext('2d');
+            if (context && family) context.font = `italic 800 100px ${family}`;
+            radialMeasureContext = context && family ? context : null;
+        }
+        if (radialMeasureContext) width = radialMeasureContext.measureText(text).width / 100 + glyphs * RADIAL_LABEL_TRACKING;
+    } catch (error) {
+        radialMeasureContext = null;
+    }
+    if (radialWordWidths.size > 512) radialWordWidths.clear();
+    radialWordWidths.set(text, width);
+    return width;
+}
+
+function radialLabelHalfWidth(angle, sweep, halfHeight) {
+    const radians = (angle - 90) * Math.PI / 180;
+    const cx = RADIAL_LABEL_RADIUS * Math.cos(radians);
+    const cy = RADIAL_LABEL_RADIUS * Math.sin(radians);
+    const outer = RADIAL_OUTER_RADIUS - RADIAL_CORNER - RADIAL_LABEL_INSET;
+    const inner = RADIAL_INNER_RADIUS + RADIAL_CORNER + RADIAL_LABEL_INSET;
+    const edge = (RADIAL_GAP + RADIAL_CORNER * 2) / 2 + RADIAL_LABEL_INSET;
+    const side = offset => {
+        const a = (angle + offset) * Math.PI / 180;
+        return { x: Math.sin(a), y: -Math.cos(a) };
+    };
+    const start = side(-sweep / 2);
+    const end = side(sweep / 2);
+    const fits = halfWidth => {
+        const nearX = Math.max(cx - halfWidth, Math.min(0, cx + halfWidth));
+        const nearY = Math.max(cy - halfHeight, Math.min(0, cy + halfHeight));
+        if (Math.hypot(nearX, nearY) < inner) return false;
+        for (const sx of [-1, 1]) {
+            for (const sy of [-1, 1]) {
+                const x = cx + sx * halfWidth;
+                const y = cy + sy * halfHeight;
+                if (Math.hypot(x, y) > outer) return false;
+                if (sweep < 359.9) {
+                    if (start.x * y - start.y * x < edge) return false;
+                    if (end.y * x - end.x * y < edge) return false;
+                }
+            }
+        }
+        return true;
+    };
+    if (!fits(0)) return 0;
+    let low = 0;
+    let high = RADIAL_OUTER_RADIUS;
+    for (let step = 0; step < 14; step += 1) {
+        const middle = (low + high) / 2;
+        if (fits(middle)) low = middle; else high = middle;
+    }
+    return low;
+}
+
+function radialLabelLines(words, lineWidth) {
+    const space = radialWordEm(' ');
+    let lines = 1;
+    let used = 0;
+    let broken = false;
+    for (const word of words) {
+        if (word > lineWidth) {
+            broken = true;
+            const pieces = Math.ceil(word / lineWidth);
+            lines += pieces - (used > 0 ? 0 : 1);
+            used = word - (pieces - 1) * lineWidth;
+        } else if (used > 0 && used + space + word > lineWidth) {
+            lines += 1;
+            used = word;
+        } else {
+            used += (used > 0 ? space : 0) + word;
+        }
+    }
+    return { lines, broken };
+}
+
+function radialLabelFit(label, angle, sweep, maxWidth) {
+    const words = String(label || '').trim().split(/\s+/).filter(Boolean).map(radialWordEm);
+    let clamped = null;
+    let single = null;
+    for (const font of RADIAL_LABEL_FONTS) {
+        for (const lines of RADIAL_LABEL_LINES) {
+            const height = lines * font + RADIAL_LABEL_PAD_Y * font;
+            const width = Math.floor(Math.min(maxWidth, radialLabelHalfWidth(angle, sweep, height / 2) * 2));
+            if (width < RADIAL_LABEL_MIN_WIDTH) continue;
+            const lineWidth = (width - RADIAL_LABEL_PAD_X * 2 * font) / font;
+            const wrapped = radialLabelLines(words, lineWidth);
+            const candidate = { width, font, lines };
+            if (wrapped.lines <= lines && !wrapped.broken) return candidate;
+            const room = lineWidth * lines;
+            if (!wrapped.broken && (!clamped || room > clamped.room)) clamped = { ...candidate, room };
+            if (lines === 1 && (!single || lineWidth > single.room)) single = { ...candidate, room: lineWidth };
+        }
+    }
+    return clamped || single || { width: Math.min(maxWidth, 60), font: RADIAL_LABEL_FONTS[RADIAL_LABEL_FONTS.length - 1], lines: 1 };
+}
+
 function RadialMenu({ open, id, session, items, canGoBack, visible, appearance, trail, focusIndex, view, releaseSelect, title }) {
     const Kit = window.CortexKit;
     const h = React.createElement;
@@ -687,10 +803,13 @@ function RadialMenu({ open, id, session, items, canGoBack, visible, appearance, 
             const isPressed = isHovered && (pressed === 'item' || fired === sourceIndex);
             const push = isHovered ? pushFor(index, isPressed ? RADIAL_PUSH * 0.4 : RADIAL_PUSH) : { x: 0, y: 0 };
             const hasIcon = resolveRadialIcon(item.icon) !== null;
+            const fit = hasIcon ? null : radialLabelFit(item.label, angle, sweep, labelWidth);
             const style = {
                 left: `${radialFixed(point.x / RADIAL_SIZE * 100)}%`,
                 top: `${radialFixed(point.y / RADIAL_SIZE * 100)}%`,
-                '--w': labelWidth,
+                '--w': fit ? fit.width : labelWidth,
+                '--fs': fit ? fit.font : undefined,
+                '--lines': fit ? fit.lines : undefined,
                 '--px': push.x,
                 '--py': push.y,
                 '--i': index

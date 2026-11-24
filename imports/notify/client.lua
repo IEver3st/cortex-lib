@@ -1,4 +1,4 @@
----@alias NotifyPosition 'top' | 'top-right' | 'top-left' | 'bottom' | 'bottom-right' | 'bottom-left'
+---@alias NotifyPosition 'right' | 'left' | 'top' | 'top-right' | 'top-left' | 'bottom' | 'bottom-right' | 'bottom-left'
 ---@alias NotifyType 'info' | 'inform' | 'success' | 'warning' | 'error'
 
 local CURRENT_RESOURCE = GetCurrentResourceName()
@@ -12,6 +12,7 @@ local NOTIFY_DEDUPE_SOUND_MS = 400
 
 local VALID_NOTIFY_TYPES = { info = true, inform = true, success = true, warning = true, error = true }
 local VALID_POSITIONS = {
+    right = true, left = true,
     top = true, ['top-right'] = true, ['top-left'] = true,
     bottom = true, ['bottom-right'] = true, ['bottom-left'] = true,
 }
@@ -161,7 +162,7 @@ end
 
 local function getDefaultPosition()
     local position = getSettingValue('notifyPosition')
-    return VALID_POSITIONS[position] and position or 'top-right'
+    return VALID_POSITIONS[position] and position or 'right'
 end
 
 local function validSound(sound)

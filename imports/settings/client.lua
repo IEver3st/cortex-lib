@@ -226,7 +226,7 @@ local cortexDefaults = {
     dynamic_layout = true,
     controlHints = true,
     radialStyle = 'wheel',
-    notifyPosition = 'top-right',
+    notifyPosition = 'right',
     notifyDuration = 'standard',
     notifyLimit = 5,
     notifyQuiet = false,
@@ -295,6 +295,8 @@ local cortexFields = {
         key = 'notifyPosition', section = SECTION_NOTIFICATIONS, type = 'select', label = 'Position',
         description = 'Where notifications appear on screen.',
         options = {
+            { value = 'right', label = 'Middle right' },
+            { value = 'left', label = 'Middle left' },
             { value = 'top-right', label = 'Top right' },
             { value = 'top-left', label = 'Top left' },
             { value = 'top', label = 'Top centre' },
@@ -411,6 +413,7 @@ local PREF_KEYS = {
 -- kept settings move to the Cortex namespace once; its per-resource
 -- "independent appearance" switches no longer exist and are removed.
 local LEGACY_DYNAMIC_PREFIX = SETTINGS_PREFIX .. 'cortex-dynamic:'
+local NOTIFY_POSITION_MIGRATION_KEY = SETTINGS_PREFIX .. 'migrated:notifyPositionRight'
 local MIGRATED_DYNAMIC_KEYS = { 'dynamic_accent', 'dynamic_opacity', 'dynamic_motion', 'dynamic_layout' }
 local RETIRED_DYNAMIC_KEYS = {
     'cortex-lib', 'cortex-chat', 'cortex-hud', 'cortex-polcam', 'cortex-rewind', 'cortex-admin',
@@ -520,6 +523,18 @@ local function migrateRetiredDynamicTab()
         local ok, value = readStoredValue(storageKey)
         if ok and value ~= nil then pcall(DeleteResourceKvp, storageKey) end
     end
+end
+
+local function migrateNotifyPositionDefault()
+    local flagOk, flag = readStoredValue(NOTIFY_POSITION_MIGRATION_KEY)
+    if not flagOk or flag ~= nil then return end
+    local storedOk, stored = readStoredValue(SETTINGS_PREFIX .. 'notifyPosition')
+    if not storedOk then return end
+    if stored == 'top-right' then
+        if type(DeleteResourceKvp) ~= 'function' then return end
+        if not pcall(DeleteResourceKvp, SETTINGS_PREFIX .. 'notifyPosition') then return end
+    end
+    pcall(SetResourceKvp, NOTIFY_POSITION_MIGRATION_KEY, 'true')
 end
 
 local function ensureRegisteredOrder(tabId)
@@ -1987,6 +2002,7 @@ function lib.closeSettingsMenu()
 end
 
 migrateRetiredDynamicTab()
+migrateNotifyPositionDefault()
 reloadCortexSettings()
 
 -- The shared NUI asks for preferences once it has mounted (and again after a

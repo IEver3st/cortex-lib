@@ -315,7 +315,7 @@ test('notifications preserve message variants, urgency and truthful lifetime cue
     assert.doesNotMatch(notifyCss, /notify-grain\.svg/);
 });
 
-test('settings reopen at the tab, section and Advanced switch the player last used', () => {
+test('settings reopen at the script and the advanced lists the player last used', () => {
     const store = new Map();
     const localStorage = { getItem: key => store.has(key) ? store.get(key) : null, setItem: (key, value) => store.set(key, String(value)) };
     const load = storage => surface('settings.js', { extra: {
@@ -326,17 +326,22 @@ test('settings reopen at the tab, section and Advanced switch the player last us
 
     let get = load(localStorage);
     assert.equal(get('findSettingsTab')(tabs, get('getSettingsPlace')().tabId), -1, 'a first open starts on the first tab');
-    get('rememberSettingsPlace')({ tabId: 'cortex-radio', section: 'Audio', advanced: true });
+    get('rememberSettingsPlace')({ tabId: 'cortex-radio', advanced: ['cortex-radio', 'cortex-radio', 'cortex-hud'] });
 
     get = load(localStorage);
     const place = get('getSettingsPlace')();
-    assert.deepEqual({ ...place }, { tabId: 'cortex-radio', section: 'Audio', advanced: true }, 'the place survives a reload');
+    assert.deepEqual({ ...place, advanced: [...place.advanced] }, { tabId: 'cortex-radio', advanced: ['cortex-radio', 'cortex-hud'] }, 'the place survives a reload');
     assert.equal(get('findSettingsTab')(tabs, place.tabId), 2);
     assert.equal(get('findSettingsTab')([tabs[2], tabs[0]], place.tabId), 0, 'tabs are matched by id, not position');
     assert.equal(get('findSettingsTab')(tabs.slice(0, 2), place.tabId), -1, 'a stopped tab falls back to the first');
 
-    store.set('cortex-lib:settings-place', JSON.stringify({ tabId: 'x'.repeat(400), section: { evil: true }, advanced: 'yes' }));
-    assert.deepEqual({ ...load(localStorage)('getSettingsPlace')() }, { tabId: 'x'.repeat(128), section: '', advanced: false }, 'stored data is bounded');
+    store.set('cortex-lib:settings-place', JSON.stringify({ tabId: 'x'.repeat(400), advanced: 'yes' }));
+    const bounded = load(localStorage)('getSettingsPlace')();
+    assert.deepEqual({ ...bounded, advanced: [...bounded.advanced] }, { tabId: 'x'.repeat(128), advanced: [] }, 'stored data is bounded');
+    store.set('cortex-lib:settings-place', JSON.stringify({ advanced: [{ evil: true }, 'y'.repeat(300), ...Array.from({ length: 90 }, (_, i) => `t${i}`)] }));
+    const capped = load(localStorage)('getSettingsPlace')().advanced;
+    assert.equal(capped[0], 'y'.repeat(128));
+    assert.ok(capped.length <= 64, 'the advanced list is capped');
     store.set('cortex-lib:settings-place', '{broken');
     assert.equal(load(localStorage)('getSettingsPlace')().tabId, null, 'corrupt storage is ignored');
     const throwing = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); } };

@@ -151,7 +151,11 @@ local function refreshRows()
         hideRow('decline', ROW_DECLINE)
         return
     end
-    showRow('answer', ROW_ANSWER, label('answer'), ask.label)
+    if ask.prompt then
+        showRow('answer', ROW_ANSWER, label('answer'), ask.label)
+    else
+        hideRow('answer', ROW_ANSWER)
+    end
     if declineShown(ask) then
         showRow('decline', ROW_DECLINE, label('cancel'), ask.decline)
     else
@@ -452,7 +456,7 @@ exports('keysAsk', function(id, spec)
     local seconds = tonumber(spec.seconds) or ASK_DEFAULT_SECONDS
     seconds = math.max(1, math.min(ASK_MAX_SECONDS, seconds))
     asks[key] = {
-        owner = owner, id = id, label = value, decline = text(spec.decline),
+        owner = owner, id = id, label = value, decline = text(spec.decline), prompt = spec.prompt ~= false,
         expires = GetGameTimer() + math.floor(seconds * 1000), seq = nextSerial(),
     }
     refreshRows()
@@ -464,6 +468,12 @@ exports('keysEndAsk', function(id)
     if not validId(id) then return false end
     endAsk(caller() .. '|' .. id, false, false)
     return true
+end)
+
+exports('keysAskActive', function(id)
+    if not validId(id) then return false end
+    local ask = newest(asks)
+    return ask ~= nil and ask.owner == caller() and ask.id == id
 end)
 
 exports('keysIsAsking', function()

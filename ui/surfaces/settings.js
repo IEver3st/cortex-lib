@@ -97,24 +97,19 @@ function normalizeSettingsTabs(tabs) {
     });
 })(0);
 
-// ============================================================================
-// SETTINGS CONTROLS
-// ============================================================================
-
 const SETTINGS_HEX_COLOR = /^#[0-9a-f]{6}$/i;
+const SETTINGS_LIST_AT = 5;
+const SETTINGS_MAX_PIPS = 10;
 
-/** Which custom control renders a choice field: never a native select. */
 function settingsChoiceKind(field) {
     const options = field.options || [];
     if (field.type === 'color' && options.length > 0 && options.length <= 8
         && options.every(option => typeof option.value === 'string' && SETTINGS_HEX_COLOR.test(option.value))) {
         return 'swatches';
     }
-    const labelLength = options.reduce((total, option) => total + String(option.label ?? option.value).length, 0);
-    return options.length > 1 && options.length <= 4 && labelLength <= 34 ? 'segmented' : 'dropdown';
+    return 'stepper';
 }
 
-/** Up/Down always travels between rows; Left/Right stays inside a choice. */
 function settingsVerticalNav(event) {
     if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
     const target = event.target;
@@ -132,11 +127,13 @@ function formatSettingsNumber(value) {
     return Number.isInteger(value) ? String(value) : String(Math.round(value * 100) / 100);
 }
 
-/**
- * Native range input for semantics and keyboard/pad stepping; Cortex draws the
- * track. The value readout follows the drag, but the preview (and so any live
- * change of UI scale) is committed on release or on each key step.
- */
+function settingsStep(options, value, delta) {
+    if (!options.length) return value;
+    const at = options.findIndex(option => Object.is(option.value, value));
+    const from = at < 0 ? (delta > 0 ? -1 : 0) : at;
+    return options[(from + delta + options.length * 2) % options.length].value;
+}
+
 function SettingsSlider({ field, value, inputId, labelId, descriptionId, onCommit }) {
     const min = Number.isFinite(field.min) ? field.min : 0;
     const max = Number.isFinite(field.max) && field.max > min ? field.max : Math.max(min + 1, 100);
@@ -160,8 +157,12 @@ function SettingsSlider({ field, value, inputId, labelId, descriptionId, onCommi
     }, []);
 
     const fill = Math.max(0, Math.min(1, (draft - min) / (max - min)));
+    const levels = Math.max(2, Math.min(SETTINGS_MAX_PIPS, Math.round((max - min) / step)));
+    const lit = Math.round(fill * levels);
     return React.createElement('div', { className: 'cx-settings-slider' },
-        React.createElement('span', { className: 'cx-settings-range', style: { '--fill': fill } },
+        React.createElement('span', { className: 'cx-settings-range' },
+            React.createElement('span', { className: 'cx-settings-pips', 'aria-hidden': 'true' },
+                Array.from({ length: levels }, (_, index) => React.createElement('i', { key: index, className: index < lit ? 'is-lit' : undefined }))),
             React.createElement('input', {
                 ref: inputRef,
                 id: inputId,
@@ -179,11 +180,9 @@ function SettingsSlider({ field, value, inputId, labelId, descriptionId, onCommi
     );
 }
 
-/** Colour choice as a radio row of chips; the selected chip flips to paper. */
 function SettingsSwatches({ options, value, onChange, labelledBy, custom }) {
     const refs = useRef([]);
     const found = options.findIndex(option => Object.is(option.value, value));
-    // A custom colour matches no swatch: none is selected, the first still takes Tab.
     const isCustom = custom && found < 0 && typeof value === 'string' && SETTINGS_HEX_COLOR.test(value);
     const selectedIndex = isCustom ? -1 : Math.max(0, found);
     const selected = options[selectedIndex];
@@ -201,6 +200,7 @@ function SettingsSwatches({ options, value, onChange, labelledBy, custom }) {
         window.requestAnimationFrame(() => refs.current[next]?.focus({ preventScroll: true }));
     };
     return React.createElement('div', { className: 'cx-settings-swatches' },
+        React.createElement('span', { className: 'cx-settings-swatch-name', 'aria-hidden': 'true' }, isCustom ? 'Custom' : (selected?.label || '')),
         React.createElement('div', { className: 'cx-settings-swatch-row', role: 'radiogroup', 'aria-labelledby': labelledBy },
             options.map((option, index) => React.createElement('button', {
                 key: `${option.value}-${index}`,
@@ -218,7 +218,7 @@ function SettingsSwatches({ options, value, onChange, labelledBy, custom }) {
                     if (event.key === 'ArrowRight') { event.preventDefault(); move(index + 1); }
                     else if (event.key === 'ArrowLeft') { event.preventDefault(); move(index - 1); }
                 }
-            }, React.createElement('i', { 'aria-hidden': 'true' })))
+            }))
         ),
         custom && React.createElement('input', {
             className: `cx-settings-hex${isCustom ? ' is-selected' : ''}`,
@@ -233,82 +233,222 @@ function SettingsSwatches({ options, value, onChange, labelledBy, custom }) {
             onChange: typeHex,
             onBlur: () => setDraft(null),
             onKeyDown: event => { if (event.key !== 'Escape' && event.key !== 'Tab') event.stopPropagation(); }
-        }),
-        React.createElement('span', { className: 'cx-settings-swatch-name', 'aria-hidden': 'true' }, isCustom ? 'Custom' : (selected?.label || ''))
+        })
     );
 }
 
+const SETTINGS_GLYPHS = {
+    play: [['fill', 'M7 4.5v15l12.5-7.5Z']],
+    search: [['line', 'M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13Z'], ['line', 'M15.5 15.5 20.5 20.5']],
+    reset: [['line', 'M5.5 12a6.5 6.5 0 1 0 2-4.7'], ['line', 'M4 3.5v5.5h5.5']],
+    left: [['line', 'M15 5 8 12l7 7']],
+    right: [['line', 'M9 5l7 7-7 7']],
+    everyday: [['line', 'M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8Z'], ['line', 'M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4']],
+    equipment: [['line', 'M14.5 4.5a4.5 4.5 0 0 0 5 5L10 19a2.1 2.1 0 0 1-3-3Z']],
+    activities: [['line', 'M5.5 21V4h11l-2.5 4.5 2.5 4.5h-11']],
+    staff: [['line', 'M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6Z']],
+    other: [['line', 'M4.5 4.5h5.5v5.5H4.5ZM14 4.5h5.5v5.5H14ZM4.5 14h5.5v5.5H4.5ZM14 14h5.5v5.5H14Z']]
+};
+
 function SettingsGlyph({ kind }) {
-    // 24-unit boxes rendered at 18-20u: a 4-unit stroke stays above 3u.
-    if (kind === 'play') {
-        return React.createElement('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' },
-            React.createElement('path', { d: 'M7 4.5v15l12.5-7.5Z', className: 'cx-settings-glyph-fill' }));
-    }
-    if (kind === 'search') {
-        return React.createElement('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' },
-            React.createElement('circle', { cx: 10.5, cy: 10.5, r: 6.5, className: 'cx-settings-glyph-line' }),
-            React.createElement('path', { d: 'M15.5 15.5 20.5 20.5', className: 'cx-settings-glyph-line' }));
-    }
+    const paths = SETTINGS_GLYPHS[kind] || SETTINGS_GLYPHS.other;
     return React.createElement('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' },
-        React.createElement('path', { d: 'M5.5 12a6.5 6.5 0 1 0 2-4.7', className: 'cx-settings-glyph-line' }),
-        React.createElement('path', { d: 'M4 3.5v5.5h5.5', className: 'cx-settings-glyph-line' }));
+        paths.map(([style, d], index) => React.createElement('path', {
+            key: index, d, className: style === 'fill' ? 'cx-settings-glyph-fill' : 'cx-settings-glyph-line'
+        })));
 }
 
-function SettingsSound({ field, value, onChange, onPreviewSound, labelId, descriptionId }) {
-    const Kit = window.CortexKit;
+function SettingsChoiceList({ options, value, anchorRef, labelId, onChoose, onClose }) {
+    const menuRef = useRef(null);
+    const optionRefs = useRef([]);
+    const selected = options.findIndex(option => Object.is(option.value, value));
+    const [active, setActive] = useState(Math.max(0, selected));
+    const placeMenu = () => {
+        const rect = anchorRef.current?.getBoundingClientRect();
+        if (!rect) return { visibility: 'hidden' };
+        const pad = 12, gap = 8;
+        const width = Math.min(Math.max(rect.width + 40, 240), window.innerWidth - pad * 2);
+        const below = window.innerHeight - rect.bottom - pad;
+        const above = rect.top - pad;
+        const up = below < 220 && above > below;
+        const left = Math.min(Math.max(pad, rect.right - width), window.innerWidth - pad - width);
+        const maxHeight = `${Math.max(96, Math.min(window.innerHeight * 0.42, (up ? above : below) - gap))}px`;
+        return up
+            ? { left: `${left}px`, bottom: `${window.innerHeight - rect.top + gap}px`, width: `${width}px`, maxHeight }
+            : { left: `${left}px`, top: `${rect.bottom + gap}px`, width: `${width}px`, maxHeight };
+    };
+    const [style, setStyle] = useState(placeMenu);
+    const closeRef = useRef(onClose);
+    closeRef.current = onClose;
+
+    useEffect(() => {
+        const place = () => setStyle(placeMenu());
+        place();
+        const outside = event => {
+            if (menuRef.current?.contains(event.target) || anchorRef.current?.parentElement?.contains(event.target)) return;
+            closeRef.current(false);
+        };
+        document.addEventListener('mousedown', outside);
+        window.addEventListener('resize', place);
+        return () => {
+            document.removeEventListener('mousedown', outside);
+            window.removeEventListener('resize', place);
+        };
+    }, [anchorRef]);
+
+    useEffect(() => {
+        const frame = window.requestAnimationFrame(() => {
+            const option = optionRefs.current[active];
+            option?.focus({ preventScroll: true });
+            option?.scrollIntoView({ block: 'nearest' });
+        });
+        return () => window.cancelAnimationFrame(frame);
+    }, [active]);
+
+    const move = index => setActive(Math.max(0, Math.min(options.length - 1, index)));
+    return ReactDOM.createPortal(React.createElement('div', {
+        ref: menuRef,
+        className: 'cx-dropdown-menu cx-settings-menu',
+        style,
+        role: 'listbox',
+        'aria-labelledby': labelId,
+        onKeyDown: event => {
+            if (event.key === 'ArrowDown') { event.preventDefault(); move(active + 1); }
+            else if (event.key === 'ArrowUp') { event.preventDefault(); move(active - 1); }
+            else if (event.key === 'Home') { event.preventDefault(); move(0); }
+            else if (event.key === 'End') { event.preventDefault(); move(options.length - 1); }
+            else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onChoose(options[active].value); }
+            else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose(true); }
+            else if (event.key === 'Tab' || event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); onClose(true); }
+        }
+    }, options.map((option, index) => React.createElement('button', {
+        key: `${String(option.value)}-${index}`,
+        ref: element => { optionRefs.current[index] = element; },
+        type: 'button',
+        role: 'option',
+        tabIndex: index === active ? 0 : -1,
+        'aria-selected': index === selected,
+        className: `cx-dropdown-option${index === selected ? ' is-selected' : ''}${index === active ? ' is-active' : ''}`,
+        onMouseMove: () => { if (active !== index) setActive(index); },
+        onClick: () => onChoose(option.value)
+    }, React.createElement('span', null, option.label)))), document.body);
+}
+
+function SettingsStepper({ options, value, onChange, labelId, describedBy, valueId }) {
+    const [open, setOpen] = useState(false);
+    const buttonRef = useRef(null);
+    const at = options.findIndex(option => Object.is(option.value, value));
+    const shown = at >= 0 ? options[at].label : (value === undefined || value === null || value === '' ? 'Not set' : String(value));
+    const listed = options.length >= SETTINGS_LIST_AT;
+    const canStep = options.length > 1 || (options.length === 1 && at < 0);
+    const step = delta => { if (canStep) onChange(settingsStep(options, value, delta)); };
+    const close = restore => {
+        setOpen(false);
+        if (restore) window.requestAnimationFrame(() => buttonRef.current?.focus({ preventScroll: true }));
+    };
+    const chevron = (delta, kind) => React.createElement('button', {
+        type: 'button', className: 'cx-settings-chev', tabIndex: -1, 'aria-hidden': 'true', disabled: !canStep,
+        onMouseDown: event => event.preventDefault(),
+        onClick: () => { buttonRef.current?.focus({ preventScroll: true }); step(delta); }
+    }, React.createElement(SettingsGlyph, { kind }));
+    return React.createElement('div', { className: `cx-settings-stepper${open ? ' is-open' : ''}` },
+        chevron(-1, 'left'),
+        React.createElement('button', {
+            ref: buttonRef,
+            type: 'button',
+            className: 'cx-settings-step',
+            'data-cx-step': '',
+            'aria-labelledby': `${labelId} ${valueId}`,
+            'aria-describedby': describedBy,
+            'aria-haspopup': listed ? 'listbox' : undefined,
+            'aria-expanded': listed ? open : undefined,
+            disabled: options.length === 0,
+            onClick: () => { if (listed) setOpen(current => !current); else step(1); },
+            onKeyDown: event => {
+                if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+                event.preventDefault();
+                step(event.key === 'ArrowLeft' ? -1 : 1);
+            }
+        }, React.createElement('span', { id: valueId, className: 'cx-settings-step-value' }, shown)),
+        chevron(1, 'right'),
+        open && React.createElement(SettingsChoiceList, {
+            options, value, anchorRef: buttonRef, labelId,
+            onChoose: next => { onChange(next); close(true); },
+            onClose: close
+        })
+    );
+}
+
+function SettingsSwitch({ checked, onChange, labelId, describedBy }) {
+    return React.createElement('button', {
+        type: 'button',
+        role: 'switch',
+        className: `cx-settings-onoff${checked ? ' is-on' : ''}`,
+        'data-cx-step': '',
+        'aria-checked': checked,
+        'aria-labelledby': labelId,
+        'aria-describedby': describedBy,
+        onClick: () => onChange(!checked),
+        onKeyDown: event => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+            event.preventDefault();
+            onChange(!checked);
+        }
+    },
+        React.createElement('span', { className: 'cx-settings-on', 'aria-hidden': 'true' }, 'On'),
+        React.createElement('span', { className: 'cx-settings-off', 'aria-hidden': 'true' }, 'Off'));
+}
+
+function SettingsSound({ field, value, onChange, onPreviewSound, labelId, descriptionId, valueId }) {
     const options = field.options || [];
     const play = next => {
         const option = options.find(item => Object.is(item.value, next));
         if (option?.name && option?.set) onPreviewSound(option.name, option.set);
     };
     return React.createElement('div', { className: 'cx-settings-sound' },
-        React.createElement(Kit.Dropdown, {
-            options, value, labelledBy: labelId,
-            describedBy: field.description ? descriptionId : undefined,
-            scope: 'cx-settings-menu',
-            onChange: next => { onChange(next); play(next); }
-        }),
         React.createElement('button', {
             type: 'button', className: 'cx-settings-icon-button',
             'aria-label': `Play ${boundedText(options.find(item => Object.is(item.value, value))?.label, 'sound', 96)}`,
             title: 'Play', onClick: () => play(value)
-        }, React.createElement(SettingsGlyph, { kind: 'play' }))
+        }, React.createElement(SettingsGlyph, { kind: 'play' })),
+        React.createElement(SettingsStepper, {
+            options, value, labelId, valueId,
+            describedBy: field.description ? descriptionId : undefined,
+            onChange: next => { onChange(next); play(next); }
+        })
     );
+}
+
+const SETTINGS_ROW_TARGETS = ['[data-cx-step]:not(:disabled)', 'input:not([tabindex="-1"]):not(:disabled)', '[role="radio"][tabindex="0"]', 'button:not([tabindex="-1"]):not(:disabled)'];
+const SETTINGS_ROW_TARGET = SETTINGS_ROW_TARGETS.join(', ');
+
+function focusSettingsRow(event) {
+    if (event.target.closest?.('button, input, [role="listbox"]')) return;
+    event.currentTarget.querySelector(SETTINGS_ROW_TARGET)?.focus({ preventScroll: true });
 }
 
 function SettingsField({ field, value, defaultValue, hasDefault, dirty, tabId, onChange, onAction, onPreviewSound }) {
     if (!field || typeof field !== 'object') return null;
     if (!field.type || !field.key) return null;
-    const Kit = window.CortexKit;
 
     const fieldId = `cortex-setting-${String(tabId).replace(/[^a-z0-9_-]/gi, '-')}-${String(field.key).replace(/[^a-z0-9_-]/gi, '-')}`;
     const labelId = `${fieldId}-label`;
     const descriptionId = `${fieldId}-description`;
+    const valueId = `${fieldId}-value`;
+    const describedBy = field.description ? descriptionId : undefined;
     const set = next => onChange(tabId, field.key, next);
 
     const renderControl = () => {
         switch (field.type) {
             case 'toggle':
-                return React.createElement(Kit.Toggle, {
-                    checked: value === true, labelledBy: labelId,
-                    describedBy: field.description ? descriptionId : undefined,
-                    onChange: set
-                });
+                return React.createElement(SettingsSwitch, { checked: value === true, onChange: set, labelId, describedBy });
 
             case 'select':
-            case 'color': {
-                const kind = settingsChoiceKind(field);
-                if (kind === 'swatches') {
+            case 'color':
+                if (settingsChoiceKind(field) === 'swatches') {
                     return React.createElement(SettingsSwatches, { options: field.options, value, onChange: set, labelledBy: labelId, custom: field.custom === true });
                 }
-                if (kind === 'segmented') {
-                    return React.createElement(Kit.Segmented, { options: field.options, value, onChange: set, labelledBy: labelId });
-                }
-                return React.createElement(Kit.Dropdown, {
-                    options: field.options, value, onChange: set, labelledBy: labelId,
-                    describedBy: field.description ? descriptionId : undefined, scope: 'cx-settings-menu'
-                });
-            }
+                return React.createElement(SettingsStepper, { options: field.options || [], value, onChange: set, labelId, describedBy, valueId });
 
             case 'slider':
                 return React.createElement(SettingsSlider, {
@@ -321,8 +461,9 @@ function SettingsField({ field, value, defaultValue, hasDefault, dirty, tabId, o
                         key: String(btn.value),
                         type: 'button',
                         className: 'cx-settings-action',
+                        'aria-describedby': describedBy,
                         onClick: () => onAction(tabId, field.key, btn.value)
-                    }, btn.label))
+                    }, btn.label, React.createElement(SettingsGlyph, { kind: 'right' })))
                 );
 
             case 'text':
@@ -343,82 +484,55 @@ function SettingsField({ field, value, defaultValue, hasDefault, dirty, tabId, o
                 });
 
             case 'soundList':
-                return React.createElement(SettingsSound, { field, value, onChange: set, onPreviewSound, labelId, descriptionId });
+                return React.createElement(SettingsSound, { field, value, onChange: set, onPreviewSound, labelId, descriptionId, valueId });
 
             default:
                 return null;
         }
     };
 
-    // Per-row reset: only when a default exists and the value has moved off it.
     const canReset = hasDefault === true && field.type !== 'buttons' && !Object.is(value, defaultValue);
 
     return React.createElement('div', {
-        className: `cortex-settings-row${dirty ? ' is-dirty' : ''}`,
+        className: `cortex-settings-item${dirty ? ' is-dirty' : ''}`,
         'data-setting': field.key,
         onKeyDownCapture: settingsVerticalNav
     },
-        React.createElement('div', { className: 'cortex-settings-row-info' },
+        React.createElement('div', { className: 'cortex-settings-row', onClick: focusSettingsRow },
             React.createElement('div', { id: labelId, className: 'cortex-settings-row-label' },
                 field.label,
                 dirty ? React.createElement('span', { className: 'cortex-settings-row-dirty', title: 'Unsaved change' },
                     React.createElement('span', { className: 'cortex-sr-only' }, ' (unsaved change)')) : null
             ),
-            field.description
-                ? React.createElement('div', { id: descriptionId, className: 'cortex-settings-row-desc' }, field.description)
-                : null
+            React.createElement('div', { className: 'cortex-settings-row-ctrl' }, renderControl()),
+            React.createElement('button', {
+                type: 'button',
+                className: 'cortex-settings-row-reset',
+                disabled: !canReset,
+                'aria-hidden': canReset ? undefined : 'true',
+                tabIndex: -1,
+                title: 'Reset to default',
+                'aria-label': `Reset ${field.label} to default`,
+                onClick: () => { if (canReset) set(defaultValue); }
+            }, React.createElement(SettingsGlyph, { kind: 'reset' }))
         ),
-        React.createElement('div', { className: 'cortex-settings-row-ctrl' }, renderControl()),
-        React.createElement('button', {
-            type: 'button',
-            className: 'cortex-settings-row-reset',
-            disabled: !canReset,
-            'aria-hidden': canReset ? undefined : 'true',
-            tabIndex: canReset ? 0 : -1,
-            title: 'Reset to default',
-            'aria-label': `Reset ${field.label} to default`,
-            onClick: () => { if (canReset) set(defaultValue); }
-        }, React.createElement(SettingsGlyph, { kind: 'reset' }))
+        field.description
+            ? React.createElement('div', { id: descriptionId, className: 'cortex-settings-row-desc' }, field.description)
+            : null
     );
 }
-
-function settingsScrollBehavior() {
-    const motion = document.documentElement.dataset.cxMotion;
-    return (motion ? motion === 'reduced' : window.matchMedia('(prefers-reduced-motion: reduce)').matches) ? 'auto' : 'smooth';
-}
-
-function SettingsRail({ active, label, children }) {
-    const listRef = useRef(null);
-    useEffect(() => {
-        const node = listRef.current;
-        const tab = node?.querySelector(`#cortex-settings-tab-${active}`);
-        if (!tab) return;
-        const top = tab.offsetTop, bottom = top + tab.offsetHeight;
-        if (top < node.scrollTop) node.scrollTo({ top, behavior: settingsScrollBehavior() });
-        else if (bottom > node.scrollTop + node.clientHeight) node.scrollTo({ top: bottom - node.clientHeight, behavior: settingsScrollBehavior() });
-    }, [active]);
-
-    return React.createElement('div', {
-        ref: listRef, className: 'cortex-settings-tabs', role: 'tablist', 'aria-label': label, 'aria-orientation': 'vertical'
-    }, children);
-}
-
-// ============================================================================
-// PLACE. Reopening Settings returns to the tab, section and Advanced switch the
-// player last used. Tabs are matched by id, so scripts that register or stop
-// between opens cannot shift it. Navigation only: values never live here. CEF
-// storage carries it across reconnects; without storage it lasts the session.
-// ============================================================================
 
 const SETTINGS_PLACE_KEY = 'cortex-lib:settings-place';
 let settingsPlace = null;
 
 function normalizeSettingsPlace(data) {
     const record = isRecord(data) ? data : {};
+    const advanced = Array.isArray(record.advanced)
+        ? [...new Set(record.advanced.filter(id => typeof id === 'string' && id).slice(0, 64).map(id => boundedText(id, '', 128)))]
+        : [];
     return {
         tabId: boundedText(record.tabId, '', 128) || null,
-        section: boundedText(record.section, '', 160),
-        advanced: record.advanced === true
+        advanced
     };
 }
 
@@ -432,14 +546,13 @@ function getSettingsPlace() {
 
 function rememberSettingsPlace(next) {
     settingsPlace = normalizeSettingsPlace({ ...getSettingsPlace(), ...next });
-    try { window.localStorage.setItem(SETTINGS_PLACE_KEY, JSON.stringify(settingsPlace)); } catch { /* the session copy still holds */ }
+    try { window.localStorage.setItem(SETTINGS_PLACE_KEY, JSON.stringify(settingsPlace)); } catch { settingsPlace = { ...settingsPlace }; }
 }
 
 function settingsTabKey(tab) {
-    return isRecord(tab) && tab.id != null ? String(tab.id) : null;
+    return tab !== null && typeof tab === 'object' && tab.id != null ? String(tab.id) : null;
 }
 
-/** Index of the remembered tab, or -1 when it is not registered now. */
 function findSettingsTab(tabs, tabId) {
     if (!Array.isArray(tabs) || !tabId) return -1;
     return tabs.findIndex(tab => settingsTabKey(tab) === tabId);
@@ -466,20 +579,28 @@ function settingsLibrary(tabs) {
     const library = [...groups.values()].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
     for (const group of library) {
         group.items.sort((a, b) => isCortex(b) - isCortex(a) || label(a).localeCompare(label(b), undefined, { sensitivity: 'base' }));
+        group.icon = SETTINGS_GROUP_ORDER.includes(group.key) ? group.key : 'other';
     }
     return library;
 }
 
-// ============================================================================
-// SETTINGS PANEL
-// ============================================================================
+function firstSettingsStop(root) {
+    if (!root) return null;
+    return root.querySelector(SETTINGS_ROW_TARGETS.map(target => `.cortex-settings-item ${target}`).join(', '))
+        || root.querySelector('button:not([tabindex="-1"]):not(:disabled)');
+}
+
+function SettingsRail({ label, children }) {
+    return React.createElement('div', {
+        className: 'cortex-settings-tabs', role: 'tablist', 'aria-label': label, 'aria-orientation': 'vertical'
+    }, children);
+}
 
 function SettingsPanel({ open, session, tabs, page: initialPage, pause, onClose }) {
     const [activeTab, setActiveTab] = useState(0);
     const [page, setPage] = useState(initialPage === 'home' ? 'home' : 'settings');
     const [search, setSearch] = useState('');
-    const [section, setSection] = useState('');
-    const [showAdvanced, setShowAdvanced] = useState(false);
+    const [advanced, setAdvanced] = useState([]);
     const [values, setValues] = useState({});
     const [submitError, setSubmitError] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -487,16 +608,17 @@ function SettingsPanel({ open, session, tabs, page: initialPage, pause, onClose 
     const [applyStatus, setApplyStatus] = useState('');
     const commitBusy = useRef(false);
     const dialogRef = useRef(null);
+    const listRef = useRef(null);
+    const searchRef = useRef(null);
+    const spyFrame = useRef(0);
+    const pendingJump = useRef(null);
     const sessionRef = useRef(normalizeSession(session));
     sessionRef.current = normalizeSession(session);
 
     useEffect(() => {
-        const place = getSettingsPlace();
-        const placed = findSettingsTab(tabs, place.tabId) !== -1;
         setPage(initialPage === 'home' ? 'home' : 'settings');
         setSearch('');
-        setSection(placed ? place.section : '');
-        setShowAdvanced(placed && place.advanced);
+        setAdvanced(getSettingsPlace().advanced);
     }, [open, session, initialPage]);
 
     useEffect(() => {
@@ -531,6 +653,7 @@ function SettingsPanel({ open, session, tabs, page: initialPage, pause, onClose 
         setApplyStatus('');
         commitBusy.current = false;
         setActiveTab(Math.max(0, findSettingsTab(tabs, getSettingsPlace().tabId)));
+        pendingJump.current = { focus: false };
         setSubmitError('');
         setSubmitting(false);
     }, [open, session, tabs]);
@@ -539,6 +662,17 @@ function SettingsPanel({ open, session, tabs, page: initialPage, pause, onClose 
         if (!open || !tabs || tabs.length === 0) return;
         if (activeTab >= tabs.length) setActiveTab(0);
     }, [open, tabs, activeTab]);
+
+    useEffect(() => {
+        const jump = pendingJump.current;
+        const list = listRef.current;
+        if (!jump || !list) return;
+        pendingJump.current = null;
+        const block = list.querySelector(`[data-tab-index="${activeTab}"]`);
+        if (!block) return;
+        list.scrollTo({ top: Math.max(0, block.offsetTop - 4), behavior: 'auto' });
+        if (jump.focus) firstSettingsStop(block)?.focus({ preventScroll: true });
+    });
 
     const handleChange = useCallback((tabId, key, value) => {
         if (commitBusy.current) return;
@@ -567,11 +701,11 @@ function SettingsPanel({ open, session, tabs, page: initialPage, pause, onClose 
         });
     }, [session, values]);
 
-    const handleReset = useCallback(() => {
+    const handleReset = useCallback(tabIndex => {
         if (commitBusy.current) return;
         setApplyStatus('');
         if (!tabs) return;
-        const tab = tabs[activeTab];
+        const tab = tabs[tabIndex];
         if (!tab) return;
         const previousValues = Object.assign({}, values[tab.id] || {});
         const nextValues = Object.assign({}, tab.defaults || {});
@@ -589,7 +723,7 @@ function SettingsPanel({ open, session, tabs, page: initialPage, pause, onClose 
         }).catch(error => {
             uiDebugLog('settings reset response failed', error);
         });
-    }, [tabs, activeTab, session, values]);
+    }, [tabs, session, values]);
 
     const handleSave = useCallback(async (keepOpen = false) => {
         if (submitting || commitBusy.current) return;
@@ -658,11 +792,7 @@ function SettingsPanel({ open, session, tabs, page: initialPage, pause, onClose 
     const handleBack = useCallback(() => {
         if (submitting) return;
         if (!window.dispatchEvent(new CustomEvent('cortex-page-back', { cancelable: true }))) return;
-        // A search is the innermost state: the first Escape clears it and keeps
-        // every unsaved change; the next one leaves.
         if (page === 'settings' && search) { setSearch(''); return; }
-        // Script settings is a standalone surface, even on servers that enable
-        // the optional quick menu. Escape discards and returns to gameplay.
         const top = pause?.quickMenu === true ? 'home' : 'settings';
         if (page === 'settings') { void handleCancel(); return; }
         if (page !== top) setPage(top);
@@ -674,41 +804,64 @@ function SettingsPanel({ open, session, tabs, page: initialPage, pause, onClose 
     if (!open || !tabs || tabs.length === 0) return null;
 
     const tab = tabs[activeTab] || tabs[0];
-    const fields = tab.fields || [];
+    const tabIndexNow = tabs.indexOf(tab);
     const query = search.trim().toLowerCase();
+    const onSettings = page === 'settings';
     const baselineOf = item => savedValues[item.id] || item.values || {};
     const isDirty = (item, key) => Object.prototype.hasOwnProperty.call(values[item.id] || {}, key)
         && !Object.is(values[item.id][key], baselineOf(item)[key]);
+    const tabDirtyCount = item => Object.keys(values[item.id] || {}).filter(key => isDirty(item, key)).length;
     const isRelevant = (field, sourceTab) => Object.entries(field.showWhen || {}).every(([key, expected]) =>
         Object.is((values[sourceTab.id] || sourceTab.values || {})[key], expected));
-    const visibleFields = page === 'settings' ? fields.filter(field =>
-        isRelevant(field, tab) && (query || showAdvanced || !field.advanced)) : [];
-    const sections = [...new Set(visibleFields.map(field => field.section || 'General'))];
-    const activeSection = sections.includes(section) ? section : '';
-    const hasAdvanced = page === 'settings' && fields.some(field => field.advanced && isRelevant(field, tab));
     const dirtyCount = tabs.reduce((total, item) => total + Object.keys(values[item.id] || {}).filter(key =>
         !Object.is(values[item.id][key], (savedValues[item.id] || item.values)?.[key])).length, 0);
-    const sectionDirty = name => visibleFields.some(field => (field.section || 'General') === name && isDirty(tab, field.key));
+    const isOpenAdvanced = item => advanced.includes(settingsTabKey(item));
+    const matches = (field, sourceTab) => `${sourceTab.label} ${field.label} ${field.description} ${field.section || 'General'}`.toLowerCase().includes(query);
 
-    // Search spans the same registered tabs, without creating another value store.
-    const rows = [];
+    const library = onSettings ? settingsLibrary(tabs) : [];
+    const order = library.flatMap(group => group.items);
+    const activeGroupIndex = Math.max(0, library.findIndex(group => group.items.includes(tabIndexNow)));
+    const activeGroup = library[activeGroupIndex];
+
+    const toggleAdvanced = item => {
+        const key = settingsTabKey(item);
+        const next = advanced.includes(key) ? advanced.filter(id => id !== key) : [...advanced, key];
+        setAdvanced(next);
+        rememberSettingsPlace({ advanced: next });
+    };
+
     let visibleCount = 0;
-    for (const sourceTab of page === 'settings' ? (query ? tabs : [tab]) : []) {
+    const groupMatches = new Map();
+    const blocks = [];
+    const blockIndexes = !onSettings ? [] : query ? order : (activeGroup?.items || []);
+    for (const tabIndex of blockIndexes) {
+        const sourceTab = tabs[tabIndex];
+        const relevant = (sourceTab.fields || []).filter(field => isRelevant(field, sourceTab));
+        const advancedCount = relevant.filter(field => field.advanced).length;
+        const shown = relevant.filter(field => query ? matches(field, sourceTab) : (!field.advanced || isOpenAdvanced(sourceTab)));
+        if (query) {
+            if (!shown.length) continue;
+            const groupIndex = library.findIndex(group => group.items.includes(tabIndex));
+            groupMatches.set(groupIndex, (groupMatches.get(groupIndex) || 0) + shown.length);
+        }
+        visibleCount += shown.length;
+        const headId = `cortex-settings-script-${tabIndex}`;
+        const sections = new Set(shown.map(field => field.section || 'General'));
+        const sourceDefaults = sourceTab.defaults || {};
+        const offDefault = (sourceTab.fields || []).some(field => field.type !== 'buttons'
+            && Object.prototype.hasOwnProperty.call(sourceDefaults, field.key)
+            && !Object.is((values[sourceTab.id] || {})[field.key], sourceDefaults[field.key]));
+        const unsaved = tabDirtyCount(sourceTab);
+        const rows = [];
         let lastSection = null;
-        for (const field of sourceTab.fields || []) {
-            if (!isRelevant(field, sourceTab)) continue;
-            if (!query && field.advanced && !showAdvanced) continue;
+        for (const field of shown) {
             const fieldSection = field.section || 'General';
-            if (query && !`${sourceTab.label} ${field.label} ${field.description} ${fieldSection}`.toLowerCase().includes(query)) continue;
-            if (!query && activeSection && fieldSection !== activeSection) continue;
-            visibleCount++;
-            if (fieldSection !== lastSection) {
+            if (sections.size > 1 && fieldSection !== lastSection) {
                 lastSection = fieldSection;
                 rows.push(React.createElement('div', {
                     key: `sec-${sourceTab.id}-${field.key}`, className: 'cortex-settings-section', role: 'heading', 'aria-level': 3
-                }, query ? `${sourceTab.label} / ${fieldSection}` : fieldSection));
+                }, fieldSection));
             }
-            const sourceDefaults = sourceTab.defaults || {};
             rows.push(React.createElement(SettingsField, {
                 key: `${sourceTab.id}-${field.key}`, field,
                 value: values[sourceTab.id]?.[field.key], tabId: sourceTab.id,
@@ -718,122 +871,202 @@ function SettingsPanel({ open, session, tabs, page: initialPage, pause, onClose 
                 onChange: handleChange, onAction: handleAction, onPreviewSound: handlePreviewSound
             }));
         }
+        if (!shown.length && !advancedCount) {
+            rows.push(React.createElement('div', { key: 'none', className: 'cortex-settings-empty' }, 'Nothing to set here yet.'));
+        }
+        const showsAdvanced = isOpenAdvanced(sourceTab);
+        blocks.push(React.createElement('section', {
+            key: `script-${sourceTab.id}`, className: 'cortex-settings-script', 'data-tab-index': tabIndex, 'aria-labelledby': headId
+        },
+            React.createElement('div', { className: 'cortex-settings-script-head' },
+                React.createElement('h2', { id: headId, className: 'cortex-settings-script-title' }, sourceTab.label),
+                unsaved > 0 && React.createElement('span', { className: 'cortex-settings-script-dirty' }, `${unsaved} unsaved`),
+                !query && offDefault && React.createElement('button', {
+                    type: 'button', className: 'cortex-settings-script-reset',
+                    onClick: () => handleReset(tabIndex)
+                }, React.createElement(SettingsGlyph, { kind: 'reset' }), 'Reset to defaults')),
+            rows,
+            !query && advancedCount > 0 && React.createElement('button', {
+                type: 'button', className: 'pause-advanced-toggle',
+                role: 'switch', 'aria-checked': showsAdvanced,
+                onClick: () => toggleAdvanced(sourceTab)
+            },
+                React.createElement('span', { className: 'pause-advanced-label' },
+                    showsAdvanced ? 'Hide advanced' : `${advancedCount} advanced ${advancedCount === 1 ? 'setting' : 'settings'}`),
+                React.createElement(SettingsGlyph, { kind: showsAdvanced ? 'left' : 'right' }))
+        ));
     }
 
-    const selectTab = index => {
-        setActiveTab(index); setSection(''); setSearch(''); setShowAdvanced(false);
-        rememberSettingsPlace({ tabId: settingsTabKey(tabs[index]), section: '', advanced: false });
+    const jumpTo = (index, focus) => {
+        if (index < 0 || index >= tabs.length) return;
+        pendingJump.current = { focus: focus === true };
+        setActiveTab(index);
+        setSearch('');
+        rememberSettingsPlace({ tabId: settingsTabKey(tabs[index]) });
     };
-    const library = page === 'settings' ? settingsLibrary(tabs) : [];
-    const order = library.flatMap(group => group.items);
-    const handleTabKeyDown = (event, index) => {
-        const at = Math.max(0, order.indexOf(index));
-        let nextIndex = index;
-        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = order[(at + 1) % order.length];
-        else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = order[(at - 1 + order.length) % order.length];
-        else if (event.key === 'Home') nextIndex = order[0];
-        else if (event.key === 'End') nextIndex = order[order.length - 1];
+    const cycle = delta => {
+        if (!order.length || query) return;
+        const at = Math.max(0, order.indexOf(tabIndexNow));
+        jumpTo(order[(at + delta + order.length) % order.length], true);
+    };
+    const selectGroup = (groupIndex, focus) => {
+        const target = (groupIndex + library.length) % library.length;
+        const group = library[target];
+        if (!group) return;
+        jumpTo(group.items[0], false);
+        if (focus) window.requestAnimationFrame(() => dialogRef.current?.querySelector(`#cortex-settings-group-${target}`)?.focus());
+    };
+    const enterList = () => {
+        window.requestAnimationFrame(() => firstSettingsStop(listRef.current)?.focus({ preventScroll: true }));
+    };
+    const handleTabKeyDown = (event, groupIndex) => {
+        if (event.key === 'ArrowRight') enterList();
+        else if (event.key === 'ArrowDown') selectGroup(groupIndex + 1, true);
+        else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') selectGroup(groupIndex - 1, true);
+        else if (event.key === 'Home') selectGroup(0, true);
+        else if (event.key === 'End') selectGroup(library.length - 1, true);
         else return;
         event.preventDefault();
-        selectTab(nextIndex);
-        window.requestAnimationFrame(() => dialogRef.current?.querySelector(`#cortex-settings-tab-${nextIndex}`)?.focus());
     };
-    const shownCount = item => (item.fields || []).filter(field => (showAdvanced || !field.advanced) && isRelevant(field, item)).length;
-    const tabButton = (i, groupIndex) => {
-        const t = tabs[i];
-        const tabDirty = Object.keys(values[t.id] || {}).some(key => isDirty(t, key));
-        return React.createElement('button', {
-            key: t && t.id != null ? String(t.id) : `tab-${i}`,
-            type: 'button',
-            id: `cortex-settings-tab-${i}`,
-            role: 'tab',
-            'aria-selected': i === activeTab,
-            'aria-controls': 'cortex-settings-tabpanel',
-            'aria-describedby': `cortex-settings-group-${groupIndex}`,
-            tabIndex: i === activeTab ? 0 : -1,
-            'data-autofocus': i === activeTab ? 'true' : undefined,
-            className: `cortex-settings-tab${i === activeTab ? ' active' : ''}${tabDirty ? ' is-dirty' : ''}`,
-            onClick: () => selectTab(i),
-            onKeyDown: event => handleTabKeyDown(event, i)
-        },
-            React.createElement('span', { className: 'cortex-settings-tab-name' }, t && t.label != null ? t.label : ''),
-            React.createElement('span', { className: 'cortex-settings-tab-count', 'aria-hidden': 'true' }, shownCount(t)));
+
+    const showTab = index => {
+        if (!Number.isInteger(index) || index === activeTab) return;
+        setActiveTab(index);
+        rememberSettingsPlace({ tabId: settingsTabKey(tabs[index]) });
     };
-    const escapeKey = window.CortexKit
-        ? React.createElement(window.CortexKit.Keycap, { value: 'ESC', size: 'sm' })
-        : null;
+    const spy = () => {
+        if (spyFrame.current) return;
+        spyFrame.current = window.requestAnimationFrame(() => {
+            spyFrame.current = 0;
+            const list = listRef.current;
+            if (!list || pendingJump.current) return;
+            const inList = [...list.querySelectorAll('[data-tab-index]')];
+            const line = list.scrollTop + 48;
+            let current = inList[0];
+            for (const block of inList) if (block.offsetTop <= line) current = block;
+            const atEnd = list.scrollTop + list.clientHeight >= list.scrollHeight - 2;
+            const held = list.querySelector(`[data-tab-index="${activeTab}"]`);
+            if (atEnd && held && held.offsetTop < list.scrollTop + list.clientHeight) return;
+            showTab(Number(current?.dataset.tabIndex));
+        });
+    };
+    const followFocus = event => {
+        event.target.closest?.('.cortex-settings-item, .pause-advanced-toggle, .cortex-settings-script-head')?.scrollIntoView({ block: 'nearest' });
+        if (query) return;
+        showTab(Number(event.target.closest?.('[data-tab-index]')?.dataset.tabIndex));
+    };
+
+    const handleBodyKeyDown = event => {
+        if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
+        const target = event.target;
+        if (target.closest?.('[role="listbox"]')) return;
+        const typing = target.tagName === 'INPUT' && target.type !== 'range';
+        if (event.key === 'Tab') {
+            if (query) return;
+            event.preventDefault();
+            cycle(event.shiftKey ? -1 : 1);
+            return;
+        }
+        if (target === searchRef.current) {
+            if (event.key === 'ArrowDown' || event.key === 'Enter') { event.preventDefault(); enterList(); }
+            else if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) event.preventDefault();
+            return;
+        }
+        if (typing) return;
+        if (event.key.length === 1 && (event.key !== ' ' || search)) {
+            event.preventDefault();
+            setSearch(current => (current + event.key).slice(0, 128));
+            searchRef.current?.focus({ preventScroll: true });
+        } else if (event.key === 'Backspace' && search) {
+            event.preventDefault();
+            setSearch(current => current.slice(0, -1));
+            searchRef.current?.focus({ preventScroll: true });
+        }
+    };
+
+    const Kit = window.CortexKit;
+    const legend = Kit ? React.createElement(Kit.ControlsLegend, {
+        className: 'cortex-settings-legend', align: 'end', label: 'Settings controls',
+        items: [
+            query ? { keys: 'ESC', label: 'Clear search' } : { keys: 'TAB', label: 'Next script' },
+            { keys: ['LEFT', 'RIGHT'], label: 'Change' }
+        ]
+    }) : null;
+    const escapeKey = Kit && !query ? React.createElement(Kit.Keycap, { value: 'ESC', size: 'sm' }) : null;
+    const note = submitError || (dirtyCount ? `${dirtyCount} unsaved` : applyStatus);
+    const empty = query ? `No settings match "${search.trim()}".` : 'No scripts have registered settings.';
 
     return React.createElement(window.CortexPause.Frame, {
         open, page, setPage, pause, dialogRef, session, post: nuiPost,
-        onResume: handleCancel, onSave: handleSave, onApply: () => handleSave(true), onBack: handleBack, submitting, dirtyCount, error: submitError
+        onResume: handleCancel, onSave: handleSave, onApply: () => handleSave(true), onBack: handleBack, onCycle: cycle,
+        submitting, dirtyCount, error: submitError
     },
-        page === 'settings' && React.createElement('fieldset', { className: 'pause-settings-body', disabled: submitting, 'aria-busy': submitting },
-            React.createElement('div', { className: 'pause-settings-workspace' },
-                React.createElement('aside', { className: 'cortex-settings-rail' },
-                    React.createElement('label', { className: 'pause-search' },
-                        React.createElement(SettingsGlyph, { kind: 'search' }),
-                        React.createElement('input', { type: 'search', value: search, maxLength: 128,
-                            placeholder: 'Find a setting', 'aria-label': 'Search all script settings',
-                            onChange: event => setSearch(event.target.value) })),
-                    React.createElement(SettingsRail, { active: activeTab, label: 'Scripts' },
-                        library.flatMap((group, groupIndex) => [
-                            React.createElement('div', { key: `group-${group.key}`, id: `cortex-settings-group-${groupIndex}`, className: 'cortex-settings-group', 'aria-hidden': 'true' }, group.name),
-                            ...group.items.map(i => tabButton(i, groupIndex))
-                        ]))
-                ),
-                React.createElement('div', { className: 'pause-settings-main' },
-                    React.createElement('div', { className: 'cortex-settings-script-head' },
-                        React.createElement('h2', { className: 'cortex-settings-script-title' }, query ? 'Search results' : tab.label),
-                        React.createElement('span', { className: 'pause-search-count' }, `${visibleCount} ${query ? 'RESULT' : 'SETTING'}${visibleCount === 1 ? '' : 'S'}`)),
-                    !query && (sections.length > 1 || hasAdvanced) && React.createElement('div', { className: 'cortex-settings-sectionbar' },
-                        sections.length > 1 && React.createElement('nav', { className: 'cortex-settings-sections', 'aria-label': `${tab.label} sections` },
-                            ['', ...sections].map(name => {
-                                const count = name ? visibleFields.filter(field => (field.section || 'General') === name).length : visibleFields.length;
-                                const current = activeSection === name;
-                                return React.createElement('button', {
-                                    key: name, type: 'button',
-                                    className: `${current ? 'active' : ''}${(name ? sectionDirty(name) : dirtyCount > 0) ? ' is-dirty' : ''}`.trim(),
-                                    'aria-pressed': current,
-                                    onClick: () => { setSection(name); setSearch(''); rememberSettingsPlace({ tabId: settingsTabKey(tab), section: name }); }
-                                },
-                                    React.createElement('span', { className: 'cortex-settings-section-name' }, name || 'All'),
-                                    React.createElement('span', { className: 'cortex-settings-section-count', 'aria-hidden': 'true' }, count));
-                            })),
-                        hasAdvanced && React.createElement('button', {
-                            type: 'button', className: 'pause-advanced-toggle',
-                            role: 'switch', 'aria-checked': showAdvanced,
+        onSettings && React.createElement('fieldset', {
+            className: 'pause-settings-body', disabled: submitting, 'aria-busy': submitting, onKeyDown: handleBodyKeyDown
+        },
+            React.createElement('div', { className: 'cortex-settings-brand', 'aria-hidden': 'true' }, pause?.title || 'CORTEX'),
+            React.createElement('label', { className: `pause-search${query ? ' is-live' : ''}` },
+                React.createElement(SettingsGlyph, { kind: 'search' }),
+                React.createElement('span', { className: 'pause-search-field' },
+                    React.createElement('input', {
+                        ref: searchRef, type: 'search', value: search, maxLength: 128,
+                        placeholder: 'Type to search', 'aria-label': 'Search all script settings',
+                        spellCheck: false, autoComplete: 'off',
+                        onChange: event => setSearch(event.target.value)
+                    }),
+                    React.createElement('span', { className: `pause-search-mirror${search ? ' has-text' : ''}`, 'aria-hidden': 'true' },
+                        React.createElement('span', null, search, React.createElement('i', { className: 'pause-search-caret' })))),
+                query && React.createElement('span', { className: 'pause-search-count', role: 'status' },
+                    `${visibleCount} ${visibleCount === 1 ? 'result' : 'results'}`)),
+            React.createElement('aside', { className: 'cortex-settings-rail' },
+                React.createElement(SettingsRail, { label: 'Setting groups' },
+                    library.map((group, groupIndex) => {
+                        const selected = !query && groupIndex === activeGroupIndex;
+                        const found = groupMatches.get(groupIndex) || 0;
+                        const groupDirty = group.items.some(index => tabDirtyCount(tabs[index]) > 0);
+                        return React.createElement('button', {
+                            key: group.key,
+                            type: 'button',
+                            id: `cortex-settings-group-${groupIndex}`,
+                            role: 'tab',
+                            'aria-selected': selected,
                             'aria-controls': 'cortex-settings-tabpanel',
-                            onClick: () => {
-                                setShowAdvanced(current => !current); setSection('');
-                                rememberSettingsPlace({ tabId: settingsTabKey(tab), section: '', advanced: !showAdvanced });
-                            }
+                            tabIndex: groupIndex === activeGroupIndex ? 0 : -1,
+                            'data-autofocus': groupIndex === activeGroupIndex ? 'true' : undefined,
+                            'data-pause-autofocus': groupIndex === activeGroupIndex ? true : undefined,
+                            className: `cortex-settings-tab${selected ? ' active' : ''}${groupDirty ? ' is-dirty' : ''}${query && !found ? ' is-empty' : ''}`,
+                            onClick: () => (selected ? enterList() : selectGroup(groupIndex, false)),
+                            onKeyDown: event => handleTabKeyDown(event, groupIndex)
                         },
-                            React.createElement('span', { className: 'pause-advanced-label' }, 'Advanced'),
-                            React.createElement('span', { className: `cx-toggle${showAdvanced ? ' is-on' : ''}`, 'aria-hidden': 'true' },
-                                React.createElement('span', { className: 'cx-toggle-knob' })))
-                    ),
-                    React.createElement('div', {
-                        id: 'cortex-settings-tabpanel', className: 'cortex-settings-content', role: 'tabpanel',
-                        'aria-labelledby': query ? undefined : `cortex-settings-tab-${activeTab}`,
-                        'aria-label': query ? 'Search results across all scripts' : undefined
-                    }, rows.length ? rows : React.createElement('div', { className: 'cortex-settings-empty' },
-                        query ? 'No settings match your search.' : hasAdvanced && !showAdvanced ? 'Turn on Advanced to see these settings.' : 'This tab has no settings yet.'))
-                )
+                            React.createElement(SettingsGlyph, { kind: group.icon }),
+                            React.createElement('span', { className: 'cortex-settings-tab-name' }, group.name),
+                            query && React.createElement('span', { className: 'cortex-settings-tab-count', 'aria-hidden': 'true' }, found));
+                    })),
+                !query && activeGroup && activeGroup.items.length > 1 && React.createElement('nav', { className: 'cortex-settings-scripts', 'aria-label': `${activeGroup.name} scripts` },
+                    activeGroup.items.map(index => React.createElement('button', {
+                        key: settingsTabKey(tabs[index]) || index,
+                        type: 'button',
+                        tabIndex: -1,
+                        'aria-current': index === tabIndexNow ? 'true' : undefined,
+                        className: `cortex-settings-script-link${index === tabIndexNow ? ' active' : ''}${tabDirtyCount(tabs[index]) ? ' is-dirty' : ''}`,
+                        onClick: () => jumpTo(index, true)
+                    }, React.createElement('span', null, tabs[index].label))))
             ),
+            React.createElement('div', {
+                id: 'cortex-settings-tabpanel', ref: listRef, className: 'cortex-settings-content', role: 'tabpanel',
+                'aria-labelledby': query ? undefined : `cortex-settings-group-${activeGroupIndex}`,
+                'aria-label': query ? 'Search results across all scripts' : undefined,
+                onScroll: query ? undefined : spy,
+                onFocus: followFocus
+            }, blocks.length ? blocks : React.createElement('div', { className: 'cortex-settings-empty' }, empty)),
             React.createElement('div', { className: 'cortex-settings-footer' },
-                React.createElement('div', { className: 'cortex-settings-footer-left' },
-                    React.createElement('button', { type: 'button', className: 'cortex-settings-btn reset', onClick: handleReset, disabled: submitting || Boolean(query) }, 'Reset tab'),
-                    React.createElement(
-                        'span',
-                        {
-                            className: `cortex-settings-live-note${submitError ? ' error' : ''}${!submitError && dirtyCount ? ' is-dirty' : ''}`,
-                            role: 'status',
-                            'aria-live': 'polite'
-                        },
-                        submitError || (dirtyCount ? `${dirtyCount} UNSAVED` : applyStatus)
-                    )
-                ),
+                React.createElement('span', {
+                    className: `cortex-settings-live-note${submitError ? ' error' : ''}${!submitError && dirtyCount ? ' is-dirty' : ''}`,
+                    role: 'status',
+                    'aria-live': 'polite'
+                }, note),
                 React.createElement('div', { className: 'cortex-settings-footer-right' },
+                    legend,
                     React.createElement('button', { type: 'button', className: 'cortex-settings-btn cancel', onClick: handleCancel, disabled: submitting }, escapeKey, 'Discard & resume'),
                     React.createElement('button', { type: 'button', className: 'cortex-settings-btn apply', onClick: () => handleSave(true), disabled: submitting || !dirtyCount }, 'Apply'),
                     React.createElement('button', { type: 'button', className: 'cortex-settings-btn save', onClick: handleSave, disabled: submitting }, 'Save & resume')

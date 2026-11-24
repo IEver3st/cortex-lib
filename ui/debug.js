@@ -19,7 +19,7 @@
         && Number.isSafeInteger(value.completed) && value.completed >= 0 && value.completed <= value.total
         && value.index > 0 && value.index <= value.total && value.total <= 100
         ? { index: value.index, completed: value.completed, total: value.total, id: bounded(value.id, 48), title: bounded(value.title, 96) } : null;
-    const placements = ['top-right', 'top-left', 'top', 'bottom-right', 'bottom-left', 'bottom'];
+    const placements = ['top-right', 'top-left', 'top', 'bottom-right', 'bottom-left', 'bottom', 'right', 'left'];
     const samples = ['Vehicle spawned.', 'Started cortex_mdtsv', 'Started cortex-subtleadditions', 'Equipment updated. Return to the depot to collect your replacement.'];
     function Workbench({ post, ProgressBar }) {
         const [walkthrough, setWalkthrough] = useState(null);
@@ -93,7 +93,7 @@
         let rows;
         if (page === 'Test options') rows = [
             { id: 'duration', title: 'Duration', value: `${duration / 1000}s`, description: 'Applies to notification and progress tests.', adjust: d => setDuration(v => (cycle(v / 1000 - 1, d, 15) + 1) * 1000) },
-            { id: 'position', title: 'Notification position', value: placements[position], description: 'Cycle through all six placements.', adjust: d => setPosition(v => cycle(v, d, placements.length)) },
+            { id: 'position', title: 'Notification position', value: placements[position], description: 'Cycle through every placement.', adjust: d => setPosition(v => cycle(v, d, placements.length)) },
             { id: 'sample', title: 'Message sample', value: `${sample + 1} / ${samples.length}`, description: samples[sample], adjust: d => setSample(v => cycle(v, d, samples.length)) }
         ];
         else if (page) rows = state.catalog.filter(item => page === 'All tests' || item.group === page).map(item => ({ ...item, action: () => run(item) }));

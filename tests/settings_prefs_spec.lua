@@ -72,7 +72,7 @@ assert(api.getSetting('notifyLimit') == 5 and math.type(api.getSetting('notifyLi
 
 -- Every built-in key is readable, with its documented default.
 local expected = {
-    uiScale = 100, textSize = 'standard', controlHints = true, notifyPosition = 'top-right',
+    uiScale = 100, textSize = 'standard', controlHints = true, notifyPosition = 'right',
     notifyDuration = 'standard', notifyLimit = 5, notifySound = true, notifySoundPreset = 'mp_idle_kick',
     promptMarkers = true, promptScale = 'standard', invertScroll = false, showPercent = true,
     volumetricLights = false,
@@ -87,7 +87,7 @@ local prefs = lastPrefs()
 assert(prefs.scale == 1 and prefs.textSize == 'standard' and prefs.notifyDuration == 1 and prefs.notifyLimit == 5)
 assert(prefs.showPercent == true and prefs.promptMarkers == true and prefs.promptScale == 'standard')
 assert(prefs.controlHints == true and prefs.invertScroll == false)
-assert(messages[#messages].action == 'notifySetPosition' and messages[#messages].data.position == 'top-right')
+assert(messages[#messages].action == 'notifySetPosition' and messages[#messages].data.position == 'right')
 
 -- One Cortex tab, sectioned, and no Dynamic UI tab.
 api.openSettings()

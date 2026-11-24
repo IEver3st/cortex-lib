@@ -128,7 +128,7 @@ function selectPeekEntries(entries, notifications) {
 function normalizeNotificationData(data) {
     if (!isRecord(data)) return null;
     const allowedTypes = new Set(['info', 'inform', 'success', 'warning', 'error']);
-    const allowedPositions = new Set(['top', 'top-right', 'top-left', 'bottom', 'bottom-right', 'bottom-left']);
+    const allowedPositions = new Set(['right', 'left', 'top', 'top-right', 'top-left', 'bottom', 'bottom-right', 'bottom-left']);
     const rawDuration = Number(data.duration);
     const duration = Number.isFinite(rawDuration) ? Math.max(0, Math.min(rawDuration, 600000)) : 3000;
     const id = boundedText(data.id, '', 128) || null;
@@ -430,7 +430,7 @@ function NotificationContainer({ notifications, position, onRemove, peek }) {
         droppedKey.split('\u0000').forEach(id => onRemove(id));
     }, [droppedKey, onRemove]);
 
-    return React.createElement('div', { id: 'notify-container', className: position || 'top-right' },
+    return React.createElement('div', { className: 'notify-anchor' }, React.createElement('div', { id: 'notify-container', className: position || 'right' },
         held > 0 && React.createElement('div', { className: 'notify-overflow', 'aria-hidden': 'true' }, `+${held} held`),
         visible.map(notif =>
             React.createElement(Notification, {
@@ -445,5 +445,5 @@ function NotificationContainer({ notifications, position, onRemove, peek }) {
             'aria-hidden': 'true'
         }, selectPeekEntries(peek.entries, visible).map(entry =>
             React.createElement(LoggedNotice, { key: entry.id, ...entry })))
-    );
+    ));
 }

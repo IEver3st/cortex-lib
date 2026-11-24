@@ -33,7 +33,7 @@ test('advanced and contextual controls stay discoverable without losing pending 
             { key: 'color', label: 'Health Color', type: 'select', section: 'Colors', advanced: true },
             { key: 'weapon', label: 'Weapon Name', type: 'toggle', section: 'Weapons', showWhen: { style: true } }
         ] },
-        { id: 'other', label: 'Other', values: {}, fields: [{ key: 'enabled', label: 'Enabled', type: 'toggle' }] }
+        { id: 'other', label: 'Other', group: 'Staff', values: {}, fields: [{ key: 'enabled', label: 'Enabled', type: 'toggle' }] }
     ] };
     const render = () => { cursor = 0; return context.SettingsPanel(props); };
     const nodes = tree => !tree || typeof tree !== 'object' ? [] : [tree, ...(tree.children || []).flat(Infinity).flatMap(nodes)];
@@ -57,7 +57,7 @@ test('advanced and contextual controls stay discoverable without losing pending 
     fields(tree)[0].props.onChange('hud', 'style', false); tree = render();
     searchBox(tree).props.onChange({ target: { value: 'Weapon Name' } }); tree = render();
     assert.equal(fields(tree).length, 0, 'search must not expose inapplicable controls');
-    nodes(tree).find(node => node.props?.role === 'tab' && node.props.id === 'cortex-settings-tab-1').props.onClick();
+    nodes(tree).find(node => node.props?.role === 'tab' && node.props.id === 'cortex-settings-group-0').props.onClick();
     tree = render();
     assert.equal(advancedButton(tree), undefined, 'unmodified scripts gain no advanced switch');
     assert.equal(fields(tree).length, 1);

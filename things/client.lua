@@ -52,12 +52,21 @@ local lookEntity = nil
 local quotaLogged = false
 local keyLabel = DEFAULT_KEY
 local keyLabelAt = -KEY_REFRESH_MS
+local customKeys = {}
 local lastX, lastY, lastZ = 0.0, 0.0, 0.0
 local standReplies = {}
 local rich = nil
 
 local function validId(value)
     return type(value) == 'string' and #value > 0 and #value <= MAX_ID_BYTES and not value:find('[%c]')
+end
+
+local function normalizeCustomKey(value)
+    if type(value) ~= 'string' then return nil end
+    local cleaned = value:match('^%s*(.-)%s*$'):upper()
+    if cleaned == '' or #cleaned > 12 or not cleaned:match('^[%w_]+$') then return nil end
+    if cleaned == DEFAULT_KEY:upper() then return nil end
+    return cleaned
 end
 
 local function keyText(key)
@@ -111,11 +120,26 @@ local function suppressed()
 end
 
 local function refreshKeyLabel(now)
-    if now - keyLabelAt < KEY_REFRESH_MS then return end
-    keyLabelAt = now
-    local button = GetControlInstructionalButton(2, USE_HASH, true)
-    local label = type(button) == 'string' and button:match('^t_(.+)$') or nil
-    keyLabel = label and label:upper():sub(1, 12) or DEFAULT_KEY
+    if now - keyLabelAt >= KEY_REFRESH_MS then
+        keyLabelAt = now
+        local button = GetControlInstructionalButton(2, USE_HASH, true)
+        local label = type(button) == 'string' and button:match('^t_(.+)$') or nil
+        keyLabel = label and label:upper():sub(1, 12) or DEFAULT_KEY
+    end
+    for key, entry in pairs(customKeys) do
+        if now - entry.labelAt >= KEY_REFRESH_MS then
+            entry.labelAt = now
+            local button = GetControlInstructionalButton(2, entry.hash, true)
+            local label = type(button) == 'string' and button:match('^t_(.+)$') or nil
+            entry.label = label and label:upper():sub(1, 12) or key
+        end
+    end
+end
+
+local function keyLabelFor(bindKey)
+    if not bindKey then return keyLabel end
+    local entry = customKeys[bindKey]
+    return entry and entry.label or bindKey
 end
 
 local rebuildFeed
@@ -221,7 +245,8 @@ local function rowsFor(inst, nearest, now, out)
         local verb = verbs[index]
         out[#out + 1] = {
             id = ('t%d:%d'):format(inst.serial, index), inst = inst, verb = verb,
-            label = report.verbs[index].label or verb.label, key = keyLabel,
+            label = report.verbs[index].label or verb.label,
+            key = keyLabelFor(verb.key), bindKey = verb.key,
             holdDuration = verb.hold, note = note,
             more = position == 1 and count > 1 and count - 1 or nil,
         }
@@ -637,16 +662,31 @@ local function start(inst, verb, rowId)
     requestFeed()
 end
 
-local function activeRow()
+local function activeRow(bindKey)
     for id, row in pairs(shown) do
-        if not row.blocked and registry(lib.isInteractionVisible, id) then return id, row end
+        if not row.blocked and row.bindKey == bindKey and registry(lib.isInteractionVisible, id) then return id, row end
     end
     return nil
 end
 
-local function press()
+local function isPressed(bindKey)
+    if not bindKey then return pressed end
+    local entry = customKeys[bindKey]
+    return entry ~= nil and entry.pressed == true
+end
+
+local function setHolding(bindKey, state)
+    if not bindKey then
+        holding = state
+    else
+        local entry = customKeys[bindKey]
+        if entry then entry.holding = state end
+    end
+end
+
+local function press(bindKey)
     if use or suppressed() then return end
-    local id, row = activeRow()
+    local id, row = activeRow(bindKey)
     if not row then return end
     local inst, verb = row.inst, row.verb
     if inst.gone then return end
@@ -654,25 +694,48 @@ local function press()
     if not verb.hold then return start(inst, verb, id) end
 
     if not registry(lib.startInteractionHold, id) then return end
-    holding = true
+    setHolding(bindKey, true)
     local finish = GetGameTimer() + verb.hold
     while GetGameTimer() < finish do
         Wait(50)
-        if not pressed or inst.gone or use or suppressed() or not registry(lib.isInteractionVisible, id) then
+        if not isPressed(bindKey) or inst.gone or use or suppressed() or not registry(lib.isInteractionVisible, id) then
             registry(lib.cancelInteractionHold, id)
-            holding = false
+            setHolding(bindKey, false)
             return
         end
     end
     registry(lib.cancelInteractionHold, id)
-    holding = false
+    setHolding(bindKey, false)
     start(inst, verb, id)
+end
+
+local function ensureCustomKey(key)
+    if not key or customKeys[key] then return end
+    local cmd = USE_COMMAND .. '_' .. key:lower()
+    local entry = {
+        cmd = cmd,
+        hash = joaat('+' .. cmd) | 0x80000000,
+        label = key,
+        labelAt = -KEY_REFRESH_MS,
+        pressed = false,
+        holding = false,
+    }
+    customKeys[key] = entry
+    RegisterCommand('+' .. cmd, function()
+        entry.pressed = true
+        if entry.holding then return end
+        CreateThread(function() press(key) end)
+    end, false)
+    RegisterCommand('-' .. cmd, function()
+        entry.pressed = false
+    end, false)
+    RegisterKeyMapping('+' .. cmd, ('Use (%s)'):format(key), 'keyboard', key)
 end
 
 RegisterCommand('+' .. USE_COMMAND, function()
     pressed = true
     if holding then return end
-    CreateThread(press)
+    CreateThread(function() press(nil) end)
 end, false)
 
 RegisterCommand('-' .. USE_COMMAND, function()
@@ -727,9 +790,12 @@ exports('thingDefine', function(thingId, spec)
         local verb = spec.verbs[index]
         if type(verb) ~= 'table' or not validId(verb.id) then return false, 'verb ids must be short strings' end
         local hold = tonumber(verb.hold)
+        local bindKey = normalizeCustomKey(verb.key)
+        if bindKey then ensureCustomKey(bindKey) end
         verbs[index] = {
             id = verb.id,
             label = text(verb.label, MAX_LABEL_BYTES) or verb.id:sub(1, MAX_LABEL_BYTES),
+            key = bindKey,
             hold = hold and math.floor(math.max(100, math.min(600000, hold))) or nil,
             server = verb.server == true,
             stand = verb.stand == true,

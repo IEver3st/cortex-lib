@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.1.0 (2026-11-23)
+
+### Added
+- `lib.framework`: one server and client API for Qbox, QBCore and ESX (identity, job and duty, groups, cash and bank, items, usable items, load and unload events), so a resource does not need its own bridge. It loads only in resources that use it. Money and item calls return `true` only for a confirmed change and a code otherwise; `unknown` means the change may have applied and must not be retried or refunded. `setr cortex_framework` and `setr cortex_framework_inventory` override detection. Checked in game on Qbox. On QBCore 1.3.0 and ESX Legacy 1.16.3 the server side was run on real servers; the client side has not been played with a player in game yet. See [API reference](docs/api.md#framework-server-and-client).
+
+### Changed
+- Notifications appear at the middle right of the screen by default. Settings > Notifications > Position has two new choices, Middle right and Middle left. A player whose position was still Top right moves to Middle right once and can switch back there.
+- The VI skin no longer draws a card behind notifications or the Look list. They sit on the scene with a round coin and a sentence-case title, like the Cortex look. Lore Friendly keeps its cards.
+
+### Fixed
+- Radial wheel: a text label (an item with no icon, or an icon name cortex-lib does not know) now stays inside its slip at every slot count. Side and diagonal slips use more, shorter lines and a smaller size, and a label that still does not fit ends in an ellipsis. The hub shows the full label when you aim at it.
+- The text shadow behind Look list messages and the list wheel's title is no longer cut off into a dark box at the edges.
+
 ## 4.0.0 (2026-11-20)
 
 ### Updating from 3.7.0
@@ -23,6 +36,8 @@
 - In cortex-hud's Streamer Mode, recent notices from a sender show the sender and title without the message text.
 - Skins: `exports['cortex-lib']:setPresentationDesign('cortex'|'leonida'|'vi')` restyles notifications (and the Look list), progress and text UI to match a HUD design. cortex-hud sets it from its active design; `nil` hands it back, and it clears when the resource that set it stops.
 - Settings hosts: `getSettingsSchema()` returns every settings tab with its fields and values, and `setHostedSetting(tabId, key, value)` changes one toggle, slider, select, colour or sound setting in any tab, checked against that tab's own fields. Only resources listed in the `cortex_lib_settings_hosts` convar can call them, and writes are refused while the Settings page is open.
+- Settings hosts also take text and input settings through `setHostedSetting`, and `runHostedAction(tabId, key, action)` presses a settings button for them, raising the same `cortex-lib:settingsAction` event the Settings page does.
+- When a settings host is running, the Settings key, `cortexsettings`, `openSettings()` and `openSettingsMenu()` open that host's settings instead of the Cortex Library page. A host exports `openSettings()` and `closeSettings()`; the Library page still opens when no host is running or the host declines.
 - Cortex keys: four shared mappings every Cortex resource uses for the same job. Cancel (X) stops the newest thing the player started, Answer (Y) answers the newest invite or check, Actions (M) opens one wheel built from every resource's actions, and Point (B) gives taps and holds to the right owner. Resources use them through `lib.keys` or a copy of `imports/keys/client.lua`, detect them with the `cortex_keys` manifest flag, and keep their own mappings on older cortex-lib. A cancelable progress bar joins the Cancel key; Backspace, Esc and right mouse still cancel it. See `docs/keybindings.md`.
 
 ### Changed

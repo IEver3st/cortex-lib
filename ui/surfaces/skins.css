@@ -16,12 +16,13 @@ html[data-cx-design='vi'] {
     --skin-track: rgba(240, 240, 233, 0.14);
 }
 
-:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify {
+html[data-cx-design='leonida'] .notify {
     padding: calc(12 * var(--u)) calc(14 * var(--u)) calc(13 * var(--u));
     border-radius: var(--skin-radius);
     background: var(--skin-card);
     text-shadow: none;
 }
+html[data-cx-design='leonida'] .notify-logged .notify-description { filter: none; }
 
 :is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-title,
 :is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-headline .notify-description {
@@ -47,21 +48,21 @@ html[data-cx-design='leonida'] .notify-coin.is-sender { background: var(--wash);
 html[data-cx-design='vi'] .notify-coin.is-sender { background: var(--notify-sender, var(--paper)); color: var(--ink); }
 html[data-cx-design='vi'] .notify-coin-letter { font-style: normal; font-weight: 700; }
 
-:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-duration {
+html[data-cx-design='leonida'] .notify-duration {
     width: 100%;
     margin-top: calc(10 * var(--u));
     background: var(--skin-track);
 }
 
-:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-close-cap { box-shadow: none; }
+html[data-cx-design='leonida'] .notify-close-cap { box-shadow: none; }
 
-:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-log {
+html[data-cx-design='leonida'] .notify-log {
     gap: calc(12 * var(--u));
     padding: calc(12 * var(--u)) calc(14 * var(--u)) calc(14 * var(--u));
     border-radius: var(--skin-radius);
     background: var(--skin-card);
 }
-:is(html[data-cx-design='leonida'], html[data-cx-design='vi']) .notify-log > .notify.notify-logged {
+html[data-cx-design='leonida'] .notify-log > .notify.notify-logged {
     padding: 0;
     border-radius: 0;
     background: transparent;

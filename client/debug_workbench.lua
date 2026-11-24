@@ -26,7 +26,7 @@ local function publishRun()
     runRevision=runRevision+1
     SendNUIMessage({action='debug:walkthrough',data={revision=runRevision,run=runState()}})
 end
-local positions = { ['top-right']=true, ['top-left']=true, top=true, ['bottom-right']=true, ['bottom-left']=true, bottom=true }
+local positions = { right=true, left=true, ['top-right']=true, ['top-left']=true, top=true, ['bottom-right']=true, ['bottom-left']=true, bottom=true }
 
 local function add(id, group, title, description, run)
     catalog[#catalog + 1] = { id=id, group=group, title=title, description=description }

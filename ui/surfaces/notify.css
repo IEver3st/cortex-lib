@@ -5,9 +5,21 @@
    lifetime meter aligned to the text. No card, no plate, no edge rule.
    ============================================================================ */
 
-#notify-container {
+.notify-anchor {
     --notify-edge-x: calc(var(--cx-safezone-x, 0px) + 40 * var(--u));
     --notify-edge-y: calc(var(--cx-safezone-y, 0px) + 40 * var(--u));
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    padding: var(--notify-edge-y) var(--notify-edge-x);
+    pointer-events: none;
+}
+.notify-anchor::before { content: ''; flex: 0 1 calc(40vh - var(--notify-edge-y)); }
+
+#notify-container {
     position: fixed;
     z-index: 9999;
     display: flex;
@@ -19,6 +31,9 @@
     font-family: var(--body);
 }
 
+#notify-container.right, #notify-container.left { position: relative; flex: none; }
+#notify-container.right { align-self: flex-end; }
+#notify-container.left { align-self: flex-start; }
 #notify-container.top-right { top: var(--notify-edge-y); right: var(--notify-edge-x); }
 #notify-container.top-left { top: var(--notify-edge-y); left: var(--notify-edge-x); }
 #notify-container.top { top: var(--notify-edge-y); left: 50%; transform: translateX(-50%); }
@@ -132,6 +147,8 @@ html[data-cx-settling] .notify-log:not(.exiting) { visibility: hidden; animation
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     overflow: hidden;
+    text-shadow: none;
+    filter: drop-shadow(0 1px 0 #0b0c0e) drop-shadow(0 0 calc(18 * var(--u)) rgba(8, 9, 11, 0.7));
     padding-bottom: 0.2em;
     padding-left: 0.12em;
     margin-bottom: -0.2em;

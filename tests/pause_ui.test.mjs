@@ -191,7 +191,7 @@ test('standalone Cortex Settings has no quick-menu back arrow and defaults to se
         'the game blur is native; CEF never filters the backdrop');
 });
 
-test('settings page heading carries the controls legend and no quick-menu footer hints', () => {
+test('settings page leaves its heading and controls to the settings surface', () => {
     const app = harness();
     const legendItems = [];
     const Kit = { ControlsLegend: props => { legendItems.push(...props.items); return { type: 'legend', props, children: [] }; },
@@ -210,7 +210,10 @@ test('settings page heading carries the controls legend and no quick-menu footer
     assert.equal(typeof window.CortexPause.moveFocus, 'function', 'settings rows reuse the shell focus walker');
     const props = { ...defaults(), page: 'settings', pause: app.normalize({ quickMenu: false }) };
     const tree = window.CortexPause.Frame(props);
-    assert.ok(legendItems.some(item => item.keys === 'ESC' && /discard/i.test(item.label)), 'Escape is labelled as discard');
+    assert.equal(legendItems.length, 0, 'the settings surface draws its own legend beside its actions');
+    const title = all(tree, node => node.props.id === 'cortex-settings-title');
+    assert.equal(title.length, 1, 'the dialog keeps its accessible name');
+    assert.equal(title[0].props.className, 'cortex-sr-only');
     assert.equal(all(tree, node => node.props.className === 'pause-hints').length, 0, 'no second legend in a footer');
     assert.equal(all(tree, node => node.type === 'footer').length, 0, 'an empty status adds no footer row');
     cursor = 0;
