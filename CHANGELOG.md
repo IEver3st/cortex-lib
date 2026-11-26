@@ -7,7 +7,7 @@
 
 ### Changed
 - Notifications appear at the middle right of the screen by default. Settings > Notifications > Position has two new choices, Middle right and Middle left. A player whose position was still Top right moves to Middle right once and can switch back there.
-- The VI skin no longer draws a card behind notifications or the Look list. They sit on the scene with a round coin and a sentence-case title, like the Cortex look. Lore Friendly keeps its cards.
+- The Modern skin no longer draws a card behind notifications or the Look list. They sit on the scene with a round coin and a sentence-case title, like the Cortex look. Lore Friendly keeps its cards.
 
 ### Fixed
 - Radial wheel: a text label (an item with no icon, or an icon name cortex-lib does not know) now stays inside its slip at every slot count. Side and diagonal slips use more, shorter lines and a smaller size, and a label that still does not fit ends in an ellipsis. The hub shows the full label when you aim at it.
@@ -34,7 +34,7 @@
 - Recent notices: the last 40 notices are kept for the session. `lib.getNoticeLog()` reads them, `log = false` on a notice keeps it out, and the `cortex-lib:noticeLogged` event fires for each one.
 - Settings > Notifications > Quiet notifications: only warnings, errors and notices that wait for you appear. The rest go to recent notices. `important = true` on a notice shows it anyway.
 - In cortex-hud's Streamer Mode, recent notices from a sender show the sender and title without the message text.
-- Skins: `exports['cortex-lib']:setPresentationDesign('cortex'|'leonida'|'vi')` restyles notifications (and the Look list), progress and text UI to match a HUD design. cortex-hud sets it from its active design; `nil` hands it back, and it clears when the resource that set it stops.
+- Skins: `exports['cortex-lib']:setPresentationDesign('cortex'|'lore'|'modern')` restyles notifications (and the Look list), progress and text UI to match a HUD design. cortex-hud sets it from its active design; `nil` hands it back, and it clears when the resource that set it stops.
 - Settings hosts: `getSettingsSchema()` returns every settings tab with its fields and values, and `setHostedSetting(tabId, key, value)` changes one toggle, slider, select, colour or sound setting in any tab, checked against that tab's own fields. Only resources listed in the `cortex_lib_settings_hosts` convar can call them, and writes are refused while the Settings page is open.
 - Settings hosts also take text and input settings through `setHostedSetting`, and `runHostedAction(tabId, key, action)` presses a settings button for them, raising the same `cortex-lib:settingsAction` event the Settings page does.
 - When a settings host is running, the Settings key, `cortexsettings`, `openSettings()` and `openSettingsMenu()` open that host's settings instead of the Cortex Library page. A host exports `openSettings()` and `closeSettings()`; the Library page still opens when no host is running or the host declines.

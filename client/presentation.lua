@@ -3,6 +3,7 @@ local owners, lastWrites = {}, {}
 local revision, pending = 0, false
 local profile = { accent = '#8fcbbf', opacity = 92, motion = 'system', layout = true }
 local DESIGNS = { cortex = true, leonida = true, vi = true }
+local DESIGN_ALIASES = { lore = 'leonida', modern = 'vi' }
 local design, designOwner = nil, nil
 local viewport = { width = 1920, height = 1080, inset = 20 }
 local modal = false
@@ -95,9 +96,13 @@ local function write(resource, items, urgent)
     local now = GetGameTimer()
     local elapsed = lastWrites[resource] and now - lastWrites[resource]
     if not urgent and elapsed and elapsed >= 0 and elapsed < 100 then return false, 'rate_limited' end
-    local total = 0
-    for _ in pairs(owners) do total = total + 1 end
-    if not owners[resource] and total >= 32 then return false, 'capacity' end
+    if #clean > 0 and not (current and #current > 0) then
+        local total = 0
+        for _, entries in pairs(owners) do
+            if #entries > 0 then total = total + 1 end
+        end
+        if total >= 32 then return false, 'capacity' end
+    end
     lastWrites[resource] = now
     owners[resource] = clean
     if not urgent then publish() end
@@ -137,9 +142,11 @@ exports('setPresentationDesign', function(id)
     if id == nil then
         if designOwner ~= resource then return true end
         design, designOwner = nil, nil
-    elseif type(id) ~= 'string' or not DESIGNS[id] then
+    elseif type(id) ~= 'string' then
         return false, 'invalid_design'
     else
+        id = DESIGN_ALIASES[id] or id
+        if not DESIGNS[id] then return false, 'invalid_design' end
         if design == id and designOwner == resource then return true end
         design, designOwner = id, resource
     end

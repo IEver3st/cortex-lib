@@ -381,8 +381,7 @@ Radial menus:
 
 ## Senders, recent notices and the Look key
 
-From Cortex Design section 11 (what Cortex takes from GTA VI): notices come from someone, what the player
-missed can be read again, and one deliberate look shows everything.
+Notices come from someone, what the player missed can be read again, and one deliberate look shows everything.
 
 ### Senders
 
@@ -392,7 +391,7 @@ lib.registerSender('fleeca', { label = 'Fleeca', color = '#7fcf94', icon = 'F' }
 lib.notify({ sender = 'fleeca', type = 'success', title = 'Deposit', description = '$2,500 deposited to checking.' })
 
 -- a one-off sender, nothing registered
-lib.notify({ sender = { label = 'Lucia', color = '#e58cb4' }, description = "Car's out front." })
+lib.notify({ sender = { label = 'Elena', color = '#e58cb4' }, description = "Car's out front." })
 ```
 
 With a sender, the title line is the sender's label, your `title` becomes a bold lead line above the
